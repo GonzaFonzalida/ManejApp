@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import 'register_screen.dart';
+import 'login_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  static const routeName = 'login';
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  static const routeName = 'register';
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  String _name = '';
   String _email = '';
   String _password = '';
   bool _isLoading = false;
@@ -22,14 +23,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final token = await ApiService.login(_email, _password);
-      Navigator.pushReplacementNamed(context, '/home');
+      final token = await ApiService.register(_name, _email, _password);
+      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso')),
+        const SnackBar(content: Text('Registro exitoso')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en inicio de sesión: $e')),
+        SnackBar(content: Text('Error en registro: $e')),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.white, // Fondo blanco
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -51,16 +52,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
                 // Ilustración del auto
                 Image.asset(
-                  'assets/car1.png',
+                  'assets/car.png', // Asegúrate de agregar la imagen en pubspec.yaml
                   height: 150,
                   width: 150,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(
-                      Icons.car_crash,
-                      size: 150,
-                      color: Colors.red,
-                    ); // Muestra un ícono de error si la imagen no carga
-                  },
                 ),
                 const SizedBox(height: 16),
                 // Nombre de la app
@@ -69,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF003087),
+                    color: Color(0xFF003087), // Azul oscuro
                     fontFamily: 'Roboto',
                   ),
                 ),
@@ -92,6 +86,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
+                        // Campo de nombre
+                        TextFormField(
+                          decoration: InputDecoration(
+                            labelText: 'Nombre',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, ingrese su nombre';
+                            }
+                            return null;
+                          },
+                          onSaved: (value) => _name = value!,
+                        ),
+                        const SizedBox(height: 16),
                         // Campo de email
                         TextFormField(
                           decoration: InputDecoration(
@@ -140,13 +154,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           onSaved: (value) => _password = value!,
                         ),
                         const SizedBox(height: 24),
-                        // Botón Ingresar
+                        // Botón Registrarse
                         _isLoading
                             ? const CircularProgressIndicator()
                             : ElevatedButton(
                                 onPressed: _submit,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF003087),
+                                  backgroundColor: const Color(0xFF003087), // Azul oscuro
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -158,20 +172,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                   minimumSize: const Size(double.infinity, 48),
                                 ),
                                 child: const Text(
-                                  'Ingresar',
+                                  'Registrarse',
                                   style: TextStyle(fontSize: 16),
                                 ),
                               ),
                         const SizedBox(height: 16),
-                        // Enlace a registro
+                        // Enlace a login
                         TextButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, RegisterScreen.routeName);
+                            Navigator.pushNamed(context, LoginScreen.routeName);
                           },
                           child: const Text(
-                            '¿No tienes cuenta? Regístrate',
+                            '¿Ya tienes cuenta? Inicia sesión',
                             style: TextStyle(
-                              color: Color(0xFF003087),
+                              color: Color(0xFF003087), // Azul oscuro
                             ),
                           ),
                         ),

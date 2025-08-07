@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart'; // Importamos nuestra pantalla de login
+import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
 
 void main() {
   runApp(const ManejApp());
@@ -17,7 +18,13 @@ class ManejApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
         useMaterial3: true,
       ),
-      home: const LoginScreen(), // Mostramos el login primero
+      initialRoute: LoginScreen.routeName,
+      routes: {
+        LoginScreen.routeName: (context) => const LoginScreen(),
+        RegisterScreen.routeName: (context) => const RegisterScreen(),
+        // Agregar ruta para HomeScreen si existe (A futuro para tener en cuanta manu)
+       
+      },
     );
   }
 }
