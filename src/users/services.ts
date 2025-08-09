@@ -1,5 +1,6 @@
-import { UserRepository, User, UserWithOutPassword, UserWithOutId } from "./repository/userRepository";
-import UserPrismaRepository from "./repository/prismaUserRepository"
+import { User, UserWithOutPassword, UserWithOutId } from "./types";
+import { UserRepository } from "./repository/userRepository";
+
 export default class UserService {
     constructor(private userAuth: UserRepository) { }
     async register(user: UserWithOutId): Promise<UserWithOutPassword | Error> {

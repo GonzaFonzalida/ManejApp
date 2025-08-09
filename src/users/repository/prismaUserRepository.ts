@@ -1,18 +1,20 @@
-import { UserRepository, UserWithOutId, User, UserWithOutPassword } from "./userRepository";
+import {  UserWithOutId, User, UserWithOutPassword } from "../types";
+import {UserRepository} from "./userRepository"
 import { prisma } from "../../config/prismaClient";
+
 class UserPrismaRepository implements UserRepository {
 
     async register(user: UserWithOutId): Promise<UserWithOutPassword> {
 
         return await prisma.user.create({
             data: {
-                username: user.username,
+                dni: user.dni,
                 email: user.email,
                 password: user.password
             },
             select: {
                 id: true,
-                username: true,
+                dni: true,
                 email: true
             }
         });
@@ -27,12 +29,12 @@ class UserPrismaRepository implements UserRepository {
             where: {
                 OR: [
                     { email: user.email },
-                    { username: user.username }
+                    { dni: user.dni }
                 ]
             },
             select: {
                 id: true,
-                username: true,
+                dni: true,
                 email: true
             }
         }) ?? undefined;

@@ -1,5 +1,4 @@
 import UserController from "./controller";
-import { User, UserWithOutId } from "./repository/userRepository";
 import GenericRouter from "../shared/utils/classes/GenericRouter";
 
 export default class UserRouter extends GenericRouter {

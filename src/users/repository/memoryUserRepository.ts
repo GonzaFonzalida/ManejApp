@@ -1,44 +1,55 @@
-import { UserRepository, User, UserWithOutPassword } from "./userRepository";
+import {User, UserWithOutId, UserWithOutIdAndDates, UserWithOutPassword } from "../types"
+import {UserRepository} from "./userRepository";
 
 
 class userMemoryRepository implements UserRepository {
     private users: UserWithOutPassword[] = [
-        {
+        {  
             id: 1,
-            username: "manuelito",
-            email: "manueltito@gmail.com",
+            dni: "23.343.343",
+            email: "manuadangonzales@gmail.com",
+            name: "manuel",
+            surname: "gonzalez"
         },
         {
             id: 2,
-            username: "juanito",
-            email: "juanito@gmail.com",
-
+            dni: "45.678.910",
+            email: "lucia.perez@example.com",
+            name: "lucia",
+            surname: "perez"
         },
         {
             id: 3,
-            username: "pedrito",
-            email: "pedrito@gmail.com",
-
+            dni: "12.345.678",
+            email: "juan.lopez@example.com",
+            name: "juan",
+            surname: "lopez"
         }
     ];
-    register(user: User): Promise<UserWithOutPassword | Error> {
-        const userSimulated: User = {
-            id: 45,
-            username: "example",
-            password: "pass22234",
-            email: "example@gmail.com"
+    register(user: UserWithOutId): Promise<UserWithOutPassword | Error> {
+        const userSimulated: UserWithOutPassword = {
+            id: 3,
+            dni: "12.345.678",
+            email: "juan.lopez@example.com",
+            name: "juan",
+            surname: "lopez"
         }
         this.users.push(userSimulated);
         return Promise.resolve(userSimulated)
 
     }
+    
+    login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
+        const foundUser = this.users.find(
+            u => u.email === user.email || u.dni === user.dni
+        );
+        return Promise.resolve(foundUser);
+    }
     getAllUsers(): Promise<UserWithOutPassword[]> {
         return Promise.resolve(this.users);
     }
 
-    getUserById(id: number): Promise<UserWithOutPassword | undefined> {
-        return Promise.resolve(this.users.find(user => user.id === id));
-    }
+    
 }
 
 const instance = new userMemoryRepository();

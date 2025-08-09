@@ -1,21 +1,4 @@
-export interface UserBase {
-    username: string;
-    email: string;
-}
-
-export interface UserWithOutId extends UserBase {
-    password: string;
-}
-
-export interface UserWithOutPassword extends UserBase {
-    id: number;
-}
-
-export interface User extends UserBase {
-    id: number;
-    password: string;
-}
-
+import {UserWithOutPassword, UserWithOutId, } from "../types";
 
 
 export interface UserRepository {
@@ -23,3 +6,16 @@ export interface UserRepository {
     login(user: UserWithOutId): Promise<UserWithOutPassword | undefined>;
     register(user: UserWithOutId): Promise<UserWithOutPassword | Error>;
 }
+
+// model User {
+//   id             Int       @id @default(autoincrement())
+//   name           String     
+//   surname        String
+//   email          String    @unique
+//   password       String
+//   dni            String    @unique
+//   createdAt      DateTime  @default(now())
+//   birthDate      DateTime  @db.Date
+//   isActive       Boolean   @default(true)
+// }
+

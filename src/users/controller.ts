@@ -1,5 +1,5 @@
 import UserService from "./services";
-import { UserWithOutPassword, User, UserWithOutId } from "./repository/userRepository";
+import { UserWithOutPassword, User, UserWithOutId } from "./types";
 import { ExpressFunction } from "../shared/types/ExpressFunction"
 
 
@@ -8,7 +8,7 @@ export default class UserController {
 
     public register: ExpressFunction = async (req, res, next) => {
         try {
-            const user: User = req.body;
+            const user: UserWithOutId = req.body;
             if (!user) return res.status(400).json({ message: "error, ingrese todos los campos" });
             await this.userService.register(user);
             res.status(201).json(user);
