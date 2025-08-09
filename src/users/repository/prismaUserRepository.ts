@@ -22,9 +22,14 @@ class UserPrismaRepository implements UserRepository {
         return await prisma.user.findMany();
     }
 
-    async getUserById(id: number): Promise<UserWithOutPassword | undefined> {
-        return await prisma.user.findUnique({
-            where: { id },
+    async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
+        return await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: user.email },
+                    { username: user.username }
+                ]
+            },
             select: {
                 id: true,
                 username: true,
