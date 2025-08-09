@@ -1,22 +1,20 @@
-import PrismaUserRepository from "./repositories/PrismaUserRepository";
-import { UserRepository } from "./repositories/UserRepository";
-import { User, UserCreate, UserLogin } from "./types";
-
-
-export default class UserService{
-    private userRepository: PrismaUserRepository;
-
-    constructor(userRepository: PrismaUserRepository) {
-        this.userRepository = userRepository;
+import { UserRepository, User, UserWithOutPassword, UserWithOutId } from "./repository/userRepository";
+import UserPrismaRepository from "./repository/prismaUserRepository"
+export default class UserService {
+    constructor(private userAuth: UserRepository) { }
+    async register(user: UserWithOutId): Promise<UserWithOutPassword | Error> {
+        console.log(this.userAuth.register(user));
+        return await this.userAuth.register(user);
+    }
+    async getAllUsers(): Promise<UserWithOutPassword[]> {
+        console.log(this.userAuth.getAllUsers());
+        return await this.userAuth.getAllUsers();
     }
 
-    async login(userData:UserLogin) {
-        return this.userRepository.login(userData);
+    async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
+        console.log(this.userAuth.login(user));
+        return await this.userAuth.login(user);
     }
-
-    async register(userData:UserCreate) {
-        return this.userRepository.register(userData)
-    }
-
-    
 }
+
+

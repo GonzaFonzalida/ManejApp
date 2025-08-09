@@ -1,30 +1,16 @@
-import { Router } from 'express';
-import UserService from './services';
-import PrismaUserRepository from './repositories/PrismaUserRepository';
+import UserController from "./controller";
+import { User, UserWithOutId } from "./repository/userRepository";
+import GenericRouter from "../shared/utils/classes/GenericRouter";
 
-const repository = new PrismaUserRepository
-const userService = new UserService(repository) ; 
+export default class UserRouter extends GenericRouter {
+    constructor(private readonly userController: UserController) {
 
-const router = Router();
+        super();
+        const router = this.init();
+        router.get("/allUsers", this.userController.getAll);
 
-// Ruta para login de usuario
-router.post('/login', async (req, res) => {
-    try {
-        const result = await userService.login(req.body);
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
+        router.post("/register", this.userController.register);
+
+        router.get("/login", this.userController.login);
     }
-});
-
-// Ruta para registro de usuario
-router.post('/register', async (req, res) => {
-    try {
-        const result = await userService.register(req.body);
-        res.json(result);
-    } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-    }
-});
-
-export default router;
+}

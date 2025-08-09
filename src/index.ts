@@ -1,7 +1,10 @@
-import app from './app';
+import { buildApp } from "./app";
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
+
+const app = buildApp();
 
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo en puerto: ${PORT}`);
+    console.log(`Server corriendo en el puerto ${PORT}`);
 });
+export default app;
