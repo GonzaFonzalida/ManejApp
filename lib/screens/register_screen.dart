@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 
+// Esta es la pantalla de registro con el nuevo diseño y campo de fecha de nacimiento.
 class RegisterScreen extends StatefulWidget {
   static const routeName = 'register';
   const RegisterScreen({super.key});
@@ -12,10 +13,34 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _dateController = TextEditingController();
   String _name = '';
   String _email = '';
   String _password = '';
+  DateTime? _selectedDate; // Variable para almacenar la fecha seleccionada
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _dateController.dispose();
+    super.dispose();
+  }
+
+  // Función para mostrar el selector de fecha
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _dateController.text = "${picked.day}/${picked.month}/${picked.year}";
+      });
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -23,6 +48,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // Usar _name, _email, _password y _selectedDate para el registro
       final token = await ApiService.register(_name, _email, _password);
       Navigator.pushReplacementNamed(context, LoginScreen.routeName);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -40,7 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Fondo blanco
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -51,24 +77,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 const SizedBox(height: 40),
                 // Ilustración del auto
-                Image.asset(
-                  'assets/car.png', // Asegúrate de agregar la imagen en pubspec.yaml
-                  height: 150,
-                  width: 150,
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        const Color(0xFF003087).withOpacity(0.5),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/car3.png',
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
+
                 // Nombre de la app
                 const Text(
-                  'ManejaApp',
+                  'ManejApp',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF003087), // Azul oscuro
+                    color: Color(0xFF003087),
                     fontFamily: 'Roboto',
                   ),
                 ),
                 const SizedBox(height: 40),
-                // Formulario
+
+                // Formulario con sombras y bordes redondeados
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -153,6 +198,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                           onSaved: (value) => _password = value!,
                         ),
+                        const SizedBox(height: 16),
+                        // Nuevo campo para la fecha de nacimiento
+                        TextFormField(
+                          controller: _dateController,
+                          readOnly: true, // Evita que el teclado aparezca
+                          onTap: () => _selectDate(context),
+                          decoration: InputDecoration(
+                            labelText: 'Fecha de nacimiento',
+                            prefixIcon: const Icon(Icons.calendar_today),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, seleccione su fecha de nacimiento';
+                            }
+                            // Validar que el usuario sea mayor de 18 años
+                            final now = DateTime.now();
+                            final age = now.year - _selectedDate!.year;
+                            final isUnderage = age < 18 || (age == 18 && (now.month < _selectedDate!.month || (now.month == _selectedDate!.month && now.day < _selectedDate!.day)));
+                            if (isUnderage) {
+                              return 'Debe ser mayor de 18 años para registrarse';
+                            }
+                            return null;
+                          },
+                        ),
                         const SizedBox(height: 24),
                         // Botón Registrarse
                         _isLoading
@@ -160,7 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             : ElevatedButton(
                                 onPressed: _submit,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF003087), // Azul oscuro
+                                  backgroundColor: const Color(0xFF003087),
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -185,7 +259,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: const Text(
                             '¿Ya tienes cuenta? Inicia sesión',
                             style: TextStyle(
-                              color: Color(0xFF003087), // Azul oscuro
+                              color: Color(0xFF003087),
                             ),
                           ),
                         ),

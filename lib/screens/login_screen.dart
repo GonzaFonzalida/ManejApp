@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'register_screen.dart';
 
+// Esta es la pantalla de inicio de sesión, ahora con más funcionalidades.
 class LoginScreen extends StatefulWidget {
   static const routeName = 'login';
   const LoginScreen({super.key});
@@ -15,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _email = '';
   String _password = '';
   bool _isLoading = false;
+  bool _rememberMe = false; // Nuevo estado para el checkbox
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -24,16 +26,25 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final token = await ApiService.login(_email, _password);
       Navigator.pushReplacementNamed(context, '/home');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Inicio de sesión exitoso')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en inicio de sesión: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error en inicio de sesión: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  // Función placeholder para la recuperación de contraseña
+  void _forgotPassword() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Funcionalidad de recuperación de contraseña'),
+      ),
+    );
   }
 
   @override
@@ -49,23 +60,34 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Ilustración del auto
-                Image.asset(
-                  'assets/car1.png',
-                  height: 150,
-                  width: 150,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(
-                      Icons.car_crash,
-                      size: 150,
-                      color: Colors.red,
-                    ); // Muestra un ícono de error si la imagen no carga
-                  },
+                // Ilustración del auto (se agregó un degradado)
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        const Color(0xFF003087).withOpacity(0.5),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/car3.png',
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
+
                 // Nombre de la app
                 const Text(
-                  'ManejaApp',
+                  'ManejApp',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -73,8 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontFamily: 'Roboto',
                   ),
                 ),
-                const SizedBox(height: 40),
-                // Formulario
+                const SizedBox(height: 10),
+
+                // Formulario con sombras y bordes redondeados
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -108,7 +131,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Por favor, ingrese su correo';
                             }
-                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                            if (!RegExp(
+                              r'^[^@]+@[^@]+\.[^@]+',
+                            ).hasMatch(value)) {
                               return 'Por favor, ingrese un correo válido';
                             }
                             return null;
@@ -139,7 +164,36 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                           onSaved: (value) => _password = value!,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                        // Opciones de contraseña
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (value) {
+                                    setState(() => _rememberMe = value!);
+                                  },
+                                ),
+                                const Text('Recordar contraseña'),
+                              ],
+                            ),
+                            Center(
+                              child: TextButton(
+                                onPressed: _forgotPassword,
+                                child: const Text(
+                                  '¿Olvidaste tu contraseña?',
+                                  style: TextStyle(color: Color(0xFF003087)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // ...existing code...
+
                         // Botón Ingresar
                         _isLoading
                             ? const CircularProgressIndicator()
@@ -166,14 +220,39 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Enlace a registro
                         TextButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, RegisterScreen.routeName);
+                            Navigator.pushNamed(
+                              context,
+                              RegisterScreen.routeName,
+                            );
                           },
                           child: const Text(
                             '¿No tienes cuenta? Regístrate',
-                            style: TextStyle(
-                              color: Color(0xFF003087),
-                            ),
+                            style: TextStyle(color: Color(0xFF003087)),
                           ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text('O inicia sesión con:'),
+                        const SizedBox(height: 16),
+                        // Aquí podrías agregar los botones de redes sociales (ejemplo con placeholder)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              onPressed: () {},
+                              icon: const Icon(
+                                Icons.g_mobiledata,
+                                size: 40,
+                              ), // Placeholder para Google
+                            ),
+                            const SizedBox(width: 16),
+                            IconButton(
+                              onPressed: () {},
+                              icon: const Icon(
+                                Icons.facebook,
+                                size: 40,
+                              ), // Placeholder para Facebook
+                            ),
+                          ],
                         ),
                       ],
                     ),
