@@ -6,7 +6,6 @@ export interface UserBase {
 }
 
 export interface UserWithOutId extends UserBase {
-    birthDate: any;
     password: string;
 }
 

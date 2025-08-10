@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import CustomizedError from '../utils/classes/CustomizedError';
+import CustomizedError from "../classes/CustomizedError"
 
 const errorHandler = (err: Error | CustomizedError, req: Request, res: Response, next: NextFunction) => {
 
@@ -15,13 +15,15 @@ const errorHandler = (err: Error | CustomizedError, req: Request, res: Response,
             time: time,
         });
     }
-
+    console.log(err);
     return res.status(500).json({
         message: "Error interno del servidor",
         host: req.host,
         url: req.originalUrl,
         method: req.method,
-        statusCode: 500,
+        statusCode: err.cause,
+        ok: false,
+        stack: err.stack,
         time: time,
     });
 

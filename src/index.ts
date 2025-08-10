@@ -1,5 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config();
 import { buildApp } from "./app";
 
 const PORT = 3000;

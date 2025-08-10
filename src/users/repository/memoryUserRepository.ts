@@ -1,4 +1,5 @@
-import {User, UserWithOutId, UserWithOutIdAndDates, UserWithOutPassword } from "../types"
+import {User, UserWithOutId, UserWithDates, UserWithOutPassword, UserWithOutPasswordAndDates } 
+from "../user.types"
 import {UserRepository} from "./userRepository";
 
 
@@ -26,17 +27,12 @@ class userMemoryRepository implements UserRepository {
             surname: "lopez"
         }
     ];
-    register(user: UserWithOutId): Promise<UserWithOutPassword | Error> {
-        const userSimulated: UserWithOutPassword = {
-            id: 3,
-            dni: "12.345.678",
-            email: "juan.lopez@example.com",
-            name: "juan",
-            surname: "lopez"
-        }
-        this.users.push(userSimulated);
-        return Promise.resolve(userSimulated)
-
+    register(user: UserWithDates): Promise<UserWithOutPasswordAndDates | Error> {
+        const {id, dni, email, name, surname} = user;
+        
+        this.users.push(user);
+        
+        return Promise.resolve(user)
     }
     
     login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {

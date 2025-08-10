@@ -1,10 +1,11 @@
-import {UserWithOutPassword, UserWithOutId, } from "../types";
+import {UserWithOutPassword, UserWithOutPasswordAndDates, UserWithOutId, UserWithDates } 
+from "../user.types";
 
 
 export interface UserRepository {
     getAllUsers(): Promise<UserWithOutPassword[]>;
     login(user: UserWithOutId): Promise<UserWithOutPassword | undefined>;
-    register(user: UserWithOutId): Promise<UserWithOutPassword | Error>;
+    register(user: UserWithDates): Promise<UserWithOutPasswordAndDates | Error>;
 }
 
 // model User {

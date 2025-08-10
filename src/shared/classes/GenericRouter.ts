@@ -1,3 +1,4 @@
+import { ExpressFunction } from "../types/ExpressFunction";
 import { Router } from "express";
 
 export default abstract class GenericRouter {
@@ -10,4 +11,5 @@ export default abstract class GenericRouter {
     public init(): Router {
         return this.router;
     }
+   
 }
