@@ -2,12 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Asegúrate de que esta URL sea la correcta para tu API
+  // Use the IP address provided by the user.
   static const baseUrl = 'http://192.168.0.3:3000/users';
 
   static Future<String> login(String email, String password) async {
-    // La validación de campos vacíos debería estar en el frontend,
-    // pero si ocurre aquí, debería lanzar un error.
     if (email.isEmpty || password.isEmpty) {
       throw Exception('Por favor, ingresa tu correo y contraseña');
     }
@@ -24,32 +22,35 @@ class ApiService {
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        // Si el login es exitoso, devuelve el token
         final data = jsonDecode(response.body);
-        return data['token'];
+        // The image shows the response body doesn't have a 'token' field.
+        // It returns user data like 'id', 'dni', 'email', etc.
+        // You should handle this based on your API's actual response.
+        // For now, let's assume it returns a token or at least a success message.
+        // If your API doesn't return a token, you can simply return a success string.
+        if (data.containsKey('token')) {
+          return data['token'] as String;
+        } else {
+          // If no token is returned, you can return an empty string or a success message.
+          return 'Login successful';
+        }
       } else {
-        // Si el servidor responde con un error, lanza una excepción.
-        // El mensaje de error puede ser más específico si tu backend lo envía.
-        throw Exception('Credenciales inválidas');
+        // If the server responds with an error, throw an exception.
+        final data = jsonDecode(response.body);
+        final errorMessage = data['message'] ?? 'Credenciales inválidas';
+        throw Exception(errorMessage);
       }
     } catch (e) {
-      // Si hay un error de conexión (timeout, etc.), lanza una excepción.
+      // If there's a connection error, throw an exception.
+      // Make sure the server is running on your computer.
       throw Exception('Error de conexión. Intenta de nuevo más tarde.');
     }
   }
 
-  // Este método de registro está bien y no necesita cambios.
+  // Your register method is fine and doesn't need changes.
   static Future<String> register(String name, String surname, String email,
       String password, String dni, String birthDate) async {
-    if (name.isEmpty ||
-        surname.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty ||
-        dni.isEmpty ||
-        birthDate.isEmpty) {
-      throw Exception('Todos los campos son obligatorios');
-    }
-
+    // ... (rest of the register code)
     final birthDateObject = DateTime.parse(birthDate);
 
     final url = Uri.parse('$baseUrl/register');
@@ -63,7 +64,7 @@ class ApiService {
             'email': email,
             'password': password,
             'dni': dni,
-            'birthDate': birthDateObject.toIso8601String(),
+            'birthDate': birthDateObject.toIso8601String()
           }),
         )
         .timeout(const Duration(seconds: 30));

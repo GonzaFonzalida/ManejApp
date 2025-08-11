@@ -43,11 +43,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (remember && savedEmail != null && savedPassword != null) {
       setState(() {
-        _email = savedEmail;
-        _password = savedPassword;
+        _email = savedEmail.trim();
+        _password = savedPassword.trim();
         _rememberMe = true;
-        emailController.text = savedEmail;
-        passwordController.text = savedPassword;
+        emailController.text = _email;
+        passwordController.text = _password;
       });
     }
   }
@@ -57,8 +57,8 @@ class _LoginScreenState extends State<LoginScreen> {
     await prefs.setString('token', token);
 
     if (_rememberMe) {
-      await prefs.setString('email', _email);
-      await prefs.setString('password', _password);
+      await prefs.setString('email', _email.trim());
+      await prefs.setString('password', _password.trim());
       await prefs.setBool('rememberMe', true);
     } else {
       await prefs.remove('email');
@@ -70,6 +70,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
+
+    // Obtén los datos directamente de los controladores
+    _email = emailController.text.trim();
+    _password = passwordController.text.trim();
 
     setState(() => _isLoading = true);
     try {
@@ -179,12 +183,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               return 'Por favor, ingrese su correo';
                             }
                             if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                                .hasMatch(value)) {
+                                .hasMatch(value.trim())) {
                               return 'Por favor, ingrese un correo válido';
                             }
                             return null;
                           },
-                          onSaved: (value) => _email = value!,
+                          onSaved: (value) => _email = value!.trim(),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -203,12 +207,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Por favor, ingrese su contraseña';
                             }
-                            if (value.length < 6) {
+                            if (value.trim().length < 6) {
                               return 'La contraseña debe tener al menos 6 caracteres';
                             }
                             return null;
                           },
-                          onSaved: (value) => _password = value!,
+                          onSaved: (value) => _password = value!.trim(),
                         ),
                         const SizedBox(height: 16),
                         Row(
