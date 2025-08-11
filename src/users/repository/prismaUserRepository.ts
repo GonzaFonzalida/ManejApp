@@ -50,14 +50,16 @@ export default class UserPrismaRepository implements UserRepository {
         });
     }
 
-    // Método de login corregido y seguro
     async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
         const foundUser = await prisma.user.findFirst({
             where: {
                 OR: [
                     { email: user.email },
                     { dni: user.dni }
-                ]
+                ],
+                AND: {
+                password: user.password
+                }
             }
         });
 

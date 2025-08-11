@@ -20,7 +20,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
     email: z.email("Correo electrónico inválido").optional(),
     dni: z.string().min(1, "El DNI es requerido").optional(),
-    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+    password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
 }).refine(
     (data) => !!data.email || !!data.dni,
     { message: "Debe proporcionar un correo electrónico o un DNI", path: ["email", "dni"] }

@@ -8,7 +8,6 @@ export default class UserService {
 
     async register(user: UserWithDates): Promise<UserWithOutId | Error> {
         try {
-            // El repositorio devolverá un objeto con la propiedad 'id' si el registro es exitoso.
             const result = await this.userAuth.register(user);
             if (result instanceof Error) {
                 return result;
