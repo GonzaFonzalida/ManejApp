@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
+import 'home_screen.dart';
 
-// Esta es la pantalla de registro con el nuevo diseño y campo de fecha de nacimiento.
+// Esta es la pantalla de registro con el nuevo diseño y campos de información.
 class RegisterScreen extends StatefulWidget {
   static const routeName = 'register';
   const RegisterScreen({super.key});
@@ -15,9 +17,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _dateController = TextEditingController();
   String _name = '';
+  String _surname = '';
+  String _dni = '';
   String _email = '';
   String _password = '';
-  DateTime? _selectedDate; // Variable para almacenar la fecha seleccionada
+  DateTime? _selectedDate;
   bool _isLoading = false;
 
   @override
@@ -37,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
-        _dateController.text = "${picked.day}/${picked.month}/${picked.year}";
+        _dateController.text = DateFormat('dd/MM/yyyy').format(picked);
       });
     }
   }
@@ -46,19 +50,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
+    _name = _name.trim();
+    _surname = _surname.trim();
+    _email = _email.trim();
+    _dni = _dni.trim();
+
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, seleccione su fecha de nacimiento')),
+      );
+      return;
+    }
+
+    final formattedBirthDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+
     setState(() => _isLoading = true);
     try {
-      // Usar _name, _email, _password y _selectedDate para el registro
-      final token = await ApiService.register(_name, _email, _password);
-      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+      await ApiService.register(
+        _name,
+        _surname,
+        _email,
+        _password,
+        _dni,
+        formattedBirthDate,
+      );
+      // Mensaje de éxito si no hay error.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registro exitoso')),
       );
     } catch (e) {
+      // Manejo de errores que muestra un mensaje en la interfaz
+      String errorMessage = 'Error desconocido. Por favor, intente de nuevo.';
+      if (e is Exception) {
+        errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en registro: $e')),
+        SnackBar(content: Text('Error en registro: $errorMessage')),
       );
     } finally {
+      // El código de navegación se ha movido aquí para que siempre se ejecute
+      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
       setState(() => _isLoading = false);
     }
   }
@@ -100,7 +132,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
                 // Nombre de la app
                 const Text(
                   'ManejApp',
@@ -112,7 +143,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-
                 // Formulario con sombras y bordes redondeados
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -149,6 +179,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                           onSaved: (value) => _name = value!,
+                        ),
+                        const SizedBox(height: 16),
+                        // Nuevo campo para el apellido
+                        TextFormField(
+                          decoration: InputDecoration(
+                            labelText: 'Apellido',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, ingrese su apellido';
+                            }
+                            return null;
+                          },
+                          onSaved: (value) => _surname = value!,
+                        ),
+                        const SizedBox(height: 16),
+                        // Nuevo campo para el DNI
+                        TextFormField(
+                          decoration: InputDecoration(
+                            labelText: 'DNI',
+                            prefixIcon: const Icon(Icons.credit_card),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, ingrese su DNI';
+                            }
+                            return null;
+                          },
+                          onSaved: (value) => _dni = value!,
                         ),
                         const SizedBox(height: 16),
                         // Campo de email
@@ -202,7 +273,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         // Nuevo campo para la fecha de nacimiento
                         TextFormField(
                           controller: _dateController,
-                          readOnly: true, // Evita que el teclado aparezca
+                          readOnly: true,
                           onTap: () => _selectDate(context),
                           decoration: InputDecoration(
                             labelText: 'Fecha de nacimiento',
@@ -214,10 +285,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             fillColor: Colors.white,
                           ),
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
+                            if (_selectedDate == null) {
                               return 'Por favor, seleccione su fecha de nacimiento';
                             }
-                            // Validar que el usuario sea mayor de 18 años
                             final now = DateTime.now();
                             final age = now.year - _selectedDate!.year;
                             final isUnderage = age < 18 || (age == 18 && (now.month < _selectedDate!.month || (now.month == _selectedDate!.month && now.day < _selectedDate!.day)));

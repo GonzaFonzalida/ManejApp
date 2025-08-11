@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import 'register_screen.dart';
+import 'home_screen.dart';
 
-// Esta es la pantalla de inicio de sesión, ahora con más funcionalidades.
 class LoginScreen extends StatefulWidget {
   static const routeName = 'login';
   const LoginScreen({super.key});
@@ -16,7 +17,55 @@ class _LoginScreenState extends State<LoginScreen> {
   String _email = '';
   String _password = '';
   bool _isLoading = false;
-  bool _rememberMe = false; // Nuevo estado para el checkbox
+  bool _rememberMe = false;
+
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('email');
+    final savedPassword = prefs.getString('password');
+    final remember = prefs.getBool('rememberMe') ?? false;
+
+    if (remember && savedEmail != null && savedPassword != null) {
+      setState(() {
+        _email = savedEmail;
+        _password = savedPassword;
+        _rememberMe = true;
+        emailController.text = savedEmail;
+        passwordController.text = savedPassword;
+      });
+    }
+  }
+
+  Future<void> _saveCredentials(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+
+    if (_rememberMe) {
+      await prefs.setString('email', _email);
+      await prefs.setString('password', _password);
+      await prefs.setBool('rememberMe', true);
+    } else {
+      await prefs.remove('email');
+      await prefs.remove('password');
+      await prefs.setBool('rememberMe', false);
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -25,20 +74,25 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     try {
       final token = await ApiService.login(_email, _password);
-      Navigator.pushReplacementNamed(context, '/home');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Inicio de sesión exitoso')));
+
+      await _saveCredentials(token);
+
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicio de sesión exitoso')),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error en inicio de sesión: $e')));
+      debugPrint('Error en login: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error en inicio de sesión: $e')),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  // Función placeholder para la recuperación de contraseña
   void _forgotPassword() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -56,11 +110,8 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Ilustración del auto (se agregó un degradado)
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
@@ -84,8 +135,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Nombre de la app
                 const Text(
                   'ManejApp',
                   style: TextStyle(
@@ -96,8 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-
-                // Formulario con sombras y bordes redondeados
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -115,8 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        // Campo de email
                         TextFormField(
+                          controller: emailController,
                           decoration: InputDecoration(
                             labelText: 'Correo electrónico',
                             prefixIcon: const Icon(Icons.email_outlined),
@@ -131,9 +178,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Por favor, ingrese su correo';
                             }
-                            if (!RegExp(
-                              r'^[^@]+@[^@]+\.[^@]+',
-                            ).hasMatch(value)) {
+                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                                .hasMatch(value)) {
                               return 'Por favor, ingrese un correo válido';
                             }
                             return null;
@@ -141,8 +187,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onSaved: (value) => _email = value!,
                         ),
                         const SizedBox(height: 16),
-                        // Campo de contraseña
                         TextFormField(
+                          controller: passwordController,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -165,36 +211,27 @@ class _LoginScreenState extends State<LoginScreen> {
                           onSaved: (value) => _password = value!,
                         ),
                         const SizedBox(height: 16),
-                        // Opciones de contraseña
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _rememberMe,
-                                  onChanged: (value) {
-                                    setState(() => _rememberMe = value!);
-                                  },
-                                ),
-                                const Text('Recordar contraseña'),
-                              ],
+                            Checkbox(
+                              value: _rememberMe,
+                              onChanged: (value) {
+                                setState(() => _rememberMe = value!);
+                              },
                             ),
-                            Center(
-                              child: TextButton(
-                                onPressed: _forgotPassword,
-                                child: const Text(
-                                  '¿Olvidaste tu contraseña?',
-                                  style: TextStyle(color: Color(0xFF003087)),
-                                ),
-                              ),
-                            ),
+                            const Text('Recordar contraseña'),
                           ],
                         ),
+                        Center(
+                          child: TextButton(
+                            onPressed: _forgotPassword,
+                            child: const Text(
+                              '¿Olvidaste tu contraseña?',
+                              style: TextStyle(color: Color(0xFF003087)),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 10),
-                        // ...existing code...
-
-                        // Botón Ingresar
                         _isLoading
                             ? const CircularProgressIndicator()
                             : ElevatedButton(
@@ -217,7 +254,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                         const SizedBox(height: 16),
-                        // Enlace a registro
                         TextButton(
                           onPressed: () {
                             Navigator.pushNamed(
@@ -229,30 +265,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             '¿No tienes cuenta? Regístrate',
                             style: TextStyle(color: Color(0xFF003087)),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text('O inicia sesión con:'),
-                        const SizedBox(height: 16),
-                        // Aquí podrías agregar los botones de redes sociales (ejemplo con placeholder)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(
-                              onPressed: () {},
-                              icon: const Icon(
-                                Icons.g_mobiledata,
-                                size: 40,
-                              ), // Placeholder para Google
-                            ),
-                            const SizedBox(width: 16),
-                            IconButton(
-                              onPressed: () {},
-                              icon: const Icon(
-                                Icons.facebook,
-                                size: 40,
-                              ), // Placeholder para Facebook
-                            ),
-                          ],
                         ),
                       ],
                     ),
