@@ -1,23 +1,21 @@
+"use strict";
 // C:\Users\thiag\Desktop\Back\ManejApp\src\users\user.controller.ts
-
-import UserService from "./user.services";
-import { UserWithOutPassword, User, UserWithOutId, UserWithDates } from "./user.types";
-import { ExpressFunction } from "../shared/types/ExpressFunction"
-import CustomizedError from "../shared/classes/CustomizedError";
-
-export default class UserController {
-    constructor(private userService: UserService) { }
-
-    public register: ExpressFunction = async (req, res, next) => {
+Object.defineProperty(exports, "__esModule", { value: true });
+class UserController {
+    userService;
+    constructor(userService) {
+        this.userService = userService;
+    }
+    register = async (req, res, next) => {
         try {
-            const user: UserWithDates = req.body;
+            const user = req.body;
             const newUser = await this.userService.register(user);
-
             // Si el registro es exitoso, devolvemos el token
             res.status(201).json({
                 token: newUser,
             });
-        } catch (error: any) {
+        }
+        catch (error) {
             // Manejamos el error específico del repositorio
             if (error.message.includes('El campo') && error.message.includes('ya está en uso.')) {
                 // Devolvemos un status 409 (Conflict) con el mensaje claro.
@@ -27,31 +25,30 @@ export default class UserController {
             next(error);
         }
     };
-
-    public getAll: ExpressFunction = async (req, res, next) => {
-        try{
+    getAll = async (req, res, next) => {
+        try {
             const users = await this.userService.getAllUsers();
             return res.json(users);
-        } catch (e){
+        }
+        catch (e) {
             // Pasamos cualquier error al siguiente middleware de error
             next(e);
         }
     };
-
-    public login: ExpressFunction = async (req, res, next) => {
+    login = async (req, res, next) => {
         try {
-            const userData: UserWithOutId = req.body;
+            const userData = req.body;
             const user = await this.userService.login(userData);
-
             if (!user) {
                 // Si el usuario no existe, devolvemos un status 401 (Unauthorized)
                 return res.status(401).json({ message: "Credenciales inválidas" });
             }
-
             return res.json(user);
-        } catch (error) {
+        }
+        catch (error) {
             // Pasamos cualquier error al siguiente middleware de error
             next(error);
         }
     };
 }
+exports.default = UserController;

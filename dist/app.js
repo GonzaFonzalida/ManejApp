@@ -5,18 +5,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildApp = void 0;
 const express_1 = __importDefault(require("express"));
-const routes_1 = __importDefault(require("./users/routes"));
-const controller_1 = __importDefault(require("./users/controller"));
+const errorMiddleware_1 = __importDefault(require("./shared/middlewares/errorMiddleware"));
+const notFoundMiddleware_1 = __importDefault(require("./shared/middlewares/notFoundMiddleware"));
+const user_routes_1 = __importDefault(require("./users/user.routes"));
+const user_controller_1 = __importDefault(require("./users/user.controller"));
 const container_1 = __importDefault(require("./DiContainer/container"));
 const buildApp = () => {
     const userService = container_1.default.resolve("userService");
-    const controller = new controller_1.default(userService);
-    const routerUser = new routes_1.default(controller).init();
+    const controller = new user_controller_1.default(userService);
+    const routerUser = new user_routes_1.default(controller).init();
     const app = (0, express_1.default)();
     app.use(express_1.default.json());
     app.use("/users", routerUser);
-    // app.use(notFoundHandler);
-    // app.use(errorHandler);
+    app.use(notFoundMiddleware_1.default);
+    app.use(errorMiddleware_1.default);
     return app;
 };
 exports.buildApp = buildApp;

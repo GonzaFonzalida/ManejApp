@@ -1,13 +1,30 @@
-import {UserWithDates,UserWithOutId, User, UserWithOutPassword, UserWithOutPasswordAndDates } from "../user.types";
-import {UserRepository} from "./userRepository"
+// C:\Users\thiag\Desktop\Back\ManejApp\src\users\repository\UserPrismaRepository.ts
+
+import { UserWithDates, UserWithOutId, UserWithOutPassword, UserWithOutPasswordAndDates } from "../user.types";
+import { UserRepository } from "./userRepository"
 import { prisma } from "../../config/prismaClient";
 
 export default class UserPrismaRepository implements UserRepository {
 
+    // ... (El método register() y getAllUsers() permanecen igual, sin cambios) ...
+
     async register(user: UserWithDates): Promise<UserWithOutPasswordAndDates> {
-        const {dni, email, password, birthDate, isActive, createdAt} = user;
+        // Extraemos las propiedades necesarias para Prisma
+        const {name, surname, email, dni, password, birthDate} = user;
+
+        // Convertimos la cadena de la fecha a un objeto Date
+        const birthDateObject = new Date(birthDate);
+
+        // Pasamos un objeto 'data' limpio y explícito para evitar conflictos.
         return await prisma.user.create({
-            data: user,
+            data: {
+                name: name,
+                surname: surname,
+                email: email,
+                dni: dni,
+                password: password,
+                birthDate: birthDateObject, // Pasamos el objeto Date directamente
+            },
             select: {
                 id: true,
                 dni: true,
@@ -33,24 +50,36 @@ export default class UserPrismaRepository implements UserRepository {
         });
     }
 
+    // Método de login corregido y seguro
     async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
-        return await prisma.user.findFirst({
+        const foundUser = await prisma.user.findFirst({
             where: {
                 OR: [
                     { email: user.email },
                     { dni: user.dni }
                 ]
-            },
-            select: {
-                id: true,
-                dni: true,
-                email: true,
-                name: true,
-                surname: true,
             }
-        }) ?? undefined;
+        });
+
+        if (!foundUser) {
+            // Si no se encuentra el usuario, retornamos undefined.
+            return undefined;
+        }
+        const passwordsMatch = foundUser.password === user.password;
+
+        if (!passwordsMatch) {
+            // Si las contraseñas no coinciden, retornamos undefined.
+            return undefined;
+        }
+
+        // 3. Si el usuario existe y la contraseña es correcta, devolvemos el usuario
+        // sin la contraseña para mantener la seguridad.
+        return {
+            id: foundUser.id,
+            dni: foundUser.dni,
+            email: foundUser.email,
+            name: foundUser.name,
+            surname: foundUser.surname,
+        };
     }
-
 }
-
-

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const CustomizedError_1 = __importDefault(require("../utils/classes/CustomizedError"));
+const CustomizedError_1 = __importDefault(require("../classes/CustomizedError"));
 const errorHandler = (err, req, res, next) => {
     const time = Date.now();
     if (err instanceof CustomizedError_1.default) {
@@ -16,12 +16,15 @@ const errorHandler = (err, req, res, next) => {
             time: time,
         });
     }
+    console.log(err);
     return res.status(500).json({
         message: "Error interno del servidor",
         host: req.host,
         url: req.originalUrl,
         method: req.method,
-        statusCode: 500,
+        statusCode: err.cause,
+        ok: false,
+        stack: err.stack,
         time: time,
     });
 };

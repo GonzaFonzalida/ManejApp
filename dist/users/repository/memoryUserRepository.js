@@ -25,15 +25,9 @@ class userMemoryRepository {
         }
     ];
     register(user) {
-        const userSimulated = {
-            id: 3,
-            dni: "12.345.678",
-            email: "juan.lopez@example.com",
-            name: "juan",
-            surname: "lopez"
-        };
-        this.users.push(userSimulated);
-        return Promise.resolve(userSimulated);
+        const { id, dni, email, name, surname } = user;
+        this.users.push(user);
+        return Promise.resolve(user);
     }
     login(user) {
         const foundUser = this.users.find(u => u.email === user.email || u.dni === user.dni);
