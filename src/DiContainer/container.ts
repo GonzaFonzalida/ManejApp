@@ -1,7 +1,7 @@
 import UserService from "../users/user.services";
 import DiContainer from "./DiContainer";
-import UserPrismaRepository from "../users/repository/prismaUserRepository"
-import userMemoryRepository from "src/users/repository/memoryUserRepository";
+import UserPrismaRepository from "../users/repositories/prismaUserRepository"
+import userMemoryRepository from "src/users/repositories/memoryUserRepository";
 
 const diContainer = new DiContainer();
 

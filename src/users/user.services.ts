@@ -1,7 +1,7 @@
 // C:\Users\thiag\Desktop\Back\ManejApp\src\users\user.services.ts
 
 import { UserWithOutPassword, UserWithDates, UserWithOutId } from "./user.types";
-import { UserRepository } from "./repository/userRepository";
+import { UserRepository } from "./repositories/userRepository";
 
 export default class UserService {
     constructor(private userAuth: UserRepository) { }
