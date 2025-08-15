@@ -27,8 +27,8 @@ model User {
   dni         String        @unique
   createdAt   DateTime      @default(now())
   birthDate   DateTime
-  isActive    Boolean       @default(true)
-  role        Role
+  isActive    Boolean       @default(false)
+  role        Role          @default(STUDENT)
 
   student     Student?
   instructor  Instructor?
@@ -36,45 +36,38 @@ model User {
 }
 
 model Student {
-  id      Int  @id
-  user    User @relation(fields: [id], references: [id])
-  // Campos propios del alumno
-  // ...
+  id   Int   @id
+  user User  @relation(fields: [id], references: [id], onDelete: Cascade)
 }
 
 model Car {
-  id           Int      @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   brand        String
   model        String
   year         Int
-  licensePlate String   @unique
+  licensePlate String      @unique
   transmission Transmission
 
   instructor   Instructor?
 }
 
 model Instructor {
-  id              Int  @id
-  user            User @relation(fields: [id], references: [id])
+  id              Int      @id
+  user            User     @relation(fields: [id], references: [id], onDelete: Cascade)
   licenseNumber   String
   experienceYears Int
-  available       Boolean @default(true)
-  isValid         Boolean @default(false) // Se valida por un Admin
-
-  carId           Int?
-  car             Car? @relation(fields: [carId], references: [id])
-
+  available       Boolean  @default(true)
+  isValid         Boolean  @default(false)
+  carId           Int?     @unique
+  car             Car?     @relation(fields: [carId], references: [id])
   permissions     InstructorPermission[]
 }
 
 model Admin {
-  id      Int  @id
-  user    User @relation(fields: [id], references: [id])
-  // Campos propios del administrador/cliente
+  id          Int   @id
+  user        User  @relation(fields: [id], references: [id], onDelete: Cascade)
   companyName String
 }
-
-
 
 model Permission {
   id          Int      @id @default(autoincrement())
@@ -90,9 +83,8 @@ model InstructorPermission {
   permissionId Int
   granted      Boolean     @default(false)
 
-  instructor   Instructor  @relation(fields: [instructorId], references: [id])
-  permission   Permission  @relation(fields: [permissionId], references: [id])
+  instructor   Instructor  @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([instructorId, permissionId])
 }
-

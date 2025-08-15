@@ -13,7 +13,7 @@ export interface InstructorRepository {
   // Listar todos los instructores (con filtros opcionales)
   listInstructors(filter?: {
     available?: boolean;
-    isValid?: boolean;WW
+    isValid?: boolean;
   }): Promise<Instructor[]>;
 
   // Asignar un auto a un instructor
