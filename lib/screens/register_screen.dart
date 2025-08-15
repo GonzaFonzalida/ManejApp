@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
+import 'ChooseRoleScreen.dart'; // Importa la nueva pantalla
 
 // Esta es la pantalla de registro con el nuevo diseño y campos de información.
 class RegisterScreen extends StatefulWidget {
@@ -66,6 +67,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // Se llama a la función de registro de la API. No se espera ningún valor de retorno,
+      // ya que el token se ha eliminado de la gestión.
       await ApiService.register(
         _name,
         _surname,
@@ -74,10 +77,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _dni,
         formattedBirthDate,
       );
+      
       // Mensaje de éxito si no hay error.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registro exitoso')),
       );
+
+      // Navegación a la pantalla de selección de rol después del registro exitoso.
+      Navigator.pushReplacementNamed(context, ChooseRoleScreen.routeName);
+      
     } catch (e) {
       // Manejo de errores que muestra un mensaje en la interfaz
       String errorMessage = 'Error desconocido. Por favor, intente de nuevo.';
@@ -89,8 +97,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         SnackBar(content: Text('Error en registro: $errorMessage')),
       );
     } finally {
-      // El código de navegación se ha movido aquí para que siempre se ejecute
-      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
       setState(() => _isLoading = false);
     }
   }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_service.dart';
+import '../controllers/login_controller.dart';
 import 'register_screen.dart';
-import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   static const routeName = 'login';
@@ -13,96 +11,18 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  String _email = '';
-  String _password = '';
-  bool _isLoading = false;
-  bool _rememberMe = false;
-
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  final controller = LoginController();
 
   @override
   void initState() {
     super.initState();
-    _loadSavedCredentials();
+    controller.loadSavedCredentials(() => setState(() {}));
   }
 
   @override
   void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
+    controller.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedEmail = prefs.getString('email');
-    final savedPassword = prefs.getString('password');
-    final remember = prefs.getBool('rememberMe') ?? false;
-
-    if (remember && savedEmail != null && savedPassword != null) {
-      setState(() {
-        _email = savedEmail.trim();
-        _password = savedPassword.trim();
-        _rememberMe = true;
-        emailController.text = _email;
-        passwordController.text = _password;
-      });
-    }
-  }
-
-  Future<void> _saveCredentials(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
-
-    if (_rememberMe) {
-      await prefs.setString('email', _email.trim());
-      await prefs.setString('password', _password.trim());
-      await prefs.setBool('rememberMe', true);
-    } else {
-      await prefs.remove('email');
-      await prefs.remove('password');
-      await prefs.setBool('rememberMe', false);
-    }
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
-
-    // Obtén los datos directamente de los controladores
-    _email = emailController.text.trim();
-    _password = passwordController.text.trim();
-
-    setState(() => _isLoading = true);
-    try {
-      final token = await ApiService.login(_email, _password);
-
-      await _saveCredentials(token);
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso')),
-      );
-    } catch (e) {
-      debugPrint('Error en login: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en inicio de sesión: $e')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _forgotPassword() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Funcionalidad de recuperación de contraseña'),
-      ),
-    );
   }
 
   @override
@@ -163,11 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   child: Form(
-                    key: _formKey,
+                    key: controller.formKey,
                     child: Column(
                       children: [
                         TextFormField(
-                          controller: emailController,
+                          controller: controller.emailController,
                           decoration: InputDecoration(
                             labelText: 'Correo electrónico',
                             prefixIcon: const Icon(Icons.email_outlined),
@@ -188,11 +108,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                             return null;
                           },
-                          onSaved: (value) => _email = value!.trim(),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
-                          controller: passwordController,
+                          controller: controller.passwordController,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -212,15 +131,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                             return null;
                           },
-                          onSaved: (value) => _password = value!.trim(),
                         ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
                             Checkbox(
-                              value: _rememberMe,
+                              value: controller.rememberMe,
                               onChanged: (value) {
-                                setState(() => _rememberMe = value!);
+                                setState(() => controller.rememberMe = value!);
                               },
                             ),
                             const Text('Recordar contraseña'),
@@ -228,7 +146,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         Center(
                           child: TextButton(
-                            onPressed: _forgotPassword,
+                            onPressed: () =>
+                                controller.forgotPassword(context),
                             child: const Text(
                               '¿Olvidaste tu contraseña?',
                               style: TextStyle(color: Color(0xFF003087)),
@@ -236,10 +155,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        _isLoading
+                        controller.isLoading
                             ? const CircularProgressIndicator()
                             : ElevatedButton(
-                                onPressed: _submit,
+                                onPressed: () => controller.submit(
+                                  context,
+                                  () => setState(() {}),
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF003087),
                                   foregroundColor: Colors.white,
