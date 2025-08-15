@@ -1,0 +1,14 @@
+    userId: number;
+    licenseNumber: string;
+    experienceYears: number;
+    carId?: number;
+
+
+{
+"name": "name",
+"surname": "surname",
+"email": "FACU@gmail.com",
+"dni": "23.234.343",
+"password": "pAssword2324234",
+"birthDate": "1/3/2023"
+}

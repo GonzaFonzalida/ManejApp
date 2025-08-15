@@ -8,10 +8,7 @@ export default class UserPrismaRepository implements UserRepository {
 
     // ... (El método register() y getAllUsers() permanecen igual, sin cambios) ...
 
-    async register(user: UserWithDates): Promise<UserWithOutPasswordAndDates> {
-        // Extraemos las propiedades necesarias para Prisma
-        const {name, surname, email, dni, password, birthDate} = user;
-
+    async register({name, surname, email, dni, password, birthDate}: UserWithDates): Promise<UserWithOutPasswordAndDates> {
         // Convertimos la cadena de la fecha a un objeto Date
         const birthDateObject = new Date(birthDate);
 
@@ -23,7 +20,8 @@ export default class UserPrismaRepository implements UserRepository {
                 email: email,
                 dni: dni,
                 password: password,
-                birthDate: birthDateObject, // Pasamos el objeto Date directamente
+                birthDate: birthDateObject, 
+                role: 'STUDENT',
             },
             select: {
                 id: true,
@@ -50,6 +48,27 @@ export default class UserPrismaRepository implements UserRepository {
         });
     }
 
+    async findUser(value: string): Promise<UserWithOutPassword | undefined> {
+        const foundUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email:  value},
+                    { dni:  value}
+                ],
+            },
+            select : {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+            }
+        });
+        if (!foundUser) {
+            return undefined;
+        }
+        return foundUser;
+    }
     async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
         const foundUser = await prisma.user.findFirst({
             where: {

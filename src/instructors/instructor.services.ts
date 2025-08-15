@@ -1,4 +1,5 @@
 import  {InstructorRepository} from "./repositories/InstructorRepository";
+import {Instructor } from "@prisma/client";
 
 export default class InstructorService {
   constructor(private instructorRepo: InstructorRepository) {}
@@ -18,6 +19,13 @@ export default class InstructorService {
 
   async listInstructors(filter?: { available?: boolean; isValid?: boolean }) {
     return this.instructorRepo.listInstructors();
+  }
+
+  async updateInstructor(
+    id: number,
+    data: Partial<Instructor>
+  ): Promise<Instructor | null> {
+    return this.instructorRepo.updateInstructor(id, data);
   }
 
   async assignCarToInstructor(instructorId: number, carId: number) {

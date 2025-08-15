@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
 import  InstructorService from "./instructor.services";
+import { ExpressFunction } from "../shared/types/ExpressFunction";
+import CustomizedError from "@shared/classes/CustomizedError";
 
 export default class InstructorController {
   constructor(private instructorService: InstructorService) {}
 
-  register = async (req: Request, res: Response) => {
+  register: ExpressFunction = async (req, res, next)=> {
     try {
       const instructor = await this.instructorService.registerInstructor(req.body);
       res.status(201).json(instructor);
@@ -12,11 +14,25 @@ export default class InstructorController {
       res.status(400).json({ error: (err as Error).message });
     }
   };
+  updateProfile: ExpressFunction = async (req, res, next) => {
+  const instructorId = Number(req.params.id);
+  
+  const updatedInstructor = await this.instructorService.updateInstructor(
+    instructorId,
+    req.body
+  );
 
-  getProfile = async (req: Request, res: Response) => {
+  if (!updatedInstructor) {
+    return next(new CustomizedError("Instructor no encontrado", 404));
+  }
+
+    return res.json(updatedInstructor);
+  }
+
+  getProfile: ExpressFunction = async (req, res, next) => {
     const instructor = await this.instructorService.getInstructorProfile(Number(req.params.id));
     if (!instructor) {
-      return res.status(404).json({ error: "Instructor not found" });
+      return next(new CustomizedError("Instructor no encontrado, ingrese un pefil valido", 404));;
     }
     res.json(instructor);
   };

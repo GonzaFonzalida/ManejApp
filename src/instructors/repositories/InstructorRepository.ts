@@ -9,7 +9,7 @@ export interface InstructorRepository {
   }): Promise<Instructor>;
 
   getInstructorById(id: number): Promise<Instructor | null>;
-
+  updateInstructor(id: number, data: Partial<Instructor>): Promise<Instructor>
   // Listar todos los instructores (con filtros opcionales)
   listInstructors(filter?: {
     available?: boolean;

@@ -19,25 +19,28 @@ enum Transmission {
 }
 
 model User {
-  id          Int           @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   name        String
   surname     String
-  email       String        @unique
+  email       String    @unique
   password    String
-  dni         String        @unique
-  createdAt   DateTime      @default(now())
+  dni         String    @unique
+  createdAt   DateTime  @default(now())
   birthDate   DateTime
-  isActive    Boolean       @default(false)
-  role        Role          @default(STUDENT)
+  isActive    Boolean   @default(false)
+  role        Role      @default(STUDENT)
 
   student     Student?
   instructor  Instructor?
   admin       Admin?
+
+  @@index([role])
 }
 
 model Student {
-  id   Int   @id
-  user User  @relation(fields: [id], references: [id], onDelete: Cascade)
+  id      Int   @id @default(autoincrement())
+  userId  Int   @unique
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Car {
@@ -52,20 +55,24 @@ model Car {
 }
 
 model Instructor {
-  id              Int      @id
-  user            User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   licenseNumber   String
   experienceYears Int
-  available       Boolean  @default(true)
-  isValid         Boolean  @default(false)
-  carId           Int?     @unique
-  car             Car?     @relation(fields: [carId], references: [id])
+  available       Boolean   @default(true)
+  isValid         Boolean   @default(false)
+
+  carId           Int?      @unique
+  car             Car?      @relation(fields: [carId], references: [id])
+
   permissions     InstructorPermission[]
 }
 
 model Admin {
-  id          Int   @id
-  user        User  @relation(fields: [id], references: [id], onDelete: Cascade)
+  id          Int   @id @default(autoincrement())
+  userId      Int   @unique
+  user        User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyName String
 }
 
