@@ -20,6 +20,10 @@ export default class UserService {
             return error as Error;
         }
     }
+    
+    async getUserById(value:string): Promise<UserWithOutPassword | undefined> {
+        return await this.userAuth.findUser(value);
+    }
 
     async getAllUsers(): Promise<UserWithOutPassword[]> {
         return await this.userAuth.getAllUsers();

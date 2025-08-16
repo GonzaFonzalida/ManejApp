@@ -32,6 +32,7 @@ export default class UserPrismaRepository implements UserRepository {
                 birthDate: true,
                 isActive: true,
                 createdAt: true,
+                role: true,
             }
         });
     }
@@ -44,31 +45,32 @@ export default class UserPrismaRepository implements UserRepository {
                 email: true,
                 name: true,
                 surname: true,
+                role: true,
             }
         });
     }
 
     async findUser(value: string): Promise<UserWithOutPassword | undefined> {
         const foundUser = await prisma.user.findFirst({
-            where: {
-                OR: [
-                    { email:  value},
-                    { dni:  value}
-                ],
-            },
-            select : {
-                id: true,
-                dni: true,
-                email: true,
-                name: true,
-                surname: true,
-            }
+        where: /^\d+$/.test(value)
+        ? { id: parseInt(value, 10) }
+        : { OR: [{ dni: value }, { email: value }] },
+        select: {
+        id: true,
+        dni: true,
+        email: true,
+        name: true,
+        surname: true,
+        role: true,
+        createdAt: true,
+        birthDate: true,
+        isActive: true,
+        },
         });
-        if (!foundUser) {
-            return undefined;
-        }
-        return foundUser;
+
+        return foundUser ?? undefined;
     }
+
     async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
         const foundUser = await prisma.user.findFirst({
             where: {
@@ -101,6 +103,7 @@ export default class UserPrismaRepository implements UserRepository {
             email: foundUser.email,
             name: foundUser.name,
             surname: foundUser.surname,
+            role: foundUser.role
         };
     }
 }

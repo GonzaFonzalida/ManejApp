@@ -8,7 +8,9 @@ export default class UserRouter extends GenericRouter {
 
         super();
         const router = this.init();
-        router.get("/allUsers", this.userController.getAll);
+        router.get("/", this.userController.getAll);
+
+        router.get("/:value", this.userController.gerUserById)
 
         router.post("/register", validate(registerSchema), this.userController.register);
 

@@ -26,6 +26,7 @@ export const buildApp = () => {
     app.use(express.json());
     app.use("/users", routerUser);
     app.use("/instructors", instructorRouter)
+    
 
     app.use(notFoundHandler);
     app.use(errorHandler);

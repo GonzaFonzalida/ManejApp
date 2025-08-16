@@ -38,6 +38,21 @@ export default class UserController {
         }
     };
 
+    public gerUserById : ExpressFunction = async (req, res, next) =>{
+         try {
+            const value = req.params.value;
+            const user = await this.userService.getUserById(value);
+
+            if (!user) {
+                next( new CustomizedError("Usuario No Encontrado", 404));
+            }
+
+            return res.json(user);
+        } catch (error) {
+            next(error);
+        }
+    }
+
     public login: ExpressFunction = async (req, res, next) => {
         try {
             const userData: UserWithOutId = req.body;
@@ -45,7 +60,7 @@ export default class UserController {
 
             if (!user) {
                 // Si el usuario no existe, devolvemos un status 401 (Unauthorized)
-                return res.status(401).json({ message: "Credenciales inválidas" });
+                return next(new CustomizedError("Credenciales inválidas", 401));
             }
 
             return res.json(user);

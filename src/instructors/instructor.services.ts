@@ -1,17 +1,37 @@
 import  {InstructorRepository} from "./repositories/InstructorRepository";
 import {Instructor } from "@prisma/client";
+import UserPrismaRepository from "src/users/repositories/prismaUserRepository";
 
 export default class InstructorService {
-  constructor(private instructorRepo: InstructorRepository) {}
+  constructor(
+    private instructorRepo: InstructorRepository,
+    private userRepo : UserPrismaRepository
+  ) {}
 
   async registerInstructor(data: {
-    userId: number;
-    licenseNumber: string;
-    experienceYears: number;
-    carId?: number;
-  }) {
-    return this.instructorRepo.createInstructor(data);
+  userId: number;
+  licenseNumber: string;
+  experienceYears: number;
+  carId?: number;
+}) {
+  // Verificar que exista el usuario
+  const user = await this.userRepo.findUser(String(data.userId));
+  if (!user) throw new Error("Usuario no encontrado");
+
+
+  if (user.role !== "STUDENT") {
+    throw new Error("El usuario no puede registrarse como instructor");
   }
+
+  // Verificar que no sea ya instructor
+  const existingInstructor = await this.instructorRepo.getInstructorById(data.userId);
+  if (existingInstructor) {
+    throw new Error("Este usuario ya es instructor");
+  }
+
+  return this.instructorRepo.createInstructor(data);
+}
+
 
   async getInstructorProfile(id: number) {
     return this.instructorRepo.getInstructorById(id);

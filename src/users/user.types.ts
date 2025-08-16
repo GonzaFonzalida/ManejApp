@@ -2,7 +2,8 @@ export interface UserBase {
     dni: string;
     email: string;
     name: string;
-    surname:string
+    surname: string;
+    role: string;
 }
 
 export interface UserWithOutId extends UserBase {

@@ -12,7 +12,7 @@ export default class PrismaInstructorRepository implements InstructorRepository 
   }): Promise<Instructor> {
     return this.prisma.instructor.create({
       data: {
-        userId: data.userId, // ← este es el campo correcto
+        userId: data.userId,
         licenseNumber: data.licenseNumber,
         experienceYears: data.experienceYears,
         carId: data.carId,

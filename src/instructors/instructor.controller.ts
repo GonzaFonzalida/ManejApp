@@ -11,7 +11,7 @@ export default class InstructorController {
       const instructor = await this.instructorService.registerInstructor(req.body);
       res.status(201).json(instructor);
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message });
+      next(err);
     }
   };
   updateProfile: ExpressFunction = async (req, res, next) => {
