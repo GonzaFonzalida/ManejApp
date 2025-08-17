@@ -10,7 +10,7 @@ export default class PrismaInstructorRepository implements InstructorRepository 
     experienceYears: number;
     carId?: number;
   }): Promise<Instructor> {
-    return this.prisma.instructor.create({
+    return await this.prisma.instructor.create({
       data: {
         userId: data.userId,
         licenseNumber: data.licenseNumber,

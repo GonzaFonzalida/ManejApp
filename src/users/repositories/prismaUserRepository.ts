@@ -1,6 +1,6 @@
 // C:\Users\thiag\Desktop\Back\ManejApp\src\users\repository\UserPrismaRepository.ts
 
-import { UserWithDates, UserWithOutId, UserWithOutPassword, UserWithOutPasswordAndDates } from "../user.types";
+import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPasswordAndDates } from "../user.types";
 import { UserRepository } from "./userRepository"
 import { prisma } from "../../config/prismaClient";
 
@@ -37,6 +37,12 @@ export default class UserPrismaRepository implements UserRepository {
         });
     }
 
+    async findByEmail(email: string): Promise<User | undefined> {
+        return await prisma.user.findUnique({
+            where : {email}
+        }) ?? undefined;
+    }
+
     async getAllUsers(): Promise<UserWithOutPassword[]> {
         return await prisma.user.findMany({
             select: {
@@ -48,6 +54,38 @@ export default class UserPrismaRepository implements UserRepository {
                 role: true,
             }
         });
+    }
+
+   async findByRole(rol: string): Promise<UserWithOutPassword[]> {
+    return await prisma.user.findMany({
+        where: {
+        role: rol as any, 
+        },
+        select: {
+        id: true,
+        dni: true,
+        email: true,
+        name: true,
+        surname: true,
+        role: true,
+        createdAt: true,
+        birthDate: true,
+        isActive: true,
+        },
+    });
+    }
+
+    async updateLastLoginAt(userId: number): Promise<UserWithOutPassword | null> {
+        const user = await prisma.user.update({
+        where: { id: userId },
+        data: {
+            lastLoginAt: new Date(), // se actualiza con la fecha actual
+        },
+        });
+
+        // Omitimos la contraseña antes de devolver
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
     }
 
     async findUser(value: string): Promise<UserWithOutPassword | undefined> {

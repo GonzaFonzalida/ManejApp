@@ -26,6 +26,11 @@ export const loginSchema = z.object({
     { message: "Debe proporcionar un correo electrónico o un DNI", path: ["email", "dni"] }
 );
 
+export const getUserByRoleSchema = z.object({
+  role: z.enum(["STUDENT", "INSTRUCTOR", "ADMIN"]),
+});
+
+export type ParamsInput = z.infer<typeof getUserByRoleSchema>;
 export type UserInput = z.infer<typeof userSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

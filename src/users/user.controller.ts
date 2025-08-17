@@ -38,6 +38,18 @@ export default class UserController {
         }
     };
 
+    public getByRol: ExpressFunction = async (req, res, next) => {
+        try{
+            const role = req.params.role
+
+            const users = await this.userService.findByRole(role.toUpperCase());
+            return res.json(users);
+        } catch (e){
+            
+            next(e);
+        }
+    };
+
     public gerUserById : ExpressFunction = async (req, res, next) =>{
          try {
             const value = req.params.value;

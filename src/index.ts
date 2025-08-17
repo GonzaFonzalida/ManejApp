@@ -1,7 +1,5 @@
-require('dotenv').config();
 import { buildApp } from "./app";
-
-const PORT = 3000;
+import { PORT } from "@config/config";
 
 const app = buildApp();
 

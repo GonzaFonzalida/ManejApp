@@ -1,5 +1,5 @@
 import { ZodEmail } from "zod";
-import {UserWithOutPassword, UserWithOutPasswordAndDates, UserWithOutId, UserWithDates } 
+import {UserWithOutPassword, UserWithOutPasswordAndDates, User, UserWithOutId, UserWithDates } 
 from "../user.types";
 
 
@@ -8,6 +8,9 @@ export interface UserRepository {
     login(user: UserWithOutId): Promise<UserWithOutPassword | undefined>;
     register(user: UserWithDates): Promise<UserWithOutPasswordAndDates>;
     findUser(value: string):  Promise<UserWithOutPassword | undefined>;
+    findByRole(rol: string): Promise<UserWithOutPassword[]>;
+    findByEmail(email: string): Promise<User | undefined>;
+    updateLastLoginAt(id: number): Promise<UserWithOutPassword | null>;
 }
 
 // model User {

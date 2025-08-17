@@ -1,4 +1,4 @@
-import { Instructor, Permission, Car } from "@prisma/client";
+import { Instructor } from "@prisma/client";
 
 export interface InstructorRepository {
   createInstructor(data: {

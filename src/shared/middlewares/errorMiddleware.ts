@@ -18,12 +18,12 @@ const errorHandler = (err: Error | CustomizedError, req: Request, res: Response,
     console.log(err);
     return res.status(500).json({
         message: "Error interno del servidor",
+        errorName: err.name,
         host: req.host,
         url: req.originalUrl,
         method: req.method,
-        statusCode: err.cause,
+        statusCode: 500,
         ok: false,
-        stack: err.stack,
         time: time,
     });
 

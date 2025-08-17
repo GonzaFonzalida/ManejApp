@@ -1,11 +1,11 @@
 import  {InstructorRepository} from "./repositories/InstructorRepository";
 import {Instructor } from "@prisma/client";
-import UserPrismaRepository from "src/users/repositories/prismaUserRepository";
+import { UserRepository } from "src/users/repositories/userRepository";
 
 export default class InstructorService {
   constructor(
     private instructorRepo: InstructorRepository,
-    private userRepo : UserPrismaRepository
+    private userRepo : UserRepository
   ) {}
 
   async registerInstructor(data: {

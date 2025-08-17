@@ -29,6 +29,9 @@ model User {
   birthDate   DateTime
   isActive    Boolean   @default(false)
   role        Role      @default(STUDENT)
+  lastLoginAt DateTime? // opcional: útil para auditoría
+  sessions    Session[]
+
 
   student     Student?
   instructor  Instructor?
@@ -36,6 +39,25 @@ model User {
 
   @@index([role])
 }
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       Int
+  // Guarda el refresh token hasheado para poder invalidarlo sin exponerlo
+  refreshHash  String
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+
 
 model Student {
   id      Int   @id @default(autoincrement())
