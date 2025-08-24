@@ -5,7 +5,6 @@ export interface InstructorRepository {
     userId: number;
     licenseNumber: string;
     experienceYears: number;
-    carId?: number;
   }): Promise<Instructor>;
 
   getInstructorById(id: number): Promise<Instructor | null>;
@@ -16,11 +15,7 @@ export interface InstructorRepository {
     isValid?: boolean;
   }): Promise<Instructor[]>;
 
-  // Asignar un auto a un instructor
-  assignCar(instrucWWtorId: number, carId: number): Promise<Instructor>;
-
-  // Quitar auto de un instructor
-  removeCar(instructorId: number): Promise<Instructor>;
+  registerPermission(idInstructor: number,  permissionId: number): Promise<void>;
 
   // Asignar permiso a un instructor
   addPermission(instructorId: number, permissionId: number): Promise<void>;

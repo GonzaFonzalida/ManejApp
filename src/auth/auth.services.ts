@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
 import { Response, Request } from "express";
-import { User as UserInterface} from "src/users/user.types";
+import { User as UserInterface, UserWithOutPassword} from "src/users/user.types";
 import SessionRepository  from "./repositories/SessionRepository"
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../shared/utils/jwtUtils";
 import { REFRESH_COOKIE_NAME, refreshCookieOptions } from "../config/cookies";
 import { PrismaClient } from "@prisma/client";
 import { UserRepository } from "src/users/repositories/userRepository";
+import CustomizedError from "@shared/classes/CustomizedError";
 
 
 export default class AuthService {
@@ -14,12 +15,13 @@ export default class AuthService {
     private users: UserRepository,
   ) {}
 
-  async login(req: Request, res: Response, email: string, password: string) {
-    const user = await this.users.findByEmail(email);
-    if (!user) throw new Error("Email no encontrado");
+  async login(req: Request, res: Response, email: string, password: string)
+  : Promise<Error | {accessToken: string, user:UserWithOutPassword} > {
 
+    const user = await this.users.findByEmail(email);
+    if (!user) return new CustomizedError("Email no encontrado", 401);
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) throw new Error("Credenciales inválidas");
+    if (!ok) return new CustomizedError("Contraseña Incorrecta", 401);
 
     const accessToken = signAccessToken({ id: user.id, role: user.role });
     const refreshToken = signRefreshToken({ id: user.id, role: user.role });

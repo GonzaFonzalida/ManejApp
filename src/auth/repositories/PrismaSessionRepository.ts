@@ -5,41 +5,56 @@ export default class PrismaSessionRepository implements SessionRepository {
   private prisma = prismaConfig
   constructor() {}
 
-  create(params: {
+  async create(params: {
     userId: number;
     refreshHash: string;
     userAgent?: string;
     ip?: string;
     expiresAt: Date;
   }) {
-    return this.prisma.session.create({ data: params });
+    return await this.prisma.session.create({ data: params });
   }
 
-  findById(id: string) {
-    return this.prisma.session.findUnique({ where: { id } });
+  async deleteSession(id: string) {
+    return await this.prisma.session.delete({
+      where: { id },
+    });
   }
 
-  findValidByUser(userId: number) {
-    return this.prisma.session.findMany({
+  async deleteSessionsByUser(userId: number): Promise<{ count: number }> {
+    return await this.prisma.session.deleteMany({
+      where: { userId },
+    });
+  }
+
+
+  async findById(id: string) {
+    return await this.prisma.session.findUnique({ where: { id } });
+  }
+
+  async findValidByUser(userId: number) {
+    return await this.prisma.session.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
     });
   }
 
-  revokeById(id: string) {
-    return this.prisma.session.update({ where: { id }, data: { revokedAt: new Date() } }).then(() => {});
+  async revokeById(id: string) {
+    return await this.prisma.session.update({ where: { id }, data: { revokedAt: new Date() } }).then(() => {});
   }
 
-  revokeAllByUser(userId: number) {
-    return this.prisma.session.updateMany({
+  async revokeAllByUser(userId: number) {
+    return await this.prisma.session.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     }).then(() => {});
   }
 
-  findByHash(refreshHash: string) {
-    return this.prisma.session.findFirst({
+  async findByHash(refreshHash: string) {
+    return await this.prisma.session.findFirst({
       where: { refreshHash, revokedAt: null, expiresAt: { gt: new Date() } },
     });
+
+  
   }
 }

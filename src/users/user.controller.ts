@@ -9,23 +9,18 @@ export default class UserController {
     constructor(private userService: UserService) { }
 
     public register: ExpressFunction = async (req, res, next) => {
-        try {
+        
             const user: UserWithDates = req.body;
             const newUser = await this.userService.register(user);
-
             // Si el registro es exitoso, devolvemos el token
+            if (newUser.name == "PrismaClientKnownRequestError"){
+                return next(new CustomizedError("El usuario que intenta registrar ya existe", 409))
+            }
+            
             res.status(201).json({
                 token: newUser,
             });
-        } catch (error: any) {
-            // Manejamos el error específico del repositorio
-            if (error.message.includes('El campo') && error.message.includes('ya está en uso.')) {
-                // Devolvemos un status 409 (Conflict) con el mensaje claro.
-                return res.status(409).json({ message: error.message });
-            }
-            // Si es otro tipo de error, lo pasamos al siguiente middleware de error
-            next(error);
-        }
+        
     };
 
     public getAll: ExpressFunction = async (req, res, next) => {

@@ -20,14 +20,8 @@ export default class UserService {
             if (result instanceof Error) {
                 return result;
             }
+            return result
 
-            if ("password" in result) {
-                // nunca devolver el hash
-                const { password, ...userWithoutPassword } = result;
-                return userWithoutPassword ;
-            }
-
-            return new Error("Returned user object does not have required 'password' property.");
         } catch (error: any) {
             return error as Error;
         }

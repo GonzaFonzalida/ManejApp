@@ -8,7 +8,10 @@ export default class AuthController {
   login : ExpressFunction = async (req, res, next) => {
     const { email, password } = req.body;
     const result = await this.authService.login(req, res, email, password);
-    res.json(result);
+    if (result instanceof Error) {
+      return next(result);
+    }
+    return res.json(result);
   };
 
   refresh : ExpressFunction = async (req, res, next) => {

@@ -44,7 +44,7 @@ model Session {
   id           String   @id @default(uuid())
   userId       Int
   // Guarda el refresh token hasheado para poder invalidarlo sin exponerlo
-  refreshHash  String
+  refreshHash  String   @unique
   userAgent    String?
   ip           String?
   createdAt    DateTime @default(now())
@@ -73,7 +73,8 @@ model Car {
   licensePlate String      @unique
   transmission Transmission
 
-  instructor   Instructor?
+  instructorId Int      
+  instructor   Instructor?  @relation(fields: [instructorId], references: [id])
 }
 
 model Instructor {
@@ -85,23 +86,21 @@ model Instructor {
   available       Boolean   @default(true)
   isValid         Boolean   @default(false)
 
-  carId           Int?      @unique
-  car             Car?      @relation(fields: [carId], references: [id])
-
+  cars      Car[]  
   permissions     InstructorPermission[]
 }
 
 model Admin {
-  id          Int   @id @default(autoincrement())
-  userId      Int   @unique
-  user        User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id      Int  @id
+  user    User @relation(fields: [id], references: [id])
+  // Campos propios del administrador/cliente
   companyName String
-}
+} 
 
 model Permission {
   id          Int      @id @default(autoincrement())
   name        String
-  description String?
+  description String
   isMandatory Boolean  @default(true)
 
   instructors InstructorPermission[]

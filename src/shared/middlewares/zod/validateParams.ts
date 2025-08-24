@@ -8,6 +8,6 @@ export const validateParams =
       schema.parse(req.params);
       next();
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      res.status(400).json(JSON.parse(error.message));
     }
   };

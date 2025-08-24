@@ -14,6 +14,8 @@ export default interface SessionRepository {
   revokeById(id: string): Promise<void>;
   revokeAllByUser(userId: number): Promise<void>;
   findByHash(refreshHash: string): Promise<Session | null>;
+  deleteSession(id: string): Promise<Session>;
+  deleteSessionsByUser(userId: number): Promise<{ count: number }>;
 }
 
 

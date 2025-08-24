@@ -6,7 +6,7 @@ from "../user.types";
 export interface UserRepository {
     getAllUsers(): Promise<UserWithOutPassword[]>;
     login(user: UserWithOutId): Promise<UserWithOutPassword | undefined>;
-    register(user: UserWithDates): Promise<UserWithOutPasswordAndDates>;
+    register(user: UserWithDates): Promise<UserWithOutPasswordAndDates | Error>;
     findUser(value: string):  Promise<UserWithOutPassword | undefined>;
     findByRole(rol: string): Promise<UserWithOutPassword[]>;
     findByEmail(email: string): Promise<User | undefined>;

@@ -1,5 +1,5 @@
 import { NODE_ENV } from "./config";
-export const REFRESH_COOKIE_NAME = "refreshToken";
+export const REFRESH_COOKIE_NAME: string = "refreshToken";
 
 export const refreshCookieOptions = {
   httpOnly: true,

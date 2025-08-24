@@ -11,6 +11,9 @@ import InstructorRouter from "./instructors/instructor.routes";
 
 import AuthController from "@auth/auth.controller";
 import buildAuthRouter from "@auth/auth.routes";
+import permissionsRouter from "./permissions/permissions.routes";
+import carRouters from "./cars/cars.routes";
+
 export const buildApp = () => {
 
     const userController = diContainer.resolve<UserController>("userController");
@@ -24,10 +27,16 @@ export const buildApp = () => {
     const app = express();
 
     app.use(express.json());
+
     app.use("/users", userRouter);
     app.use("/instructors", instructorRouter);
+    app.use("/permissions", permissionsRouter)
+    app.use("/cars", carRouters)
     app.use("/auth", authRouter);
-    
+    //modulos
+    // app.use("/permissons");
+    // app.use("/admin");
+    // app.use("/cars")
 
     app.use(notFoundHandler);
     app.use(errorHandler);

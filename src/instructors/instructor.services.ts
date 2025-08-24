@@ -48,14 +48,6 @@ export default class InstructorService {
     return this.instructorRepo.updateInstructor(id, data);
   }
 
-  async assignCarToInstructor(instructorId: number, carId: number) {
-    return this.instructorRepo.assignCar(instructorId, carId);
-  }
-
-  async removeCarFromInstructor(instructorId: number) {
-    return this.instructorRepo.removeCar(instructorId);
-  }
-
   async addPermission(instructorId: number, permissionId: number) {
     return this.instructorRepo.addPermission(instructorId, permissionId);
   }

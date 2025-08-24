@@ -3,12 +3,13 @@
 import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPasswordAndDates } from "../user.types";
 import { UserRepository } from "./userRepository"
 import { prisma } from "../../config/prismaClient";
+import { error } from "console";
 
 export default class UserPrismaRepository implements UserRepository {
 
     // ... (El método register() y getAllUsers() permanecen igual, sin cambios) ...
 
-    async register({name, surname, email, dni, password, birthDate}: UserWithDates): Promise<UserWithOutPasswordAndDates> {
+    async register({name, surname, email, dni, password, birthDate}: UserWithDates): Promise<UserWithOutPasswordAndDates | Error> {
         // Convertimos la cadena de la fecha a un objeto Date
         const birthDateObject = new Date(birthDate);
 
