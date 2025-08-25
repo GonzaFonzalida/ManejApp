@@ -1,11 +1,13 @@
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
-import 'home_screen.dart';
-import 'ChooseRoleScreen.dart'; // Importa la nueva pantalla
+import 'ChooseRoleScreen.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // ✅ Importa el paquete de almacenamiento seguro
 
-// Esta es la pantalla de registro con el nuevo diseño y campos de información.
+const storage = FlutterSecureStorage(); // ✅ Instancia para guardar los datos
+
 class RegisterScreen extends StatefulWidget {
   static const routeName = 'register';
   const RegisterScreen({super.key});
@@ -48,6 +50,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _submit() async {
+    // 🔴 Validar el formulario y guardar los campos
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
@@ -67,9 +70,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Se llama a la función de registro de la API. No se espera ningún valor de retorno,
-      // ya que el token se ha eliminado de la gestión.
-      await ApiService.register(
+      // 🟢 CAMBIO PRINCIPAL: Captura el valor de retorno de ApiService.register
+      final result = await ApiService.register(
         _name,
         _surname,
         _email,
@@ -77,17 +79,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _dni,
         formattedBirthDate,
       );
-      
-      // Mensaje de éxito si no hay error.
+
+      final token = result['token'] as String;
+      final userId = result['userId'] as int;
+
+      // ✅ Guarda los datos en el almacenamiento seguro
+      await storage.write(key: 'auth_token', value: token);
+      await storage.write(key: 'user_id', value: userId.toString());
+
+      // Mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registro exitoso')),
       );
 
-      // Navegación a la pantalla de selección de rol después del registro exitoso.
-      Navigator.pushReplacementNamed(context, ChooseRoleScreen.routeName);
-      
+      // 🟢 Navega a la siguiente pantalla sin pasar argumentos.
+      // La pantalla de rol ahora leerá los datos del almacenamiento seguro.
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          ChooseRoleScreen.routeName,
+        );
+      }
     } catch (e) {
-      // Manejo de errores que muestra un mensaje en la interfaz
+      // Manejo de errores
       String errorMessage = 'Error desconocido. Por favor, intente de nuevo.';
       if (e is Exception) {
         errorMessage = e.toString().replaceFirst('Exception: ', '');

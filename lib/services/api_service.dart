@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const baseUrl = 'http://192.168.0.3:3000/users';
+  static const baseUrl = 'http://192.168.0.63:3000';
 
   static Future<String> login(String email, String password) async {
     if (email.isEmpty || password.isEmpty) {
       throw Exception('Por favor, ingresa tu correo y contraseña');
     }
 
-    final url = Uri.parse('$baseUrl/login');
+    final url = Uri.parse('$baseUrl/users/login');
 
     try {
       final response = await http
@@ -25,24 +25,19 @@ class ApiService {
         if (data.containsKey('token')) {
           return data['token'] as String;
         } else {
-          // If no token is returned, you can return an empty string or a success message.
           return 'Login successful';
         }
       } else {
-        // If the server responds with an error, throw an exception.
         final data = jsonDecode(response.body);
         final errorMessage = data['message'] ?? 'Credenciales inválidas';
         throw Exception(errorMessage);
       }
     } catch (e) {
-      // If there's a connection error, throw an exception.
-      // Make sure the server is running on your computer.
       throw Exception('Error de conexión. Intenta de nuevo más tarde.');
     }
   }
 
-  // Método de registro modificado para no gestionar tokens.
-  static Future<void> register(
+  static Future<Map<String, dynamic>> register(
     String name,
     String surname,
     String email,
@@ -50,9 +45,9 @@ class ApiService {
     String dni,
     String birthDate,
   ) async {
+    final url = Uri.parse('$baseUrl/users/register');
     final birthDateObject = DateTime.parse(birthDate);
 
-    final url = Uri.parse('$baseUrl/register');
     final response = await http
         .post(
           url,
@@ -68,7 +63,17 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 30));
 
-    if (response.statusCode != 201) {
+    if (response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data.containsKey('token') && data.containsKey('userId')) {
+        return {
+          'token': data['token'] as String,
+          'userId': data['userId'] as int,
+        };
+      } else {
+        throw Exception('Respuesta del servidor incompleta');
+      }
+    } else {
       final data = jsonDecode(response.body);
       final errorMessage = data['message'] ?? 'Error desconocido en registro';
       if (errorMessage.contains("El campo 'email' ya está en uso.")) {
@@ -76,62 +81,41 @@ class ApiService {
       }
       throw Exception('Error en registro: $errorMessage');
     }
-    // Si la respuesta es exitosa (código 201), no se hace nada con el token.
-    // La función se completa sin retornar ni verificar un token.
   }
 
-  // Nueva función para actualizar el rol del usuario en el backend
-  static Future<void> updateRole(String token, int userId, String role) async {
-    final url = Uri.parse('$baseUrl/$userId/role');
-
-    // Aquí enviamos el nuevo rol.
-    final response = await http
-        .put(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode({'role': role}),
-        )
-        .timeout(const Duration(seconds: 30));
-
-    if (response.statusCode != 200) {
-      final data = jsonDecode(response.body);
-      final errorMessage = data['message'] ?? 'Error al actualizar el rol';
-      throw Exception(errorMessage);
-    }
-  }
-
-  // Nueva función para crear un instructor
+  /// ⚠️ ADVERTENCIA: Esta función se ha modificado para pruebas.
+  /// No incluye un token de autorización, lo que la hace muy insegura.
+  /// Revierta este cambio para la producción.
   static Future<void> createInstructor(
-    String token,
     int userId,
     String licenseNumber,
-    int experienceYears,
-  ) async {
-    final url = Uri.parse('http://192.168.0.3:3000/instructors');
+    int experienceYears, {
+    int? carId,
+  }) async {
+    final url = Uri.parse('$baseUrl/instructors/register');
+    try {
+      final body = {
+        'userId': userId,
+        'licenseNumber': licenseNumber,
+        'experienceYears': experienceYears,
+        'carId': carId ?? 1,
+      };
 
-    final response = await http
-        .post(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode({
-            'userId': userId,
-            'licenseNumber': licenseNumber,
-            'experienceYears': experienceYears,
-          }),
-        )
-        .timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
 
-    if (response.statusCode != 201) {
-      final data = jsonDecode(response.body);
-      final errorMessage =
-          data['message'] ?? 'Error al crear el perfil de instructor';
-      throw Exception(errorMessage);
+      if (response.statusCode != 201) {
+        final data = jsonDecode(response.body);
+        final errorMessage = data['message'] ?? 'Error al crear el perfil de instructor';
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }
