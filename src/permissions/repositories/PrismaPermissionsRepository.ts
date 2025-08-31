@@ -2,7 +2,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PermissionRepository } from "./IPermissionsRepository";
 import { Permission } from "../entities/Permission";
-import CustomizedError from "@shared/classes/CustomizedError";
 
 const prisma = new PrismaClient();
 

@@ -12,10 +12,8 @@ export default class InstructorRouter extends GenericRouter {
         super();
         const router = this.init();
         router.post("/register", validate(schema.createInstructorSchema), controller.register);
-
         router.get("/:id", controller.getProfile);
         router.get("/", controller.list);
-
         router.put("/:id", validate(schema.updateInstructorSchema), controller.updateProfile);
     }
 }

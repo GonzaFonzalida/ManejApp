@@ -13,6 +13,11 @@ import AuthController from "@auth/auth.controller";
 import buildAuthRouter from "@auth/auth.routes";
 import permissionsRouter from "./permissions/permissions.routes";
 import carRouters from "./cars/cars.routes";
+import DrivingClassRouter from "./drivingClass/routes"
+import { DrivingClassController } from "./drivingClass/controller";
+
+import PaymentController from "./payments/payment.controller";
+import PaymentRouter from "./payments/payment.routes";
 
 export const buildApp = () => {
 
@@ -24,6 +29,13 @@ export const buildApp = () => {
 
     const authController = diContainer.resolve<AuthController>("authController");
     const authRouter = buildAuthRouter(authController);
+
+    const drivingClassController = diContainer.resolve<DrivingClassController>("DrivingClassController");
+    const drivingClassRouter = new DrivingClassRouter(drivingClassController).init()
+
+    const paymentController = diContainer.resolve<PaymentController>("paymentController");
+    const paymentRouter = new PaymentRouter(paymentController).init();
+
     const app = express();
 
     app.use(express.json());
@@ -33,6 +45,8 @@ export const buildApp = () => {
     app.use("/permissions", permissionsRouter)
     app.use("/cars", carRouters)
     app.use("/auth", authRouter);
+    app.use("/classes", drivingClassRouter)
+    app.use("/payments", paymentRouter);
     //modulos
     // app.use("/permissons");
     // app.use("/admin");

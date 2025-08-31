@@ -13,6 +13,11 @@ const envSchema = z.object({
   JWT_EXPIRATION: z.string().default("15m"), // acceso
   JWT_REFRESH_EXPIRATION: z.string().default("7d"), // refresh token
   COOKIE_SECRET: z.string().min(10, "COOKIE_SECRET debe tener al menos 10 caracteres"),
+
+  // Mercado Pago configuration
+  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1, "MERCADOPAGO_ACCESS_TOKEN es requerido"),
+  MERCADOPAGO_PUBLIC_KEY: z.string().min(1, "MERCADOPAGO_PUBLIC_KEY es requerido"),
+  APP_URL: z.string().url().optional().default("http://localhost:3000"),
 });
 
 // Parseamos y validamos process.env
@@ -29,3 +34,8 @@ export const JWT_EXPIRATION = env.JWT_EXPIRATION;
 export const JWT_REFRESH_EXPIRATION = env.JWT_REFRESH_EXPIRATION;
 
 export const COOKIE_SECRET = env.COOKIE_SECRET;
+
+// Mercado Pago configuration
+export const MERCADOPAGO_ACCESS_TOKEN = env.MERCADOPAGO_ACCESS_TOKEN;
+export const MERCADOPAGO_PUBLIC_KEY = env.MERCADOPAGO_PUBLIC_KEY;
+export const APP_URL = env.APP_URL;

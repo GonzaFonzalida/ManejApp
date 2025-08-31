@@ -8,7 +8,6 @@ export default class PrismaInstructorRepository implements InstructorRepository 
     userId: number;
     licenseNumber: string;
     experienceYears: number;
-    carId?: number;
   }): Promise<Instructor> {
     return await this.prisma.instructor.create({
       data: {
@@ -21,11 +20,15 @@ export default class PrismaInstructorRepository implements InstructorRepository 
   }
 
 
-  async getInstructorById(id: number): Promise<Instructor | null> {
+  async getInstructorById(id: number) {
     return await this.prisma.instructor.findUnique({
       where: { id },
       include: { permissions: true, cars: true, user: true },
     });
+  }
+
+  async getInstructorByUserId(userId: number): Promise<Instructor | null> {
+    return await this.prisma.instructor.findUnique({ where: { userId } });
   }
 
   async listInstructors(filter?: { available?: boolean; isValid?: boolean }): Promise<Instructor[]> {
@@ -46,7 +49,7 @@ export default class PrismaInstructorRepository implements InstructorRepository 
     await this.prisma.instructorPermission.upsert({
       where: { instructorId_permissionId: { instructorId, permissionId } },
       update: { granted: true },
-      create: { instructorId, permissionId, granted: true },
+      create: { instructorId, permissionId, granted: false },
     });
   }
 
@@ -76,6 +79,8 @@ export default class PrismaInstructorRepository implements InstructorRepository 
       data: { isValid: true },
     });
   }
+
+    
 
   async hasAllMandatoryPermissions(instructorId: number): Promise<boolean> {
     const permissions = await this.prisma.instructorPermission.findMany({

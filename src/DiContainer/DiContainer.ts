@@ -20,6 +20,7 @@ export default class DiContainer {
         implementation: new (...args: any[]) => T,
         dependencies: string[] = [],
     ) {
+        console.log(`Registering service: ${name}`);
         this.services.set(name, {
             implementation,
             dependencies,
@@ -44,6 +45,7 @@ export default class DiContainer {
         this.singletons.set(name, instance);
     }
     resolve<T>(name: string): T {
+        console.log(`Resolving service: ${name}`);
         if (this.singletons.has(name)) {
             return this.singletons.get(name);
         }

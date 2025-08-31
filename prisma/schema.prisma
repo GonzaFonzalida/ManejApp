@@ -31,12 +31,12 @@ model User {
   role        Role      @default(STUDENT)
   lastLoginAt DateTime? // opcional: útil para auditoría
   sessions    Session[]
-
-
+  
+  
   student     Student?
   instructor  Instructor?
   admin       Admin?
-
+  
   @@index([role])
 }
 
@@ -52,7 +52,7 @@ model Session {
   revokedAt    DateTime?
 
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  
   @@index([userId])
   @@index([expiresAt])
 }
@@ -63,6 +63,7 @@ model Student {
   id      Int   @id @default(autoincrement())
   userId  Int   @unique
   user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drivingClasses DrivingClass[]
 }
 
 model Car {
@@ -87,6 +88,7 @@ model Instructor {
   isValid         Boolean   @default(false)
 
   cars      Car[]  
+  drivingClasses DrivingClass[]
   permissions     InstructorPermission[]
 }
 
@@ -116,3 +118,41 @@ model InstructorPermission {
 
   @@id([instructorId, permissionId])
 }
+
+model DrivingClass {
+  id           Int       @id @default(autoincrement())
+  date         DateTime  @default(now())
+  duration     Int       // duración en minutos
+  status       String    @default("scheduled") // scheduled | completed | canceled
+  notes        String?   // comentarios opcionales
+
+  studentId    Int
+  student      Student   @relation(fields: [studentId], references: [id])
+
+  instructorId Int
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+
+  payments     Payment[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Payment {
+  id                 Int       @id @default(autoincrement())
+  amount             Float
+  status             String    @default("pending") // pending | paid | failed
+  paymentMethod      String    // cash | card | transfer | mercadopago
+  drivingClassId     Int
+  drivingClass       DrivingClass @relation(fields: [drivingClassId], references: [id])
+
+  // Mercado Pago specific fields
+  preferenceId       String?   // Mercado Pago preference ID
+  paymentId          String?   // Mercado Pago payment ID
+  externalReference  String?   // External reference for Mercado Pago
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+

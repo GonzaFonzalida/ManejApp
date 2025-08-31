@@ -89,26 +89,35 @@ export default class UserPrismaRepository implements UserRepository {
         return userWithoutPassword;
     }
 
-    async findUser(value: string): Promise<UserWithOutPassword | undefined> {
-        const foundUser = await prisma.user.findFirst({
-        where: /^\d+$/.test(value)
-        ? { id: parseInt(value, 10) }
-        : { OR: [{ dni: value }, { email: value }] },
-        select: {
-        id: true,
-        dni: true,
-        email: true,
-        name: true,
-        surname: true,
-        role: true,
-        createdAt: true,
-        birthDate: true,
-        isActive: true,
-        },
-        });
+    async findUser(value: string | number): Promise<UserWithOutPassword | undefined> {
+  let whereClause;
 
-        return foundUser ?? undefined;
-    }
+  if (typeof value === "number" || /^\d+$/.test(value)) {
+    // Si es número o string numérico, buscar por ID
+    whereClause = { id: typeof value === "number" ? value : parseInt(value, 10) };
+  } else {
+    // Si es string no numérico, buscar por DNI o email
+    whereClause = { OR: [{ dni: value }, { email: value }] };
+  }
+
+  const foundUser = await prisma.user.findFirst({
+    where: whereClause,
+    select: {
+      id: true,
+      dni: true,
+      email: true,
+      name: true,
+      surname: true,
+      role: true,
+      createdAt: true,
+      birthDate: true,
+      isActive: true,
+    },
+  });
+
+  return foundUser ?? undefined;
+}
+
 
     async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
         const foundUser = await prisma.user.findFirst({
