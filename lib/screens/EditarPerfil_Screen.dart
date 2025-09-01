@@ -1,12 +1,73 @@
 import 'package:flutter/material.dart';
 import '../controllers/EditarPerfil_Controller.dart';
+import '../services/api_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-class EditarPerfilScreen extends StatelessWidget {
-  final EditarPerfilController controller = EditarPerfilController();
+const storage = FlutterSecureStorage();
 
+class EditarPerfilScreen extends StatefulWidget {
   static var routeName = '/editarPerfil';
+  const EditarPerfilScreen({super.key});
 
-  EditarPerfilScreen({super.key});
+  @override
+  State<EditarPerfilScreen> createState() => _EditarPerfilScreenState();
+}
+
+class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
+  final EditarPerfilController controller = EditarPerfilController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final userId = await storage.read(key: 'user_id');
+    if (userId != null) {
+      final profile = await ApiService.getUserProfile(userId);
+      controller.nombreController.text = profile['name'] ?? '';
+      controller.descripcionController.text = profile['description'] ?? '';
+      controller.zonaController.text = profile['zone'] ?? '';
+      controller.precioController.text = profile['hourlyRate']?.toString() ?? '';
+      controller.disponibilidadController.text = profile['availability'] ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = await storage.read(key: 'user_id');
+      if (userId != null) {
+        await ApiService.updateProfile(userId, {
+          'name': controller.nombreController.text,
+          'description': controller.descripcionController.text,
+          'zone': controller.zonaController.text,
+          'hourlyRate': int.tryParse(controller.precioController.text) ?? 0,
+          'availability': controller.disponibilidadController.text,
+        });
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perfil guardado')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar perfil: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,12 +86,7 @@ class EditarPerfilScreen extends StatelessWidget {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: () {
-              // futuro guardar en backend
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Perfil guardado")),
-              );
-            },
+            onPressed: _isLoading ? null : _saveProfile,
             child: const Text(
               "Guardar",
               style: TextStyle(color: Colors.blue, fontSize: 16),
@@ -43,7 +99,6 @@ class EditarPerfilScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Avatar con botón de cámara
             Stack(
               alignment: Alignment.bottomRight,
               children: [
@@ -69,8 +124,6 @@ class EditarPerfilScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 28),
-
-            // Campos de texto en Cards
             _buildInputCard(
               child: TextField(
                 controller: controller.nombreController,
@@ -82,7 +135,6 @@ class EditarPerfilScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
             _buildInputCard(
               child: TextField(
                 controller: controller.descripcionController,
@@ -96,7 +148,6 @@ class EditarPerfilScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
             _buildInputCard(
               child: TextField(
                 controller: controller.zonaController,
@@ -108,7 +159,6 @@ class EditarPerfilScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
             _buildInputCard(
               child: TextField(
                 controller: controller.precioController,
@@ -123,7 +173,6 @@ class EditarPerfilScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
             _buildInputCard(
               child: TextField(
                 controller: controller.disponibilidadController,

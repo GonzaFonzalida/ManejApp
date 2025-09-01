@@ -3,7 +3,7 @@ import '../controllers/login_controller.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  static const routeName = 'login';
+  static const routeName = '/login';
   const LoginScreen({super.key});
 
   @override
@@ -36,27 +36,11 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        const Color(0xFF003087).withOpacity(0.5),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.asset(
-                      'assets/car3.png',
-                      width: double.infinity,
-                      height: 200,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                Image.asset(
+                  'assets/car3.png',
+                  width: double.infinity,
+                  height: 200,
+                  fit: BoxFit.cover,
                 ),
                 const SizedBox(height: 16),
                 const Text(
@@ -94,8 +78,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            filled: true,
-                            fillColor: Colors.white,
                           ),
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
@@ -104,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                             if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
                                 .hasMatch(value.trim())) {
-                              return 'Por favor, ingrese un correo válido';
+                              return 'Correo inválido';
                             }
                             return null;
                           },
@@ -118,19 +100,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            filled: true,
-                            fillColor: Colors.white,
                           ),
                           obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, ingrese su contraseña';
-                            }
-                            if (value.trim().length < 6) {
-                              return 'La contraseña debe tener al menos 6 caracteres';
-                            }
-                            return null;
-                          },
+                          validator: (value) =>
+                              value == null || value.length < 6
+                                  ? 'Contraseña muy corta'
+                                  : null,
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -138,21 +113,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             Checkbox(
                               value: controller.rememberMe,
                               onChanged: (value) {
-                                setState(() => controller.rememberMe = value!);
+                                setState(() => controller.rememberMe = value ?? false);
                               },
                             ),
                             const Text('Recordar contraseña'),
                           ],
-                        ),
-                        Center(
-                          child: TextButton(
-                            onPressed: () =>
-                                controller.forgotPassword(context),
-                            child: const Text(
-                              '¿Olvidaste tu contraseña?',
-                              style: TextStyle(color: Color(0xFF003087)),
-                            ),
-                          ),
                         ),
                         const SizedBox(height: 10),
                         controller.isLoading
@@ -169,15 +134,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 40,
                                     vertical: 12,
                                   ),
                                   minimumSize: const Size(double.infinity, 48),
                                 ),
-                                child: const Text(
-                                  'Ingresar',
-                                  style: TextStyle(fontSize: 16),
-                                ),
+                                child: const Text('Ingresar'),
                               ),
                         const SizedBox(height: 16),
                         TextButton(

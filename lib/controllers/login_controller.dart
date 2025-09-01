@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import '../screens/home_screen.dart';
+import '../screens/login_screen.dart';
+
+const storage = FlutterSecureStorage();
 
 class LoginController {
   final formKey = GlobalKey<FormState>();
@@ -12,21 +16,29 @@ class LoginController {
   bool isLoading = false;
 
   Future<void> loadSavedCredentials(VoidCallback onUpdate) async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedEmail = prefs.getString('email');
-    final savedPassword = prefs.getString('password');
-    rememberMe = prefs.getBool('rememberMe') ?? false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedEmail = prefs.getString('email');
+      final savedPassword = prefs.getString('password');
+      rememberMe = prefs.getBool('rememberMe') ?? false;
 
-    if (rememberMe && savedEmail != null && savedPassword != null) {
-      emailController.text = savedEmail.trim();
-      passwordController.text = savedPassword.trim();
+      if (rememberMe && savedEmail != null && savedPassword != null) {
+        emailController.text = savedEmail.trim();
+        passwordController.text = savedPassword.trim();
+      }
+      onUpdate();
+    } catch (e) {
+      print('Error loading saved credentials: $e');
     }
-    onUpdate();
   }
 
-  Future<void> saveCredentials(String token) async {
+  Future<void> saveCredentials(String? accessToken) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
+
+    // 🔹 Guardamos el access token en secure storage
+    if (accessToken != null) {
+      await storage.write(key: 'auth_token', value: accessToken);
+    }
 
     if (rememberMe) {
       await prefs.setString('email', emailController.text.trim());
@@ -40,24 +52,43 @@ class LoginController {
   }
 
   Future<void> submit(BuildContext context, VoidCallback onUpdate) async {
-    if (!formKey.currentState!.validate()) return;
+    if (formKey.currentState == null || !formKey.currentState!.validate()) return;
 
     formKey.currentState!.save();
     isLoading = true;
     onUpdate();
 
     try {
-      final token = await ApiService.login(
+      // 🔹 Login con API - ahora incluye creación de sesión
+      final result = await ApiService.login(
         emailController.text.trim(),
         passwordController.text.trim(),
       );
 
-      await saveCredentials(token);
+      final accessToken = result['token']?.toString();
+      final userId = result['userId']?.toString();
+      final refreshToken = result['refreshToken']?.toString();
+      final sessionData = result['session'] as Map<String, dynamic>?;
+
+      await saveCredentials(accessToken);
+      if (userId != null) {
+        await storage.write(key: 'user_id', value: userId);
+      }
+      if (refreshToken != null) {
+        await storage.write(key: 'refresh_token', value: refreshToken);
+      }
+      if (sessionData != null) {
+        // Guardar datos de sesión para referencia local
+        await storage.write(key: 'session_id', value: sessionData['id']?.toString() ?? '');
+        await storage.write(key: 'session_created_at', value: sessionData['createdAt']?.toString() ?? '');
+        await storage.write(key: 'session_expires_at', value: sessionData['expiresAt']?.toString() ?? '');
+        print('Sesión creada exitosamente: ${sessionData['id']}');
+      }
 
       if (!context.mounted) return;
       Navigator.pushReplacementNamed(context, HomeScreen.routeName);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso')),
+        const SnackBar(content: Text('Inicio de sesión exitoso - Sesión creada')),
       );
     } catch (e) {
       debugPrint('Error en login: $e');
@@ -77,6 +108,23 @@ class LoginController {
         content: Text('Funcionalidad de recuperación de contraseña'),
       ),
     );
+  }
+
+  Future<void> logout(BuildContext context) async {
+    try {
+      await ApiService.logout();
+      if (!context.mounted) return;
+      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sesión cerrada exitosamente')),
+      );
+    } catch (e) {
+      debugPrint('Error en logout: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: $e')),
+      );
+    }
   }
 
   void dispose() {

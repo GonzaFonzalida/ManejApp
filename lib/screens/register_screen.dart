@@ -1,15 +1,11 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'ChooseRoleScreen.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // ✅ Importa el paquete de almacenamiento seguro
-
-const storage = FlutterSecureStorage(); // ✅ Instancia para guardar los datos
 
 class RegisterScreen extends StatefulWidget {
-  static const routeName = 'register';
+  static const routeName = '/register'; // Corregido a '/register' con barra
   const RegisterScreen({super.key});
 
   @override
@@ -33,15 +29,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Función para mostrar el selector de fecha
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: DateTime(2000),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null) {
       setState(() {
         _selectedDate = picked;
         _dateController.text = DateFormat('dd/MM/yyyy').format(picked);
@@ -50,65 +45,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _submit() async {
-    // 🔴 Validar el formulario y guardar los campos
-    if (!_formKey.currentState!.validate()) return;
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
-    _name = _name.trim();
-    _surname = _surname.trim();
-    _email = _email.trim();
-    _dni = _dni.trim();
-
     if (_selectedDate == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, seleccione su fecha de nacimiento')),
+        const SnackBar(content: Text('Seleccione fecha de nacimiento')),
       );
       return;
     }
 
-    final formattedBirthDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-
     setState(() => _isLoading = true);
     try {
-      // 🟢 CAMBIO PRINCIPAL: Captura el valor de retorno de ApiService.register
-      final result = await ApiService.register(
-        _name,
-        _surname,
-        _email,
-        _password,
-        _dni,
-        formattedBirthDate,
+      final userId = await ApiService.register(
+        _name.trim(),
+        _surname.trim(),
+        _email.trim(),
+        _password.trim(),
+        _dni.trim(),
+        DateFormat('yyyy-MM-dd').format(_selectedDate!),
       );
-
-      final token = result['token'] as String;
-      final userId = result['userId'] as int;
-
-      // ✅ Guarda los datos en el almacenamiento seguro
-      await storage.write(key: 'auth_token', value: token);
-      await storage.write(key: 'user_id', value: userId.toString());
-
-      // Mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registro exitoso')),
-      );
-
-      // 🟢 Navega a la siguiente pantalla sin pasar argumentos.
-      // La pantalla de rol ahora leerá los datos del almacenamiento seguro.
-      if (mounted) {
-        Navigator.pushReplacementNamed(
-          context,
-          ChooseRoleScreen.routeName,
+      print('UserId obtenido en RegisterScreen: $userId, Type: ${userId.runtimeType}'); // Depuración
+      if (!mounted) return;
+      if (userId.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registro básico exitoso, ahora elige tu rol')),
+        );
+        Navigator.pushNamed(context, ChooseRoleScreen.routeName, arguments: userId); // Pasamos userId como String
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: UserId vacío')),
         );
       }
     } catch (e) {
-      // Manejo de errores
-      String errorMessage = 'Error desconocido. Por favor, intente de nuevo.';
-      if (e is Exception) {
-        errorMessage = e.toString().replaceFirst('Exception: ', '');
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en registro: $errorMessage')),
+        SnackBar(content: Text('Error en registro: $e')),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -128,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Ilustración del auto
+                // Ilustración del auto con gradiente y bordes redondeados
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
@@ -136,7 +109,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        const Color(0xFF003087).withOpacity(0.5),
+                        const Color(0xFF003087).withAlpha(128),
                         Colors.transparent,
                       ],
                     ),
@@ -171,7 +144,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withAlpha(25),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -192,16 +165,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             filled: true,
                             fillColor: Colors.white,
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, ingrese su nombre';
-                            }
-                            return null;
-                          },
-                          onSaved: (value) => _name = value!,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Ingrese su nombre' : null,
+                          onSaved: (v) => _name = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Nuevo campo para el apellido
+                        // Campo de apellido
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Apellido',
@@ -212,16 +181,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             filled: true,
                             fillColor: Colors.white,
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, ingrese su apellido';
-                            }
-                            return null;
-                          },
-                          onSaved: (value) => _surname = value!,
+                          validator: (v) => v == null || v.isEmpty ? 'Ingrese su apellido' : null,
+                          onSaved: (v) => _surname = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Nuevo campo para el DNI
+                        // Campo de DNI
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'DNI',
@@ -233,13 +197,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             fillColor: Colors.white,
                           ),
                           keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, ingrese su DNI';
-                            }
-                            return null;
-                          },
-                          onSaved: (value) => _dni = value!,
+                          validator: (v) => v == null || v.isEmpty ? 'Ingrese su DNI' : null,
+                          onSaved: (v) => _dni = v!,
                         ),
                         const SizedBox(height: 16),
                         // Campo de email
@@ -254,16 +213,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             fillColor: Colors.white,
                           ),
                           keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, ingrese su correo';
-                            }
-                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                              return 'Por favor, ingrese un correo válido';
-                            }
-                            return null;
-                          },
-                          onSaved: (value) => _email = value!,
+                          validator: (v) => v == null || !v.contains('@') ? 'Correo inválido' : null,
+                          onSaved: (v) => _email = v!,
                         ),
                         const SizedBox(height: 16),
                         // Campo de contraseña
@@ -278,19 +229,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             fillColor: Colors.white,
                           ),
                           obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, ingrese su contraseña';
-                            }
-                            if (value.length < 6) {
-                              return 'La contraseña debe tener al menos 6 caracteres';
-                            }
-                            return null;
-                          },
-                          onSaved: (value) => _password = value!,
+                          validator: (v) => v != null && v.length >= 6 ? null : 'Mínimo 6 caracteres',
+                          onSaved: (v) => _password = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Nuevo campo para la fecha de nacimiento
+                        // Campo de fecha de nacimiento
                         TextFormField(
                           controller: _dateController,
                           readOnly: true,
@@ -304,18 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             filled: true,
                             fillColor: Colors.white,
                           ),
-                          validator: (value) {
-                            if (_selectedDate == null) {
-                              return 'Por favor, seleccione su fecha de nacimiento';
-                            }
-                            final now = DateTime.now();
-                            final age = now.year - _selectedDate!.year;
-                            final isUnderage = age < 18 || (age == 18 && (now.month < _selectedDate!.month || (now.month == _selectedDate!.month && now.day < _selectedDate!.day)));
-                            if (isUnderage) {
-                              return 'Debe ser mayor de 18 años para registrarse';
-                            }
-                            return null;
-                          },
+                          validator: (v) => _selectedDate == null ? 'Seleccione fecha' : null,
                         ),
                         const SizedBox(height: 24),
                         // Botón Registrarse
@@ -343,9 +275,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 16),
                         // Enlace a login
                         TextButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, LoginScreen.routeName);
-                          },
+                          onPressed: () =>
+                              Navigator.pushNamed(context, LoginScreen.routeName),
                           child: const Text(
                             '¿Ya tienes cuenta? Inicia sesión',
                             style: TextStyle(

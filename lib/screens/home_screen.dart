@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:manejapp/screens/ReservarClase_Screen.dart';
+import 'package:manejapp/screens/profile_screen.dart';
+import 'package:manejapp/services/api_service.dart';
+import 'package:manejapp/models/instructor.dart';
 
 class HomeScreen extends StatefulWidget {
-  // Define the constant route name for navigation
   static const routeName = '/home';
-
   const HomeScreen({super.key});
 
   @override
@@ -11,47 +13,49 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Dummy data for instructors (will be fetched dynamically later)
-  // To simulate no data, you can uncomment the line below and comment out the list.
-  // final List<Instructor> _instructors = [];
-  final List<Instructor> _instructors = [
-    Instructor(
-      name: 'Rodrigo Quesada',
-      rating: 4.8,
-      experienceYears: 4,
-      hourlyRate: 45000,
-      image: 'assets/rodrigo.jpg', // Replace with actual asset path
-    ),
-    Instructor(
-      name: 'Somali Gutierrez',
-      rating: 4.7,
-      experienceYears: 4,
-      hourlyRate: 49000,
-      image: 'assets/somali.jpg', // Replace with actual asset path
-    ),
-    Instructor(
-      name: 'Rodrigo Quesada',
-      rating: 4.9,
-      experienceYears: 4,
-      hourlyRate: 62000,
-      image: 'assets/rodrigo2.jpg', // Replace with actual asset path
-    ),
-  ];
+  List<Instructor> _instructors = [];
+  bool _isLoading = true;
 
-  int _selectedIndex = 0; // Index for the bottom navigation bar
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInstructors();
+  }
+
+  Future<void> _loadInstructors() async {
+    try {
+      final data = await ApiService.getInstructors();
+      print('Instructors data: $data');
+      setState(() {
+        _instructors = data.map((e) => Instructor.fromJson(e)).toList();
+        print('Parsed instructors: $_instructors');
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading instructors: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    // You can add navigation logic here for other tabs
+    if (index == 2) {
+      // 👉 Al tocar "Profile", redirige a EditarPerfilScreen
+      Navigator.pushNamed(context, ProfileScreen.routeName);
+    } else {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // This line removes the back button from the AppBar
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -97,10 +101,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Center(
                 child: InkWell(
                   onTap: () {
-                    // TODO: Implement location selection
+                    // TODO: Implementar selección de ubicación
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 12.0),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20.0),
                       color: Colors.white,
@@ -111,9 +116,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: <Widget>[
                         Icon(Icons.location_on_outlined, color: Colors.black54),
                         SizedBox(width: 8.0),
-                        Text('Tortuguitas', style: TextStyle(fontSize: 16.0)),
+                        Text('Tortuguitas',
+                            style: TextStyle(fontSize: 16.0)),
                         SizedBox(width: 8.0),
-                        Icon(Icons.arrow_forward_ios, size: 16.0, color: Colors.black54),
+                        Icon(Icons.arrow_forward_ios,
+                            size: 16.0, color: Colors.black54),
                       ],
                     ),
                   ),
@@ -130,10 +137,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: <Widget>[
-                    const Text('Mapa Placeholder', style: TextStyle(color: Colors.grey)),
-                    Positioned(left: 50, top: 30, child: Icon(Icons.directions_car, size: 30, color: Color(0xFF003087))),
-                    Positioned(right: 60, top: 80, child: Icon(Icons.directions_car, size: 30, color: Color(0xFF003087))),
-                    Positioned(bottom: 20, child: Icon(Icons.directions_car, size: 30, color: Color(0xFF003087))),
+                    const Text('Mapa Placeholder',
+                        style: TextStyle(color: Colors.grey)),
+                    Positioned(
+                        left: 50,
+                        top: 30,
+                        child: Icon(Icons.directions_car,
+                            size: 30, color: Color(0xFF003087))),
+                    Positioned(
+                        right: 60,
+                        top: 80,
+                        child: Icon(Icons.directions_car,
+                            size: 30, color: Color(0xFF003087))),
+                    Positioned(
+                        bottom: 20,
+                        child: Icon(Icons.directions_car,
+                            size: 30, color: Color(0xFF003087))),
                   ],
                 ),
               ),
@@ -164,7 +183,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 12.0),
-              if (_instructors.isEmpty)
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_instructors.isEmpty)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 40.0),
@@ -208,23 +234,32 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 Row(
                                   children: <Widget>[
-                                    Icon(Icons.star, color: Colors.amber, size: 16.0),
+                                    Icon(Icons.star,
+                                        color: Colors.amber, size: 16.0),
                                     const SizedBox(width: 4.0),
-                                    Text('${instructor.rating} ★', style: const TextStyle(fontSize: 14.0)),
+                                    Text('${instructor.rating} ★',
+                                        style:
+                                            const TextStyle(fontSize: 14.0)),
                                     const SizedBox(width: 8.0),
-                                    Text('${instructor.experienceYears} años de experiencia', style: const TextStyle(fontSize: 12.0, color: Colors.grey)),
+                                    Text(
+                                      '${instructor.experienceYears} años de experiencia',
+                                      style: const TextStyle(
+                                          fontSize: 12.0, color: Colors.grey),
+                                    ),
                                   ],
                                 ),
                               ],
                             ),
                           ),
-                          Text(
-                            '\$${instructor.hourlyRate}/h',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16.0,
-                              color: Color(0xFF003087),
-                            ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                ReservarClaseScreen.routeName,
+                                arguments: _instructors[index], // 👉 pasa el instructor
+                              );
+                            },
+                            child: const Text('Reservar'),
                           ),
                         ],
                       ),
@@ -253,26 +288,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Color(0xFF003087),
-        unselectedItemColor: Colors.grey.shade500,
+        unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
       ),
     );
   }
 }
 
-// Data model for an instructor
-class Instructor {
-  final String name;
-  final double rating;
-  final int experienceYears;
-  final int hourlyRate;
-  final String image;
-
-  Instructor({
-    required this.name,
-    required this.rating,
-    required this.experienceYears,
-    required this.hourlyRate,
-    required this.image,
-  });
-}

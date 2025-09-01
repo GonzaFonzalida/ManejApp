@@ -1,15 +1,57 @@
 import 'package:flutter/material.dart';
 import '../controllers/ReservarClase_Controller.dart';
+import '../services/api_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../models/instructor.dart';
 
-class ReservarClaseScreen extends StatelessWidget {
-  final ReservarClaseController controller = ReservarClaseController();
+const storage = FlutterSecureStorage();
 
+class ReservarClaseScreen extends StatefulWidget {
   static var routeName = '/reservarClase';
+  const ReservarClaseScreen({super.key});
 
-  ReservarClaseScreen({super.key});
+  @override
+  State<ReservarClaseScreen> createState() => _ReservarClaseScreenState();
+}
+
+class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
+  final ReservarClaseController controller = ReservarClaseController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _reserveClass(String instructorId) async {
+    setState(() => _isLoading = true);
+    try {
+      final date = controller.fechas[controller.fechaSeleccionada.value];
+      final time = controller.horaSeleccionada.value;
+      await ApiService.reserveClass(instructorId, {
+        'date': date,
+        'time': time,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Clase reservada')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al reservar clase: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final instructor = ModalRoute.of(context)?.settings.arguments as Instructor?;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("ManejApp"),
@@ -20,14 +62,14 @@ class ReservarClaseScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 40,
-              backgroundImage: AssetImage("assets/instructor.jpg"), // tu imagen
+              backgroundImage: AssetImage(instructor?.image ?? "assets/car1.png"),
             ),
             const SizedBox(height: 12),
-            const Text(
-              "Rodrigo Quesada",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              instructor?.name ?? "Instructor",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const Text(
               "Soy un instructor paciente y profesional con 10 años de experiencia...",
@@ -107,17 +149,15 @@ class ReservarClaseScreen extends StatelessWidget {
               }).toList(),
             ),
             const Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Clase reservada")),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              child: const Text("Reservar Clase"),
-            )
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ElevatedButton(
+                    onPressed: instructor != null ? () => _reserveClass(instructor.id.toString()) : null,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                    child: const Text("Reservar Clase"),
+                  ),
           ],
         ),
       ),
