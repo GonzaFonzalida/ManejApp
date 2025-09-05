@@ -18,6 +18,7 @@ const envSchema = z.object({
   MERCADOPAGO_ACCESS_TOKEN: z.string().min(1, "MERCADOPAGO_ACCESS_TOKEN es requerido"),
   MERCADOPAGO_PUBLIC_KEY: z.string().min(1, "MERCADOPAGO_PUBLIC_KEY es requerido"),
   APP_URL: z.string().url().optional().default("http://localhost:3000"),
+  APP_URL_PUBLIC: z.string().url().optional(),
 });
 
 // Parseamos y validamos process.env
@@ -39,3 +40,14 @@ export const COOKIE_SECRET = env.COOKIE_SECRET;
 export const MERCADOPAGO_ACCESS_TOKEN = env.MERCADOPAGO_ACCESS_TOKEN;
 export const MERCADOPAGO_PUBLIC_KEY = env.MERCADOPAGO_PUBLIC_KEY;
 export const APP_URL = env.APP_URL;
+export const APP_URL_PUBLIC = env.APP_URL_PUBLIC;
+
+// Helper function to get the appropriate URL for Mercado Pago
+export const getMercadoPagoUrl = (): string => {
+  // In development, prefer public URL if available (for ngrok, etc.)
+  if (NODE_ENV === 'development' && APP_URL_PUBLIC) {
+    return APP_URL_PUBLIC;
+  }
+  // In production or when no public URL is set, use APP_URL
+  return APP_URL;
+};

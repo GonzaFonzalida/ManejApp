@@ -1,7 +1,7 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { Payment as AppPayment } from './payment.types';
 import CustomizedError from '@shared/classes/CustomizedError';
-import { MERCADOPAGO_ACCESS_TOKEN, APP_URL } from '@config/config';
+import { MERCADOPAGO_ACCESS_TOKEN, getMercadoPagoUrl } from '@config/config';
 
 export interface CreatePreferenceData {
   amount: number;
@@ -38,12 +38,12 @@ export default class MercadoPagoService {
         ],
         external_reference: data.externalReference,
         back_urls: {
-          success: `${APP_URL}/payments/success`,
-          failure: `${APP_URL}/payments/failure`,
-          pending: `${APP_URL}/payments/pending`,
+          success: `${getMercadoPagoUrl()}/payments/success`,
+          failure: `${getMercadoPagoUrl()}/payments/failure`,
+          pending: `${getMercadoPagoUrl()}/payments/pending`,
         },
         auto_return: 'approved',
-        notification_url: `${APP_URL}/payments/webhook`,
+        notification_url: `${getMercadoPagoUrl()}/payments/webhook`,
       };
 
       const preferenceClient = new Preference(this.client);
