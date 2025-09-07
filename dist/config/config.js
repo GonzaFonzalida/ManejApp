@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.APP_URL = exports.MERCADOPAGO_PUBLIC_KEY = exports.MERCADOPAGO_ACCESS_TOKEN = exports.COOKIE_SECRET = exports.JWT_REFRESH_EXPIRATION = exports.JWT_EXPIRATION = exports.JWT_REFRESH_SECRET = exports.JWT_SECRET = exports.DATABASE_URL = exports.PORT = exports.NODE_ENV = void 0;
+exports.getMercadoPagoUrl = exports.APP_URL_PUBLIC = exports.APP_URL = exports.MERCADOPAGO_PUBLIC_KEY = exports.MERCADOPAGO_ACCESS_TOKEN = exports.COOKIE_SECRET = exports.JWT_REFRESH_EXPIRATION = exports.JWT_EXPIRATION = exports.JWT_REFRESH_SECRET = exports.JWT_SECRET = exports.DATABASE_URL = exports.PORT = exports.NODE_ENV = void 0;
 const zod_1 = require("zod");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
@@ -21,6 +21,7 @@ const envSchema = zod_1.z.object({
     MERCADOPAGO_ACCESS_TOKEN: zod_1.z.string().min(1, "MERCADOPAGO_ACCESS_TOKEN es requerido"),
     MERCADOPAGO_PUBLIC_KEY: zod_1.z.string().min(1, "MERCADOPAGO_PUBLIC_KEY es requerido"),
     APP_URL: zod_1.z.string().url().optional().default("http://localhost:3000"),
+    APP_URL_PUBLIC: zod_1.z.string().url().optional(),
 });
 // Parseamos y validamos process.env
 const env = envSchema.parse(process.env);
@@ -37,3 +38,14 @@ exports.COOKIE_SECRET = env.COOKIE_SECRET;
 exports.MERCADOPAGO_ACCESS_TOKEN = env.MERCADOPAGO_ACCESS_TOKEN;
 exports.MERCADOPAGO_PUBLIC_KEY = env.MERCADOPAGO_PUBLIC_KEY;
 exports.APP_URL = env.APP_URL;
+exports.APP_URL_PUBLIC = env.APP_URL_PUBLIC;
+// Helper function to get the appropriate URL for Mercado Pago
+const getMercadoPagoUrl = () => {
+    // In development, prefer public URL if available (for ngrok, etc.)
+    if (exports.NODE_ENV === 'development' && exports.APP_URL_PUBLIC) {
+        return exports.APP_URL_PUBLIC;
+    }
+    // In production or when no public URL is set, use APP_URL
+    return exports.APP_URL;
+};
+exports.getMercadoPagoUrl = getMercadoPagoUrl;
