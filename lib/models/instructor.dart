@@ -1,29 +1,54 @@
+import 'package:flutter/material.dart';
+
 class Instructor {
   final int id;
-  final String name;
-  final double rating;
+  final String licenseNumber;
   final int experienceYears;
-  final int hourlyRate;
-  final String image;
+  final String? image;
+  final double? rating;
+  // ✅ The user object is now optional to prevent TypeErrors
+  final User? user;
 
   Instructor({
     required this.id,
-    required this.name,
-    required this.rating,
+    required this.licenseNumber,
     required this.experienceYears,
-    required this.hourlyRate,
-    required this.image,
+    this.user,
+    this.image,
+    this.rating,
   });
 
   factory Instructor.fromJson(Map<String, dynamic> json) {
-    print('Instructor json: $json');
     return Instructor(
-      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
-      name: json['name'] ?? '',
-      rating: double.tryParse(json['rating']?.toString() ?? '0.0') ?? 0.0,
-      experienceYears: int.tryParse(json['experienceYears']?.toString() ?? '0') ?? 0,
-      hourlyRate: int.tryParse(json['hourlyRate']?.toString() ?? '0') ?? 0,
-      image: json['image'] ?? 'assets/car1.png',
+      id: json['id'] as int,
+      licenseNumber: json['licenseNumber'] as String,
+      experienceYears: json['experienceYears'] as int,
+      // ✅ Correctly handles a null or missing 'user' key
+      user: json['user'] != null
+          ? User.fromJson(json['user'] as Map<String, dynamic>)
+          : null,
+      rating: (json['rating'] as num?)?.toDouble(),
+      image: json['image'] as String?,
+    );
+  }
+}
+
+class User {
+  final int id;
+  final String? name;
+  final String? surname;
+
+  User({
+    required this.id,
+    this.name,
+    this.surname,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] as int,
+      name: json['name'] as String?,
+      surname: json['surname'] as String?,
     );
   }
 }

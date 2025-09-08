@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:manejapp/screens/login_screen.dart';
+import 'package:manejapp/screens/payment_screen.dart';
 import 'package:manejapp/screens/register_screen.dart';
 import 'package:manejapp/screens/ChooseRoleScreen.dart';
 import 'package:manejapp/screens/home_screen.dart';
-import 'package:manejapp/screens/editarPerfil_screen.dart'; // 👈 importa la pantalla de editar perfil
+import 'package:manejapp/screens/editarPerfil_screen.dart';
 import 'package:manejapp/screens/profile_screen.dart';
 import 'package:manejapp/screens/ReservarClase_Screen.dart';
 import 'package:manejapp/services/api_service.dart';
+import 'package:manejapp/screens/info_screen.dart';
+
+// ✅ Importación de las nuevas sub-pantallas
+import 'package:manejapp/screens/sub_screens/about_app_screen.dart';
+import 'package:manejapp/screens/sub_screens/contact_screen.dart';
+import 'package:manejapp/screens/sub_screens/first_steps_screen.dart';
+import 'package:manejapp/screens/sub_screens/offers_screen.dart';
+import 'package:manejapp/screens/sub_screens/settings_screen.dart';
+import 'package:manejapp/screens/sub_screens/top_instructors_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -30,7 +40,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _checkSession() async {
-    final storage = FlutterSecureStorage();
+    const storage = FlutterSecureStorage();
     final isValid = await ApiService.isSessionValid();
     final hasToken = await storage.read(key: 'auth_token') != null;
 
@@ -67,9 +77,34 @@ class _MyAppState extends State<MyApp> {
           return const LoginScreen();
         },
         HomeScreen.routeName: (context) => const HomeScreen(),
-        EditarPerfilScreen.routeName: (context) => const EditarPerfilScreen(), // 👈 añadida
+        EditarPerfilScreen.routeName: (context) => const EditarPerfilScreen(),
         ReservarClaseScreen.routeName: (context) => const ReservarClaseScreen(),
         ProfileScreen.routeName: (context) => const ProfileScreen(),
+        InfoScreen.routeName: (context) => const InfoScreen(),
+        PaymentScreen.routeName: (context) {
+          final arguments = ModalRoute.of(context)?.settings.arguments;
+          if (arguments is Map<String, dynamic>) {
+            return PaymentScreen(
+              drivingClassId: arguments['drivingClassId'] as int,
+              amount: arguments['amount'] as int,
+              description: arguments['description'] as String,
+              payerEmail: arguments['payerEmail'] as String?,
+            );
+          }
+          // Fallback with dummy values if no arguments provided
+          return const PaymentScreen(
+            drivingClassId: 0,
+            amount: 0,
+            description: 'Sin descripción',
+          );
+        },
+        // ✅ Rutas agregadas para las sub-pantallas de InfoScreen
+        FirstStepsScreen.routeName: (context) => const FirstStepsScreen(),
+        TopInstructorsScreen.routeName: (context) => const TopInstructorsScreen(),
+        ContactScreen.routeName: (context) => const ContactScreen(),
+        OffersScreen.routeName: (context) => const OffersScreen(),
+        SettingsScreen.routeName: (context) => const SettingsScreen(),
+        AboutAppScreen.routeName: (context) => const AboutAppScreen(),
       },
     );
   }

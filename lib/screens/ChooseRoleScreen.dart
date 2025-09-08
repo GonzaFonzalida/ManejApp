@@ -97,7 +97,7 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
               ),
               const SizedBox(height: 16),
               _buildRoleCard(
-                role: 'Estudiante',
+                role: 'Alumno',
                 description: 'Aprende nuevas habilidades.',
                 icon: Icons.person,
               ),

@@ -3,6 +3,8 @@ import '../controllers/ReservarClase_Controller.dart';
 import '../services/api_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/instructor.dart';
+import 'payment_screen.dart';
+import 'dart:developer' as developer;
 
 const storage = FlutterSecureStorage();
 
@@ -23,25 +25,61 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
     super.dispose();
   }
 
-  Future<void> _reserveClass(String instructorId) async {
+  Future<void> _reserveClass(Instructor instructor) async {
     setState(() => _isLoading = true);
     try {
       final date = controller.fechas[controller.fechaSeleccionada.value];
       final time = controller.horaSeleccionada.value;
-      await ApiService.reserveClass(instructorId, {
-        'date': date,
-        'time': time,
-      });
+
+      // ✅ CORRECCIÓN: Leer el ID del estudiante desde el almacenamiento seguro
+      final studentId = await storage.read(key: 'user_id');
+      if (studentId == null) {
+        throw Exception('El ID del estudiante no está disponible. Por favor, vuelva a iniciar sesión.');
+      }
+
+      // Paso 1: Llamar al backend para reservar la clase
+      final response = await ApiService.reserveClass(
+        instructor.id.toString(), {
+          'date': date,
+          'time': time,
+          'studentId': int.parse(studentId), // ✅ CORRECCIÓN: Se envía el ID del estudiante
+        },
+      );
+
+      // ✅ Muestra la respuesta del servidor en la consola para depurar
+      developer.log('Respuesta del servidor: $response', name: 'ReservarClaseScreen');
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Clase reservada')),
+
+      // Paso 2: Obtener el ID de la clase de la respuesta y validar
+      final drivingClassId = response['id'];
+      if (drivingClassId == null) {
+        throw Exception('El ID de la clase no se recibió correctamente en la respuesta del servidor.');
+      }
+      
+      // Paso 3: Leer el email del storage para el pago
+      final userEmail = await storage.read(key: 'user_email');
+      
+      // Paso 4: Navegar a la pantalla de pago con los datos necesarios
+      Navigator.pushNamed(
+        context,
+        PaymentScreen.routeName,
+        arguments: {
+          'drivingClassId': drivingClassId,
+          'amount': 45000,
+          // ✅ CORRECCIÓN: Accede al nombre a través del objeto 'user'
+          'description': 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''} el $date a las $time',
+          'payerEmail': userEmail,
+        },
       );
-      Navigator.pop(context);
-    } catch (e) {
+    } catch (e, stacktrace) {
       if (!mounted) return;
+      // ✅ Ahora la SnackBar muestra el error completo y el stacktrace para depurar mejor
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al reservar clase: $e')),
+        SnackBar(
+          content: Text('Error al reservar clase: ${e.toString()}\nStacktrace: ${stacktrace.toString()}'),
+          duration: const Duration(seconds: 5),
+        ),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -64,11 +102,15 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
           children: [
             CircleAvatar(
               radius: 40,
-              backgroundImage: AssetImage(instructor?.image ?? "assets/car1.png"),
+              // ✅ CORRECCIÓN: Ahora se verifica la URL de la imagen.
+              backgroundImage: instructor?.image != null && instructor!.image!.startsWith('http')
+                  ? NetworkImage(instructor.image!) as ImageProvider
+                  : const AssetImage("assets/default_profile.png"),
             ),
             const SizedBox(height: 12),
             Text(
-              instructor?.name ?? "Instructor",
+              // ✅ CORRECCIÓN: Accede al nombre a través del objeto 'user'
+              '${instructor?.user?.name ?? ''} ${instructor?.user?.surname ?? ''}',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const Text(
@@ -78,14 +120,14 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: const [
-                Column(
+              children: [
+                const Column(
                   children: [
                     Text("Precio"),
-                    Text("\$45.000/h", style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text("\$70.000/h", style: TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
-                Column(
+                const Column(
                   children: [
                     Text("Zona"),
                     Text("Tortuguitas", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -152,11 +194,13 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-                    onPressed: instructor != null ? () => _reserveClass(instructor.id.toString()) : null,
+                    onPressed: instructor != null
+                        ? () => _reserveClass(instructor)
+                        : null,
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 48),
                     ),
-                    child: const Text("Reservar Clase"),
+                    child: const Text("Reservar y Pagar"),
                   ),
           ],
         ),
