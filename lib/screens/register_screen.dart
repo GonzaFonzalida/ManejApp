@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Asegúrate de tener esta importación
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'ChooseRoleScreen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  static const routeName = '/register'; // Corregido a '/register' con barra
+  static const routeName = '/register';
   const RegisterScreen({super.key});
 
   @override
@@ -66,13 +67,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _dni.trim(),
         DateFormat('yyyy-MM-dd').format(_selectedDate!),
       );
+
+      // ✅ Solución: Guardar el userId y el email en el almacenamiento seguro
+      final storage = FlutterSecureStorage();
+      if (userId.isNotEmpty) {
+        await storage.write(key: 'user_id', value: userId);
+        await storage.write(key: 'user_email', value: _email.trim());
+      }
+
       print('UserId obtenido en RegisterScreen: $userId, Type: ${userId.runtimeType}'); // Depuración
+      
       if (!mounted) return;
       if (userId.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registro básico exitoso, ahora elige tu rol')),
         );
-        Navigator.pushNamed(context, ChooseRoleScreen.routeName, arguments: userId); // Pasamos userId como String
+        Navigator.pushNamed(context, ChooseRoleScreen.routeName, arguments: userId); 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error: UserId vacío')),
@@ -101,7 +111,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Ilustración del auto con gradiente y bordes redondeados
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
@@ -125,7 +134,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Nombre de la app
                 const Text(
                   'ManejApp',
                   style: TextStyle(
@@ -136,7 +144,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                // Formulario con sombras y bordes redondeados
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -154,7 +161,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        // Campo de nombre
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Nombre',
@@ -165,12 +171,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             filled: true,
                             fillColor: Colors.white,
                           ),
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Ingrese su nombre' : null,
+                          validator: (v) => v == null || v.isEmpty ? 'Ingrese su nombre' : null,
                           onSaved: (v) => _name = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Campo de apellido
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Apellido',
@@ -185,7 +189,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onSaved: (v) => _surname = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Campo de DNI
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'DNI',
@@ -201,7 +204,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onSaved: (v) => _dni = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Campo de email
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Correo electrónico',
@@ -217,7 +219,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onSaved: (v) => _email = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Campo de contraseña
                         TextFormField(
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
@@ -233,7 +234,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onSaved: (v) => _password = v!,
                         ),
                         const SizedBox(height: 16),
-                        // Campo de fecha de nacimiento
                         TextFormField(
                           controller: _dateController,
                           readOnly: true,
@@ -250,7 +250,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           validator: (v) => _selectedDate == null ? 'Seleccione fecha' : null,
                         ),
                         const SizedBox(height: 24),
-                        // Botón Registrarse
                         _isLoading
                             ? const CircularProgressIndicator()
                             : ElevatedButton(
@@ -273,10 +272,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                         const SizedBox(height: 16),
-                        // Enlace a login
                         TextButton(
-                          onPressed: () =>
-                              Navigator.pushNamed(context, LoginScreen.routeName),
+                          onPressed: () => Navigator.pushNamed(context, LoginScreen.routeName),
                           child: const Text(
                             '¿Ya tienes cuenta? Inicia sesión',
                             style: TextStyle(

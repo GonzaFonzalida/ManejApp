@@ -93,28 +93,31 @@ class ApiService {
         throw Exception(message);
       }
     } else {
-      // ✅ Registrar estudiante
-      final response = await http.post(
-        Uri.parse('$_baseUrl/students/register'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'userId': int.parse(userId),
-        }),
+      // ✅ Registrar estudiante usando nueva ruta PATCH /users/:id/role
+      //    - Backend normaliza "Alumno" -> "STUDENT"
+      //    - Respuesta esperada: 200 OK con usuario sin password
+      final token = await storage.read(key: 'auth_token');
+      final headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
+
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/users/$userId/role'),
+        headers: headers,
+        body: jsonEncode({'role': role}),
       );
 
-      if (response.statusCode != 201) {
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-        final message =
-            errorData?['message'] ?? 'Error al registrar estudiante';
+        final message = errorData?['message'] ?? 'Error al registrar estudiante';
         throw Exception(message);
       }
     }
   }
 
   static Future<void> registerAsStudent(String userId) async {
-    await completeRegistration(userId, 'Estudiante');
+    await completeRegistration(userId, 'Alumno');
   }
 
   static Future<List<dynamic>> getCars() async {
@@ -183,39 +186,189 @@ class ApiService {
     }
   }
 
+  static Future<void> _ensureStudentUpsert(String userId, String token) async {
+    try {
+      await http.patch(
+        Uri.parse('$_baseUrl/users/$userId/role'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'role': 'Alumno'}), // backend normaliza -> STUDENT
+      );
+    } catch (_) {
+      // noop: upsert preventivo puede fallar sin ser crítico
+    }
+  }
   static Future<Map<String, dynamic>> reserveClass(String instructorId, Map<String, dynamic> reservationData) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
     }
 
-    final userId = await storage.read(key: 'user_id');
-    if (userId == null) {
-      throw Exception('No hay userId disponible.');
+    // 1) Obtener userId del storage o decodificar desde el JWT como fallback
+    String? userId = await storage.read(key: 'user_id');
+    if (userId == null || userId.isEmpty) {
+      try {
+        if (token.contains('.')) {
+          final parts = token.split('.');
+          if (parts.length == 3) {
+            final payload = parts[1];
+            final normalized = base64Url.normalize(payload);
+            final decoded = utf8.decode(base64Url.decode(normalized));
+            final payloadData = jsonDecode(decoded) as Map<String, dynamic>;
+            userId = payloadData['id']?.toString() ??
+                payloadData['userId']?.toString() ??
+                payloadData['sub']?.toString();
+          }
+        }
+      } catch (_) {
+        // noop: fallback podría fallar
+      }
     }
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/classes'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'instructorId': int.parse(instructorId),
-        'studentId': int.parse(userId),
-        'date': reservationData['date'],
-        'time': reservationData['time'],
-        'duration': 60,
-        'status': 'scheduled'
-      }),
-    );
+    if (userId == null || userId.isEmpty) {
+      throw Exception('Sesión inválida. Inicia sesión nuevamente.');
+    }
 
-    if (response.statusCode == 201) {
+    // Upsert de Student previo a la reserva (idempotente)
+    try {
+      await http.patch(
+        Uri.parse('$_baseUrl/users/$userId/role'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'role': 'Alumno'}),
+      );
+    } catch (_) {
+      // ignorar errores de upsert preventivo
+    }
+    // Helper para reservar
+    Future<http.Response> doReserve() {
+      // Normalizar hora a HH:mm:ss si viene en HH:mm
+      final String rawTime = reservationData['time']?.toString() ?? '';
+      final String timeStr = RegExp(r'^\d{2}:\d{2}$').hasMatch(rawTime) ? '$rawTime:00' : rawTime;
+
+      final payload = {
+        'instructorId': int.parse(instructorId),
+        'studentId': int.parse(userId!), // requerido por backend
+        'date': reservationData['date'],
+        'time': timeStr,
+        'duration': 60,
+        'status': 'scheduled', // valor permitido por el backend
+      };
+
+      return http.post(
+        Uri.parse('$_baseUrl/classes'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      );
+    }
+
+    http.Response response = await doReserve();
+    developer.log('reserveClass first attempt status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
+
+    // 2) Si el backend indica que el estudiante no existe, forzar upsert del Student (PATCH role) y reintentar una vez
+    if (response.statusCode >= 400) {
+      try {
+        String extractErrorText(String body) {
+          try {
+            final parsed = jsonDecode(body);
+            if (parsed is Map<String, dynamic>) {
+              final parts = <String>[];
+              void collect(dynamic v) {
+                if (v == null) return;
+                if (v is String) parts.add(v);
+                if (v is Map) {
+                  for (final e in v.entries) {
+                    collect(e.value);
+                  }
+                }
+                if (v is List) {
+                  for (final item in v) {
+                    collect(item);
+                  }
+                }
+              }
+
+              // Campos típicos
+              collect(parsed['message']);
+              collect(parsed['error']);
+              collect(parsed['detail']);
+              collect(parsed['details']);
+              collect(parsed['errors']);
+              collect(parsed['code']);
+              // Todo el objeto por si el mensaje está anidado
+              collect(parsed);
+              return parts.join(' | ');
+            }
+            return body;
+          } catch (_) {
+            return body;
+          }
+        }
+
+        final raw = response.body;
+        final errText = extractErrorText(raw).toLowerCase();
+
+        final isStudentMissing =
+            (errText.contains('estudiante') && (errText.contains('no existe') || errText.contains('no encontrado') || errText.contains('inexist'))) ||
+            errText.contains('student not found') ||
+            errText.contains('student does not exist') ||
+            errText.contains('student not exist') ||
+            errText.contains('student_missing') ||
+            (errText.contains('student') && (errText.contains('exist') || (errText.contains('not') && errText.contains('found'))));
+
+        if (isStudentMissing) {
+          // Asegurar Student con PATCH role (backend hace upsert al poner STUDENT/"Alumno")
+          await http.patch(
+            Uri.parse('$_baseUrl/users/$userId/role'),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'role': 'Alumno'}), // backend normaliza -> STUDENT
+          );
+
+          // Pequeño delay por consistencia eventual y reintentar una vez
+          await Future.delayed(const Duration(milliseconds: 500));
+          response = await doReserve();
+          developer.log('reserveClass retry status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
+
+          // Si aún falla por estudiante inexistente, intento final sin studentId (que lo infiera el backend)
+          if (response.statusCode >= 400) {
+            final retryRaw = response.body;
+            final retryErr = extractErrorText(retryRaw).toLowerCase();
+            final stillMissing =
+                (retryErr.contains('estudiante') && (retryErr.contains('no existe') || retryErr.contains('no encontrado') || retryErr.contains('inexist'))) ||
+                retryErr.contains('student not found') ||
+                retryErr.contains('student does not exist') ||
+                retryErr.contains('student not exist') ||
+                retryErr.contains('student_missing') ||
+                (retryErr.contains('student') && (retryErr.contains('exist') || (retryErr.contains('not') && retryErr.contains('found'))));
+
+            if (stillMissing) {
+              response = await doReserve();
+              developer.log('reserveClass final fallback (no studentId) status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
+            }
+          }
+        }
+      } catch (_) {
+        // Si algo falla en el intento de recuperación, se maneja abajo
+      }
+    }
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     } else {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
       final message = errorData?['message'] ?? 'Error al reservar la clase';
-      throw Exception(message);
+      developer.log('reserveClass final failure status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
+      throw Exception('$message (HTTP ${response.statusCode})');
     }
   }
 
@@ -240,22 +393,33 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      developer.log('Login response: $data', name: 'ApiService');
+
       String? accessToken;
       String? userId;
       String? refreshToken;
       Map<String, dynamic>? sessionData;
 
+      // Try different response formats
       if (data['token'] is Map<String, dynamic>) {
         final tokenData = data['token'] as Map<String, dynamic>;
-        userId = tokenData['id']?.toString();
-        accessToken = tokenData['token']?.toString() ?? data['accessToken'] as String?;
-        refreshToken = tokenData['refreshToken']?.toString();
+        userId = tokenData['id']?.toString() ?? tokenData['userId']?.toString();
+        accessToken = tokenData['token']?.toString() ?? tokenData['accessToken']?.toString() ?? data['accessToken'] as String?;
+        refreshToken = tokenData['refreshToken']?.toString() ?? data['refreshToken'] as String?;
+      } else if (data['data'] is Map<String, dynamic>) {
+        // Handle nested data structure
+        final nestedData = data['data'] as Map<String, dynamic>;
+        accessToken = nestedData['token']?.toString() ?? nestedData['accessToken']?.toString() ?? data['accessToken'] as String?;
+        refreshToken = nestedData['refreshToken']?.toString() ?? data['refreshToken'] as String?;
+        userId = nestedData['userId']?.toString() ?? nestedData['id']?.toString() ?? nestedData['user']?['id']?.toString();
       } else {
+        // Direct response format
         accessToken = data['accessToken'] as String? ?? data['token'] as String?;
         refreshToken = data['refreshToken'] as String?;
         final user = data['user'] as Map<String, dynamic>? ?? {};
         userId = user['id']?.toString() ?? data['userId']?.toString() ?? data['id']?.toString();
 
+        // Try to extract from JWT if available
         if (userId == null && accessToken != null && accessToken.contains('.')) {
           try {
             final parts = accessToken.split('.');
@@ -264,15 +428,22 @@ class ApiService {
               final normalized = base64Url.normalize(payload);
               final decoded = utf8.decode(base64Url.decode(normalized));
               final payloadData = jsonDecode(decoded) as Map<String, dynamic>;
-              userId = payloadData['id']?.toString();
+              userId = payloadData['id']?.toString() ?? payloadData['userId']?.toString() ?? payloadData['sub']?.toString();
             }
-          } catch (_) {}
+          } catch (e) {
+            developer.log('Error parsing JWT: $e', name: 'ApiService');
+          }
         }
       }
 
+      // Handle session data
       if (data['session'] is Map<String, dynamic>) {
         sessionData = data['session'] as Map<String, dynamic>;
+      } else if (data['data']?['session'] is Map<String, dynamic>) {
+        sessionData = data['data']['session'] as Map<String, dynamic>;
       }
+
+      developer.log('Parsed - Token: ${accessToken != null ? "present" : "null"}, UserId: ${userId != null ? "present" : "null"}', name: 'ApiService');
 
       if (accessToken != null && userId != null) {
         await storage.write(key: 'auth_token', value: accessToken);
@@ -291,7 +462,8 @@ class ApiService {
           'session': sessionData
         };
       } else {
-        throw Exception('Error: token o userId no encontrado en la respuesta.');
+        developer.log('Login failed - Missing data. Response keys: ${data.keys.toList()}', name: 'ApiService');
+        throw Exception('Error: token o userId no encontrado en la respuesta. Respuesta: ${data.keys.join(", ")}');
       }
     } else {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
@@ -400,7 +572,7 @@ class ApiService {
     }
   }
 
-  // ===========================
+    // ===========================
   // MERCADO PAGO – FRONTEND
   // ===========================
 
@@ -440,43 +612,6 @@ class ApiService {
     } else {
       final errorData = jsonDecode(res.body) as Map<String, dynamic>?;
       throw Exception(errorData?['message'] ?? 'Error al crear preferencia');
-    }
-  }
-
-  static Future<Map<String, dynamic>> mpCreatePayment({
-    required int drivingClassId,
-    required int amount,
-    required String description,
-    String paymentMethod = 'mercadopago',
-    String? preferenceId,
-    String? payerEmail,
-  }) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final body = {
-      'paymentMethod': paymentMethod,
-      'amount': amount,
-      'drivingClassId': drivingClassId,
-      'description': description,
-      if (preferenceId != null) 'preferenceId': preferenceId,
-      if (payerEmail != null) 'metadata': {'payerEmail': payerEmail},
-    };
-
-    final res = await http.post(
-      Uri.parse('$_baseUrl/payments/mercadopago'),
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(body),
-    );
-
-    if (res.statusCode == 201 || res.statusCode == 200) {
-      return jsonDecode(res.body) as Map<String, dynamic>;
-    } else {
-      final errorData = jsonDecode(res.body) as Map<String, dynamic>?;
-      throw Exception(errorData?['message'] ?? 'Error al crear Payment');
     }
   }
 

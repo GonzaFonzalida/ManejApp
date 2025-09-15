@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:manejapp/services/api_service.dart';
@@ -6,9 +5,8 @@ import 'package:manejapp/services/api_service.dart';
 class PaymentScreen extends StatefulWidget {
   static const routeName = '/payment';
 
-  /// Pasa estos argumentos desde donde confirmás la reserva
   final int drivingClassId;
-  final int amount; // en tu backend está como entero
+  final int amount;
   final String description;
   final String? payerEmail;
 
@@ -28,7 +26,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _loading = false;
   String? _preferenceId;
   String? _initPoint;
-  String? _paymentId; // si tu backend lo devuelve al crear payment
+  String? _paymentId;
   String _statusMessage = 'Sin iniciar';
 
   Future<void> _createPreferenceAndOpen() async {
@@ -43,16 +41,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
         amount: widget.amount,
         description: widget.description,
         payerEmail: widget.payerEmail,
-        // Podés setear tus deep links aquí si tu backend los usa
-        // successUrl: 'manejapp://payment/success',
-        // failureUrl: 'manejapp://payment/failure',
-        // pendingUrl: 'manejapp://payment/pending',
       );
 
       _preferenceId = (pref['preferenceId'] ?? pref['id'])?.toString();
       _initPoint = (pref['initPoint'] ??
               pref['sandboxInitPoint'] ??
-              pref['init_point']) // por si cambia la key
+              pref['init_point'])
           ?.toString();
 
       setState(() {
@@ -84,8 +78,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Future<void> _checkStatus() async {
     if (_paymentId == null && _preferenceId == null) {
       setState(() {
-        _statusMessage =
-            'No tengo paymentId ni preferenceId para consultar.';
+        _statusMessage = 'No tengo paymentId ni preferenceId para consultar.';
       });
       return;
     }
@@ -107,15 +100,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _loading = false;
       });
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // si querés crear la preferencia apenas entra:
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   _createPreferenceAndOpen();
-    // });
   }
 
   @override

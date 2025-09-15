@@ -15,7 +15,7 @@ class ChooseRoleScreen extends StatefulWidget {
 }
 
 class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
-  String _selectedRole = 'Estudiante';
+  String _selectedRole = 'Alumno';
   final _licenceController = TextEditingController();
   final _experienceController = TextEditingController();
   bool _isLoading = false;

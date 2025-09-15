@@ -9,7 +9,7 @@ import 'dart:developer' as developer;
 const storage = FlutterSecureStorage();
 
 class ReservarClaseScreen extends StatefulWidget {
-  static var routeName = '/reservarClase';
+  static const routeName = '/reservarClase';
   const ReservarClaseScreen({super.key});
 
   @override
@@ -28,56 +28,52 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
   Future<void> _reserveClass(Instructor instructor) async {
     setState(() => _isLoading = true);
     try {
-      final date = controller.fechas[controller.fechaSeleccionada.value];
-      final time = controller.horaSeleccionada.value;
+      final String dateDisplay = controller.selectedDisplayDate;
+      final String? time = controller.horaSeleccionada.value;
 
-      // ✅ CORRECCIÓN: Leer el ID del estudiante desde el almacenamiento seguro
-      final studentId = await storage.read(key: 'user_id');
-      if (studentId == null) {
-        throw Exception('El ID del estudiante no está disponible. Por favor, vuelva a iniciar sesión.');
+      if (time == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Seleccione un horario')),
+        );
+        return;
       }
 
-      // Paso 1: Llamar al backend para reservar la clase
-      final response = await ApiService.reserveClass(
-        instructor.id.toString(), {
-          'date': date,
-          'time': time,
-          'studentId': int.parse(studentId), // ✅ CORRECCIÓN: Se envía el ID del estudiante
-        },
+      // ✅ CAMBIO CLAVE: Llamada directa a Mercado Pago para crear una preferencia
+      // Se utiliza un ID de clase temporal (12345) ya que aún no se ha creado en el backend.
+      // El precio es fijo en $45.000 (debes ajustar si es necesario).
+      final response = await ApiService.mpCreatePreference(
+        drivingClassId: 12345, // ID de prueba, cambiará en producción
+        amount: 45000,
+        description: 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''} el $dateDisplay a las $time',
+        payerEmail: await storage.read(key: 'user_email'),
       );
-
-      // ✅ Muestra la respuesta del servidor en la consola para depurar
-      developer.log('Respuesta del servidor: $response', name: 'ReservarClaseScreen');
+      
+      developer.log('Respuesta de Mercado Pago: $response', name: 'ReservarClaseScreen');
 
       if (!mounted) return;
 
-      // Paso 2: Obtener el ID de la clase de la respuesta y validar
-      final drivingClassId = response['id'];
-      if (drivingClassId == null) {
-        throw Exception('El ID de la clase no se recibió correctamente en la respuesta del servidor.');
+      final preferenceId = response['id'];
+      if (preferenceId == null) {
+        throw Exception('El ID de la preferencia no se recibió correctamente en la respuesta de Mercado Pago.');
       }
       
-      // Paso 3: Leer el email del storage para el pago
-      final userEmail = await storage.read(key: 'user_email');
-      
-      // Paso 4: Navegar a la pantalla de pago con los datos necesarios
+      // ✅ Navegar a la pantalla de pago con el ID de la preferencia
       Navigator.pushNamed(
         context,
         PaymentScreen.routeName,
         arguments: {
-          'drivingClassId': drivingClassId,
+          'preferenceId': preferenceId,
+          'drivingClassId': 12345,
           'amount': 45000,
-          // ✅ CORRECCIÓN: Accede al nombre a través del objeto 'user'
-          'description': 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''} el $date a las $time',
-          'payerEmail': userEmail,
+          'description': 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''} el $dateDisplay a las $time',
         },
       );
     } catch (e, stacktrace) {
       if (!mounted) return;
-      // ✅ Ahora la SnackBar muestra el error completo y el stacktrace para depurar mejor
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al reservar clase: ${e.toString()}\nStacktrace: ${stacktrace.toString()}'),
+          content: Text('Error al crear preferencia de pago: ${e.toString()}\nStacktrace: ${stacktrace.toString()}'),
           duration: const Duration(seconds: 5),
         ),
       );
@@ -102,14 +98,12 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
           children: [
             CircleAvatar(
               radius: 40,
-              // ✅ CORRECCIÓN: Ahora se verifica la URL de la imagen.
               backgroundImage: instructor?.image != null && instructor!.image!.startsWith('http')
                   ? NetworkImage(instructor.image!) as ImageProvider
                   : const AssetImage("assets/default_profile.png"),
             ),
             const SizedBox(height: 12),
             Text(
-              // ✅ CORRECCIÓN: Accede al nombre a través del objeto 'user'
               '${instructor?.user?.name ?? ''} ${instructor?.user?.surname ?? ''}',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
@@ -142,7 +136,7 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
               height: 50,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: controller.fechas.length,
+                itemCount: controller.displayFechas.length,
                 itemBuilder: (context, index) {
                   return ValueListenableBuilder<int>(
                     valueListenable: controller.fechaSeleccionada,
@@ -157,7 +151,7 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
                             color: isSelected ? Colors.blue : Colors.grey[200],
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(controller.fechas[index],
+                          child: Text(controller.displayFechas[index],
                               style: TextStyle(
                                   color: isSelected ? Colors.white : Colors.black)),
                         ),
