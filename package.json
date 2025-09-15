@@ -10,7 +10,10 @@
     "dev:ngrok": "concurrently \"npm run dev\" \"ngrok http 3000\"",
     "dev:tunnel": "concurrently \"npm run dev\" \"npx localtunnel --port 3000\"",
     "ngrok": "ngrok http 3000",
-    "tunnel": "npx localtunnel --port 3000"
+    "tunnel": "npx localtunnel --port 3000",
+    "setup:logging": "node scripts/setup-logging.js",
+    "logs:tail": "tail -f logs/app.log",
+    "logs:clean": "rm -rf logs/*.log"
   },
   "type": "commonjs",
   "keywords": [],

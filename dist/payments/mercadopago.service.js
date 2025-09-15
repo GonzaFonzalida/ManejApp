@@ -27,12 +27,12 @@ class MercadoPagoService {
                 ],
                 external_reference: data.externalReference,
                 back_urls: {
-                    success: `${config_1.APP_URL}/payments/success`,
-                    failure: `${config_1.APP_URL}/payments/failure`,
-                    pending: `${config_1.APP_URL}/payments/pending`,
+                    success: `${(0, config_1.getMercadoPagoUrl)()}/payments/success`,
+                    failure: `${(0, config_1.getMercadoPagoUrl)()}/payments/failure`,
+                    pending: `${(0, config_1.getMercadoPagoUrl)()}/payments/pending`,
                 },
                 auto_return: 'approved',
-                notification_url: `${config_1.APP_URL}/payments/webhook`,
+                notification_url: `${(0, config_1.getMercadoPagoUrl)()}/payments/webhook`,
             };
             const preferenceClient = new mercadopago_1.Preference(this.client);
             const result = await preferenceClient.create({ body: preference });

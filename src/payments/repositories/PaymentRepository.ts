@@ -5,9 +5,9 @@ export interface PaymentRepository {
     amount: number;
     paymentMethod: string;
     drivingClassId: number;
-    preferenceId?: string;
-    paymentId?: string;
-    externalReference?: string;
+    preferenceId?: string | null;
+    paymentId?: string | null;
+    externalReference?: string | null;
   }): Promise<Payment>;
 
   getPaymentById(id: number): Promise<Payment | null>;
@@ -20,9 +20,9 @@ export interface PaymentRepository {
 
   // Mercado Pago specific methods
   updatePaymentWithMercadoPagoData(id: number, data: {
-    preferenceId?: string;
-    paymentId?: string;
-    externalReference?: string;
+    preferenceId?: string | null;
+    paymentId?: string | null;
+    externalReference?: string | null;
     status?: string;
   }): Promise<Payment>;
 

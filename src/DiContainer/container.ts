@@ -1,21 +1,21 @@
 import DiContainer from "./DiContainer";
 
-import UserPrismaRepository from "../users/repositories/prismaUserRepository"
+import UserPrismaRepository from "../users/repositories/prismaUserRepository";
 import UserService from "../users/user.services";
-import UserController from "src/users/user.controller";
+import UserController from "../users/user.controller";
 
-import PrismaInstructorRepository from "../instructors/repositories/PrismaInstructorRepository"
-import InstructorService from "src/instructors/instructor.services";
-import InstructorController from "src/instructors/instructor.controller";
+import PrismaInstructorRepository from "../instructors/repositories/PrismaInstructorRepository";
+import InstructorService from "../instructors/instructor.services";
+import InstructorController from "../instructors/instructor.controller";
 
 import PrismaSessionRepository from "@auth/repositories/PrismaSessionRepository";
 import AuthService from "@auth/auth.services";
 import AuthController from "@auth/auth.controller";
-import { PrismaPermissionRepository } from "src/permissions/repositories/PrismaPermissionsRepository";
+import { PrismaPermissionRepository } from "../permissions/repositories/PrismaPermissionsRepository";
 
-import { PrismaDrivingClassRepository } from "src/drivingClass/repositories/PrismaDrivingClassRepository";
-import { DrivingClassService } from "src/drivingClass/services";
-import { DrivingClassController } from "src/drivingClass/controller";
+import { PrismaDrivingClassRepository } from "../drivingClass/repositories/PrismaDrivingClassRepository";
+import { DrivingClassService } from "../drivingClass/services";
+import { DrivingClassController } from "../drivingClass/controller";
 
 import PrismaPaymentRepository from "../payments/repositories/PrismaPaymentRepository";
 import PaymentService from "../payments/payment.services";

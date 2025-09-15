@@ -2,8 +2,7 @@ import { UserWithOutPassword, UserWithDates, UserWithOutId } from "./user.types"
 import { UserRepository } from "./repositories/userRepository";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET || "sdfsdfsdfsfd"
+import { JWT_SECRET } from "@config/config";
 
 export default class UserService {
     constructor(private userAuth: UserRepository) {}

@@ -19,24 +19,38 @@ class InstructorController {
         }
     };
     updateProfile = async (req, res, next) => {
-        const instructorId = Number(req.params.id);
-        const updatedInstructor = await this.instructorService.updateInstructor(instructorId, req.body);
-        if (!updatedInstructor) {
-            return next(new CustomizedError_1.default("Instructor no encontrado", 404));
+        try {
+            const instructorId = Number(req.params.id);
+            const updatedInstructor = await this.instructorService.updateInstructor(instructorId, req.body);
+            if (!updatedInstructor) {
+                return next(new CustomizedError_1.default("Instructor no encontrado", 404));
+            }
+            return res.json(updatedInstructor);
         }
-        return res.json(updatedInstructor);
+        catch (err) {
+            next(err);
+        }
     };
     getProfile = async (req, res, next) => {
-        const instructor = await this.instructorService.getInstructorProfile(Number(req.params.id));
-        if (!instructor) {
-            return next(new CustomizedError_1.default("Instructor no encontrado, ingrese un pefil valido", 404));
-            ;
+        try {
+            const instructor = await this.instructorService.getInstructorProfile(Number(req.params.id));
+            if (!instructor) {
+                return next(new CustomizedError_1.default("Instructor no encontrado, ingrese un perfil válido", 404));
+            }
+            res.json(instructor);
         }
-        res.json(instructor);
+        catch (err) {
+            next(err);
+        }
     };
-    list = async (_req, res) => {
-        const instructors = await this.instructorService.listInstructors();
-        res.json(instructors);
+    list = async (req, res, next) => {
+        try {
+            const instructors = await this.instructorService.listInstructors();
+            res.json(instructors);
+        }
+        catch (err) {
+            next(err);
+        }
     };
 }
 exports.default = InstructorController;

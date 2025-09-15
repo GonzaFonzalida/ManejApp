@@ -36,19 +36,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const zod_1 = require("zod");
 const GenericRouter_1 = __importDefault(require("../shared/classes/GenericRouter"));
-const user_middleware_1 = require("src/users/user.middleware");
+const user_middleware_1 = require("../users/user.middleware");
+const validateParams_1 = require("../shared/middlewares/zod/validateParams");
 const schema = __importStar(require("./instructor.schema"));
 class InstructorRouter extends GenericRouter_1.default {
     controller;
     constructor(controller) {
         super();
         this.controller = controller;
-        const router = this.init();
-        router.post("/register", (0, user_middleware_1.validate)(schema.createInstructorSchema), controller.register);
-        router.get("/:id", controller.getProfile);
-        router.get("/", controller.list);
-        router.put("/:id", (0, user_middleware_1.validate)(schema.updateInstructorSchema), controller.updateProfile);
+    }
+    init() {
+        const router = super.init();
+        // Esquema para validar parámetros ID
+        const idParamSchema = zod_1.z.object({
+            id: zod_1.z.string().regex(/^\d+$/, "ID debe ser un número").transform(Number)
+        });
+        router.post("/register", (0, user_middleware_1.validate)(schema.createInstructorSchema), this.controller.register);
+        router.get("/:id", (0, validateParams_1.validateParams)(idParamSchema), this.controller.getProfile);
+        router.get("/", this.controller.list);
+        router.put("/:id", (0, validateParams_1.validateParams)(idParamSchema), (0, user_middleware_1.validate)(schema.updateInstructorSchema), this.controller.updateProfile);
+        return router;
     }
 }
 exports.default = InstructorRouter;

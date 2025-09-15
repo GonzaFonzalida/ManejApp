@@ -1,7 +1,13 @@
 import express from "express";
-import diContainer from "./DiContainer/container"
+import diContainer from "./DiContainer/container";
 import errorHandler from "./shared/middlewares/errorMiddleware";
 import notFoundHandler from "./shared/middlewares/notFoundMiddleware";
+import {
+  requestLoggerMiddleware,
+  errorLoggerMiddleware,
+  performanceLoggerMiddleware
+} from "./shared/logging/middleware/requestLogger";
+import { logger } from "./shared/logging/LoggerConfig";
 
 import UserRouter from "./users/user.routes";
 import UserController from "./users/user.controller";
@@ -38,6 +44,10 @@ export const buildApp = () => {
 
     const app = express();
 
+    // Logging middlewares (should be first)
+    app.use(requestLoggerMiddleware);
+    app.use(performanceLoggerMiddleware(2000)); // Log requests slower than 2 seconds
+
     app.use(express.json());
 
     app.use("/users", userRouter);
@@ -53,7 +63,24 @@ export const buildApp = () => {
     // app.use("/cars")
 
     app.use(notFoundHandler);
+    app.use(errorLoggerMiddleware); // Log errors before handling them
     app.use(errorHandler);
+
+    // Log application startup
+    logger.info('ManejApp initialized successfully', {
+      module: 'app',
+      function: 'buildApp',
+    }, {
+      routes: [
+        '/users',
+        '/instructors',
+        '/permissions',
+        '/cars',
+        '/auth',
+        '/classes',
+        '/payments'
+      ]
+    });
 
     return app;
 }

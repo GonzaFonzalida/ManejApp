@@ -56,13 +56,13 @@ export default class PaymentController {
     }
   };
 
-  listPayments = async (req: Request, res: Response) => {
+  listPayments: ExpressFunction = async (req, res, next) => {
     try {
       const filter = req.query.status ? { status: req.query.status as string } : undefined;
       const payments = await this.paymentService.listPayments(filter);
       res.json(payments);
     } catch (err) {
-      res.status(500).json({ error: "Error interno del servidor" });
+      next(err);
     }
   };
 

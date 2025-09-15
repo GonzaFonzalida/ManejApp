@@ -1,14 +1,14 @@
 interface InjectableService<T> {
     implementation: new (...args: any[]) => T;
     dependencies: string[];
-    singlenton: boolean;
+    singleton: boolean;
 }
 
-type SinglentonIntance = any;
+type SingletonInstance = any;
 
 export default class DiContainer {
     private services: Map<string, InjectableService<any>>;
-    private singletons: Map<string, SinglentonIntance>;
+    private singletons: Map<string, SingletonInstance>;
 
     constructor() {
         this.services = new Map();
@@ -24,12 +24,12 @@ export default class DiContainer {
         this.services.set(name, {
             implementation,
             dependencies,
-            singlenton: false
+            singleton: false
         }
         )
     }
 
-    registerSinglenton<T>(
+    registerSingleton<T>(
         name: string,
         implementation: new (...args: any[]) => T,
         dependencies: string[],
@@ -37,11 +37,11 @@ export default class DiContainer {
         this.services.set(name, {
             implementation,
             dependencies,
-            singlenton: true
+            singleton: true
         }
         )
     }
-    registeIntance<T>(name: string, instance: T) {
+    registerInstance<T>(name: string, instance: T) {
         this.singletons.set(name, instance);
     }
     resolve<T>(name: string): T {
@@ -60,7 +60,7 @@ export default class DiContainer {
         const instance = new services.implementation(...dependencies);
 
 
-        if (services.singlenton && !this.services.has(name)) {
+        if (services.singleton && !this.singletons.has(name)) {
             this.singletons.set(name, instance)
         }
 

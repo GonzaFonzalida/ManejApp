@@ -50,14 +50,14 @@ class PaymentController {
             next(err);
         }
     };
-    listPayments = async (req, res) => {
+    listPayments = async (req, res, next) => {
         try {
             const filter = req.query.status ? { status: req.query.status } : undefined;
             const payments = await this.paymentService.listPayments(filter);
             res.json(payments);
         }
         catch (err) {
-            res.status(500).json({ error: "Error interno del servidor" });
+            next(err);
         }
     };
     // Mercado Pago specific methods

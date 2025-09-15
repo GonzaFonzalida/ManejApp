@@ -12,17 +12,17 @@ class DiContainer {
         this.services.set(name, {
             implementation,
             dependencies,
-            singlenton: false
+            singleton: false
         });
     }
-    registerSinglenton(name, implementation, dependencies) {
+    registerSingleton(name, implementation, dependencies) {
         this.services.set(name, {
             implementation,
             dependencies,
-            singlenton: true
+            singleton: true
         });
     }
-    registeIntance(name, instance) {
+    registerInstance(name, instance) {
         this.singletons.set(name, instance);
     }
     resolve(name) {
@@ -36,7 +36,7 @@ class DiContainer {
         }
         const dependencies = services.dependencies.map((dep) => this.resolve(dep));
         const instance = new services.implementation(...dependencies);
-        if (services.singlenton && !this.services.has(name)) {
+        if (services.singleton && !this.singletons.has(name)) {
             this.singletons.set(name, instance);
         }
         return instance;

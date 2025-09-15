@@ -44,17 +44,20 @@ class PaymentRouter extends GenericRouter_1.default {
     constructor(controller) {
         super();
         this.controller = controller;
-        const router = this.init();
-        router.post("/", (0, user_middleware_1.validate)(schema.createPaymentSchema), controller.createPayment);
-        router.get("/", controller.listPayments);
-        router.get("/:id", controller.getPayment);
-        router.get("/driving-class/:drivingClassId", controller.getPaymentsByDrivingClass);
-        router.put("/:id/status", (0, user_middleware_1.validate)(schema.updatePaymentStatusSchema), controller.updatePaymentStatus);
-        router.post("/:id/process", controller.processPayment);
+    }
+    init() {
+        const router = super.init();
+        router.post("/", (0, user_middleware_1.validate)(schema.createPaymentSchema), this.controller.createPayment);
+        router.get("/", this.controller.listPayments);
+        router.get("/:id", this.controller.getPayment);
+        router.get("/driving-class/:drivingClassId", this.controller.getPaymentsByDrivingClass);
+        router.put("/:id/status", (0, user_middleware_1.validate)(schema.updatePaymentStatusSchema), this.controller.updatePaymentStatus);
+        router.post("/:id/process", this.controller.processPayment);
         // Mercado Pago specific routes
-        router.post("/mercadopago/preference", (0, user_middleware_1.validate)(schema.createMercadoPagoPreferenceSchema), controller.createMercadoPagoPreference);
-        router.post("/mercadopago", (0, user_middleware_1.validate)(schema.createPaymentSchema), controller.createPaymentWithMercadoPago);
-        router.post("/mercadopago/webhook", controller.handleMercadoPagoWebhook);
+        router.post("/mercadopago/preference", (0, user_middleware_1.validate)(schema.createMercadoPagoPreferenceSchema), this.controller.createMercadoPagoPreference);
+        router.post("/mercadopago", (0, user_middleware_1.validate)(schema.createPaymentSchema), this.controller.createPaymentWithMercadoPago);
+        router.post("/mercadopago/webhook", this.controller.handleMercadoPagoWebhook);
+        return router;
     }
 }
 exports.default = PaymentRouter;

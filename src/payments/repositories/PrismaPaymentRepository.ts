@@ -1,19 +1,19 @@
 import { PaymentRepository } from "./PaymentRepository";
 import { Payment } from "../payment.types";
-import * as config from "@config/prismaClient";
+import { prisma } from "@config/prismaClient";
 
 export default class PrismaPaymentRepository implements PaymentRepository {
-  private prisma = config.prisma;
+  private prisma = prisma;
 
   async createPayment(data: {
     amount: number;
     paymentMethod: string;
     drivingClassId: number;
-    preferenceId?: string;
-    paymentId?: string;
-    externalReference?: string;
+    preferenceId?: string | null;
+    paymentId?: string | null;
+    externalReference?: string | null;
   }): Promise<Payment> {
-    const result = await (this.prisma as any).payment.create({
+    const result = await this.prisma.payment.create({
       data: {
         amount: data.amount,
         paymentMethod: data.paymentMethod,
@@ -31,7 +31,7 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async getPaymentById(id: number): Promise<Payment | null> {
-    const result = await (this.prisma as any).payment.findUnique({
+    const result = await this.prisma.payment.findUnique({
       where: { id },
       include: { drivingClass: true },
     });
@@ -44,11 +44,11 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async getPaymentsByDrivingClass(drivingClassId: number): Promise<Payment[]> {
-    const results = await (this.prisma as any).payment.findMany({
+    const results = await this.prisma.payment.findMany({
       where: { drivingClassId },
       include: { drivingClass: true },
     });
-    return results.map((result: any) => ({
+    return results.map((result) => ({
       ...result,
       createdAt: new Date(result.createdAt),
       updatedAt: new Date(result.updatedAt),
@@ -56,7 +56,7 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async updatePaymentStatus(id: number, status: string): Promise<Payment> {
-    const result = await (this.prisma as any).payment.update({
+    const result = await this.prisma.payment.update({
       where: { id },
       data: { status },
     });
@@ -68,11 +68,11 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async listPayments(filter?: { status?: string }): Promise<Payment[]> {
-    const results = await (this.prisma as any).payment.findMany({
+    const results = await this.prisma.payment.findMany({
       where: filter,
       include: { drivingClass: true },
     });
-    return results.map((result: any) => ({
+    return results.map((result) => ({
       ...result,
       createdAt: new Date(result.createdAt),
       updatedAt: new Date(result.updatedAt),
@@ -81,12 +81,12 @@ export default class PrismaPaymentRepository implements PaymentRepository {
 
   // Mercado Pago specific methods
   async updatePaymentWithMercadoPagoData(id: number, data: {
-    preferenceId?: string;
-    paymentId?: string;
-    externalReference?: string;
+    preferenceId?: string | null;
+    paymentId?: string | null;
+    externalReference?: string | null;
     status?: string;
   }): Promise<Payment> {
-    const result = await (this.prisma as any).payment.update({
+    const result = await this.prisma.payment.update({
       where: { id },
       data: {
         preferenceId: data.preferenceId,
@@ -103,7 +103,7 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async getPaymentByExternalReference(externalReference: string): Promise<Payment | null> {
-    const result = await (this.prisma as any).payment.findFirst({
+    const result = await this.prisma.payment.findFirst({
       where: { externalReference },
       include: { drivingClass: true },
     });
@@ -116,7 +116,7 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async getPaymentByPreferenceId(preferenceId: string): Promise<Payment | null> {
-    const result = await (this.prisma as any).payment.findFirst({
+    const result = await this.prisma.payment.findFirst({
       where: { preferenceId },
       include: { drivingClass: true },
     });
@@ -129,7 +129,7 @@ export default class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async getPaymentByPaymentId(paymentId: string): Promise<Payment | null> {
-    const result = await (this.prisma as any).payment.findFirst({
+    const result = await this.prisma.payment.findFirst({
       where: { paymentId },
       include: { drivingClass: true },
     });

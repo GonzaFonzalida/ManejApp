@@ -1,9 +1,9 @@
 // src/modules/drivingClass/services/DrivingClassService.ts
 import { DrivingClassRepository } from "./repositories/DrivingClassRepository";
 import { DrivingClass } from "./entities/DrivingClass";
-import { UserRepository } from "src/users/repositories/userRepository";
+import { UserRepository } from "../users/repositories/userRepository";
 import { prisma } from "@config/prismaClient";
-import  PrismaInstructorRepository  from "src/instructors/repositories/PrismaInstructorRepository";
+import PrismaInstructorRepository from "../instructors/repositories/PrismaInstructorRepository";
 import CustomizedError from "@shared/classes/CustomizedError";
 
 export class DrivingClassService {

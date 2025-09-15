@@ -15,30 +15,42 @@ export default class InstructorController {
     }
   };
   updateProfile: ExpressFunction = async (req, res, next) => {
-  const instructorId = Number(req.params.id);
-  
-  const updatedInstructor = await this.instructorService.updateInstructor(
-    instructorId,
-    req.body
-  );
+    try {
+      const instructorId = Number(req.params.id);
+      
+      const updatedInstructor = await this.instructorService.updateInstructor(
+        instructorId,
+        req.body
+      );
 
-  if (!updatedInstructor) {
-    return next(new CustomizedError("Instructor no encontrado", 404));
-  }
+      if (!updatedInstructor) {
+        return next(new CustomizedError("Instructor no encontrado", 404));
+      }
 
-    return res.json(updatedInstructor);
-  }
-
-  getProfile: ExpressFunction = async (req, res, next) => {
-    const instructor = await this.instructorService.getInstructorProfile(Number(req.params.id));
-    if (!instructor) {
-      return next(new CustomizedError("Instructor no encontrado, ingrese un pefil valido", 404));;
+      return res.json(updatedInstructor);
+    } catch (err) {
+      next(err);
     }
-    res.json(instructor);
   };
 
-  list = async (_req: Request, res: Response) => {
-    const instructors = await this.instructorService.listInstructors();
-    res.json(instructors);
+  getProfile: ExpressFunction = async (req, res, next) => {
+    try {
+      const instructor = await this.instructorService.getInstructorProfile(Number(req.params.id));
+      if (!instructor) {
+        return next(new CustomizedError("Instructor no encontrado, ingrese un perfil válido", 404));
+      }
+      res.json(instructor);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  list: ExpressFunction = async (req, res, next) => {
+    try {
+      const instructors = await this.instructorService.listInstructors();
+      res.json(instructors);
+    } catch (err) {
+      next(err);
+    }
   };
 }

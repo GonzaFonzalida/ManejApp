@@ -8,18 +8,23 @@ import * as schema from "./payment.schemas";
 export default class PaymentRouter extends GenericRouter {
   constructor(private readonly controller: PaymentController) {
     super();
-    const router = this.init();
+  }
 
-    router.post("/", validate(schema.createPaymentSchema), controller.createPayment);
-    router.get("/", controller.listPayments);
-    router.get("/:id", controller.getPayment);
-    router.get("/driving-class/:drivingClassId", controller.getPaymentsByDrivingClass);
-    router.put("/:id/status", validate(schema.updatePaymentStatusSchema), controller.updatePaymentStatus);
-    router.post("/:id/process", controller.processPayment);
+  init() {
+    const router = super.init();
+
+    router.post("/", validate(schema.createPaymentSchema), this.controller.createPayment);
+    router.get("/", this.controller.listPayments);
+    router.get("/:id", this.controller.getPayment);
+    router.get("/driving-class/:drivingClassId", this.controller.getPaymentsByDrivingClass);
+    router.put("/:id/status", validate(schema.updatePaymentStatusSchema), this.controller.updatePaymentStatus);
+    router.post("/:id/process", this.controller.processPayment);
 
     // Mercado Pago specific routes
-    router.post("/mercadopago/preference", validate(schema.createMercadoPagoPreferenceSchema), controller.createMercadoPagoPreference);
-    router.post("/mercadopago", validate(schema.createPaymentSchema), controller.createPaymentWithMercadoPago);
-    router.post("/mercadopago/webhook", controller.handleMercadoPagoWebhook);
+    router.post("/mercadopago/preference", validate(schema.createMercadoPagoPreferenceSchema), this.controller.createMercadoPagoPreference);
+    router.post("/mercadopago", validate(schema.createPaymentSchema), this.controller.createPaymentWithMercadoPago);
+    router.post("/mercadopago/webhook", this.controller.handleMercadoPagoWebhook);
+
+    return router;
   }
 }

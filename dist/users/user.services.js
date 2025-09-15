@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const JWT_SECRET = process.env.JWT_SECRET || "sdfsdfsdfsfd";
+const config_1 = require("../config/config");
 class UserService {
     userAuth;
     constructor(userAuth) {
@@ -46,7 +46,7 @@ class UserService {
         if (!isPasswordValid) {
             return new Error("Contraseña incorrecta");
         }
-        const token = jsonwebtoken_1.default.sign({ id: foundUser.id, role: foundUser.role }, JWT_SECRET, { expiresIn: "1h" });
+        const token = jsonwebtoken_1.default.sign({ id: foundUser.id, role: foundUser.role }, config_1.JWT_SECRET, { expiresIn: "1h" });
         return { token };
     }
 }

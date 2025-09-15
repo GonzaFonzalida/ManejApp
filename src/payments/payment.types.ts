@@ -5,9 +5,9 @@ export interface Payment {
   paymentMethod: string;
   drivingClassId: number;
   // Mercado Pago specific fields
-  preferenceId?: string;
-  paymentId?: string;
-  externalReference?: string;
+  preferenceId?: string | null;
+  paymentId?: string | null;
+  externalReference?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,15 +17,15 @@ export interface CreatePaymentData {
   paymentMethod: string;
   drivingClassId: number;
   // Optional Mercado Pago fields
-  preferenceId?: string;
-  paymentId?: string;
-  externalReference?: string;
+  preferenceId?: string | null;
+  paymentId?: string | null;
+  externalReference?: string | null;
 }
 
 export interface UpdatePaymentData {
   status?: string;
   // Mercado Pago specific fields
-  preferenceId?: string;
-  paymentId?: string;
-  externalReference?: string;
+  preferenceId?: string | null;
+  paymentId?: string | null;
+  externalReference?: string | null;
 }
