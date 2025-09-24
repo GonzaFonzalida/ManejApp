@@ -33,7 +33,10 @@ export default class InstructorService {
     // 3. Crear el instructor
     const instructor = await this.instructorRepo.createInstructor(data);
 
-    // 4. Obtener todos los permisos de la tabla Permission
+    // 4. Cambiar el role del usuario a INSTRUCTOR
+    await this.userRepo.updateRole(data.userId, "INSTRUCTOR");
+
+    // 5. Obtener todos los permisos de la tabla Permission
     const permissions = await this.permissionRepo.findAll();
 
     // 5. Crear los registros en InstructorPermission

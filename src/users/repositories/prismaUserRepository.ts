@@ -89,6 +89,17 @@ export default class UserPrismaRepository implements UserRepository {
         return userWithoutPassword;
     }
 
+    async updateRole(userId: number, role: string): Promise<UserWithOutPassword | null> {
+        const user = await prisma.user.update({
+            where: { id: userId },
+            data: { role: role as any },
+        });
+
+        // Omitimos la contraseña antes de devolver
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+    }
+
     async findUser(value: string | number): Promise<UserWithOutPassword | undefined> {
   let whereClause;
 

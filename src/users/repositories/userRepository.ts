@@ -11,6 +11,7 @@ export interface UserRepository {
     findByRole(rol: string): Promise<UserWithOutPassword[]>;
     findByEmail(email: string): Promise<User | undefined>;
     updateLastLoginAt(id: number): Promise<UserWithOutPassword | null>;
+    updateRole(id: number, role: string): Promise<UserWithOutPassword | null>;
 }
 
 // model User {

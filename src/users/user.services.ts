@@ -19,7 +19,7 @@ export default class UserService {
             if (result instanceof Error) {
                 return result;
             }
-            return result
+            return result;
 
         } catch (error: any) {
             return error as Error;

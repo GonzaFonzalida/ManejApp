@@ -19,7 +19,7 @@ import AuthController from "@auth/auth.controller";
 import buildAuthRouter from "@auth/auth.routes";
 import permissionsRouter from "./permissions/permissions.routes";
 import carRouters from "./cars/cars.routes";
-import DrivingClassRouter from "./drivingClass/routes"
+import DrivingClassRouter from "./drivingClass/routes";
 import { DrivingClassController } from "./drivingClass/controller";
 
 import PaymentController from "./payments/payment.controller";
@@ -37,7 +37,7 @@ export const buildApp = () => {
     const authRouter = buildAuthRouter(authController);
 
     const drivingClassController = diContainer.resolve<DrivingClassController>("DrivingClassController");
-    const drivingClassRouter = new DrivingClassRouter(drivingClassController).init()
+    const drivingClassRouter = new DrivingClassRouter(drivingClassController).init();
 
     const paymentController = diContainer.resolve<PaymentController>("paymentController");
     const paymentRouter = new PaymentRouter(paymentController).init();
@@ -52,15 +52,15 @@ export const buildApp = () => {
 
     app.use("/users", userRouter);
     app.use("/instructors", instructorRouter);
-    app.use("/permissions", permissionsRouter)
-    app.use("/cars", carRouters)
+    app.use("/permissions", permissionsRouter);
+    app.use("/cars", carRouters);
     app.use("/auth", authRouter);
-    app.use("/classes", drivingClassRouter)
+    app.use("/classes", drivingClassRouter);
     app.use("/payments", paymentRouter);
     //modulos
-    // app.use("/permissons");
+    // app.use("/permissions"); // ya registrado arriba
     // app.use("/admin");
-    // app.use("/cars")
+    // app.use("/cars") // ya registrado arriba
 
     app.use(notFoundHandler);
     app.use(errorLoggerMiddleware); // Log errors before handling them

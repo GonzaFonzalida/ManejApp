@@ -19,28 +19,27 @@ async create(data: Omit<DrivingClass, "id" | "createdAt" | "updatedAt">): Promis
     const studentExists = await prisma.student.findUnique({
       where: { id: data.studentId }
     });
-    if (!studentExists) throw new CustomizedError("El estudiante no existe", 409);
+    if (!studentExists) throw new CustomizedError("El estudiante no existe", 404);
 
     // Validar que el instructor exista
     const instructorExists = await prisma.instructor.findUnique({
       where: { id: data.instructorId }
     });
-    if (!instructorExists) throw new CustomizedError("El instructor no existe", 409);
+    if (!instructorExists) throw new CustomizedError("El instructor no existe", 404);
 
     // Crear la clase
-    return await prisma.drivingClass.create({
-      data: {
-        studentId: data.studentId,
-        instructorId: data.instructorId,
-        date: new Date(data.date),
-        duration: data.duration,
-        status: data.status,
-      }
+    return this.drivingClassRepo.create({
+      studentId: data.studentId,
+      instructorId: data.instructorId,
+      date: new Date(data.date),
+      duration: data.duration,
+      status: data.status,
+      notes: data.notes,
     });
 
   } catch (e: any) {
     if (e.code === "P2003") {
-      throw new CustomizedError("Violación de clave foránea: estudiante o instructor no existe", 409);
+      throw new CustomizedError("Violación de clave foránea: estudiante o instructor no existe", 400);
     }
     throw e;
   }
