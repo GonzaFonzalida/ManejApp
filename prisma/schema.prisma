@@ -87,9 +87,10 @@ model Instructor {
   available       Boolean   @default(true)
   isValid         Boolean   @default(false)
 
-  cars      Car[]  
+  cars      Car[]
   drivingClasses DrivingClass[]
   permissions     InstructorPermission[]
+  scheduleSlots   ScheduleSlot[]
 }
 
 model Admin {
@@ -133,6 +134,7 @@ model DrivingClass {
   instructor   Instructor @relation(fields: [instructorId], references: [id])
 
   payments     Payment[]
+  scheduleSlot ScheduleSlot?
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -153,6 +155,22 @@ model Payment {
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+}
+
+model ScheduleSlot {
+  id             String   @id @default(cuid())
+  instructorId   Int
+  instructor     Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  startTime      DateTime
+  endTime        DateTime
+  isBooked       Boolean  @default(false)
+  drivingClassId Int?     @unique
+  drivingClass   DrivingClass? @relation(fields: [drivingClassId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([instructorId])
+  @@index([startTime, endTime])
 }
 
 

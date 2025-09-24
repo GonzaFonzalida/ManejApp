@@ -1,26 +1,30 @@
 import DiContainer from "./DiContainer";
 
-import UserPrismaRepository from "../users/repositories/prismaUserRepository";
-import UserService from "../users/user.services";
-import UserController from "../users/user.controller";
+import UserPrismaRepository from "../../users/repositories/prismaUserRepository";
+import UserService from "../../users/user.services";
+import UserController from "../../users/user.controller";
 
-import PrismaInstructorRepository from "../instructors/repositories/PrismaInstructorRepository";
-import InstructorService from "../instructors/instructor.services";
-import InstructorController from "../instructors/instructor.controller";
+import PrismaInstructorRepository from "../../instructors/repositories/PrismaInstructorRepository";
+import InstructorService from "../../instructors/instructor.services";
+import InstructorController from "../../instructors/instructor.controller";
 
 import PrismaSessionRepository from "@auth/repositories/PrismaSessionRepository";
 import AuthService from "@auth/auth.services";
 import AuthController from "@auth/auth.controller";
-import { PrismaPermissionRepository } from "../permissions/repositories/PrismaPermissionsRepository";
+import { PrismaPermissionRepository } from "../../permissions/repositories/PrismaPermissionsRepository";
 
-import { PrismaDrivingClassRepository } from "../drivingClass/repositories/PrismaDrivingClassRepository";
-import { DrivingClassService } from "../drivingClass/services";
-import { DrivingClassController } from "../drivingClass/controller";
+import { PrismaDrivingClassRepository } from "../../drivingClass/repositories/PrismaDrivingClassRepository";
+import { DrivingClassService } from "../../drivingClass/services";
+import { DrivingClassController } from "../../drivingClass/controller";
 
-import PrismaPaymentRepository from "../payments/repositories/PrismaPaymentRepository";
-import PaymentService from "../payments/payment.services";
-import PaymentController from "../payments/payment.controller";
-import MercadoPagoService from "../payments/mercadopago.service";
+import PrismaPaymentRepository from "../../payments/repositories/PrismaPaymentRepository";
+import PaymentService from "../../payments/payment.services";
+import PaymentController from "../../payments/payment.controller";
+import MercadoPagoService from "../../payments/mercadopago.service";
+
+import { PrismaScheduleSlotRepository } from "../../schedule/repositories/PrismaScheduleSlotRepository";
+import { ScheduleService } from "../../schedule/schedule.service";
+import { ScheduleController } from "../../schedule/schedule.controller";
 
 const diContainer = new DiContainer();
 //Users Instnces
@@ -57,5 +61,15 @@ diContainer.register("PrismaPaymentRepository", PrismaPaymentRepository);
 diContainer.register("MercadoPagoService", MercadoPagoService);
 diContainer.register("paymentService", PaymentService, ["PrismaPaymentRepository", "MercadoPagoService"]);
 diContainer.register("paymentController", PaymentController, ["paymentService"]);
+
+//schedule instances
+diContainer.register("PrismaScheduleSlotRepository", PrismaScheduleSlotRepository);
+diContainer.register("scheduleService", ScheduleService, [
+  "PrismaScheduleSlotRepository",
+  "instructorService",
+  "DrivingClassService",
+  "paymentService"
+]);
+diContainer.register("scheduleController", ScheduleController, ["scheduleService"]);
 
 export default diContainer;

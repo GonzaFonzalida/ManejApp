@@ -26,9 +26,14 @@ export default class PaymentService {
     return this.paymentRepo.getPaymentsByDrivingClass(drivingClassId);
   }
 
+  async getPaymentByDrivingClass(drivingClassId: number): Promise<Payment | null> {
+    const payments = await this.getPaymentsByDrivingClass(drivingClassId);
+    return payments[0] || null;
+  }
+
   async updatePaymentStatus(id: number, status: string): Promise<Payment> {
     // Validate status
-    if (!["pending", "paid", "failed"].includes(status)) {
+    if (!["pending", "paid", "failed", "cancelled"].includes(status)) {
       throw new CustomizedError("Estado de pago inválido", 400);
     }
 

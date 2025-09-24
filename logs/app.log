@@ -1,0 +1,1 @@
+{"timestamp":"2025-09-24T21:20:59.474Z","level":"info","message":"ManejApp initialized successfully","context":{"module":"app","function":"buildApp"},"metadata":{"routes":["/users","/instructors","/permissions","/cars","/auth","/classes","/payments","/schedule"]}}

@@ -88,7 +88,19 @@ ManejApp es una aplicación de gestión de clases de conducción que permite a e
 **Conexiones:**
 - Extiende Users con campos específicos de empresa.
 
-### 9. Compartido (Shared)
+### 9. Horarios (Schedule)
+**Funcionalidades:**
+- Gestión de slots de disponibilidad de instructores.
+- Reserva de turnos por estudiantes.
+- Validación de permisos y creación automática de clases.
+
+**Conexiones:**
+- Usa Instructors para validar instructores y permisos.
+- Crea DrivingClass al reservar un slot.
+- Integra con Payments para iniciar pagos.
+- Usa Users para roles de estudiante/instructor.
+
+### 10. Compartido (Shared)
 **Funcionalidades:**
 - Utilidades: logging, middlewares, validaciones Zod.
 - Contenedor de DI para inyección de dependencias.
@@ -109,15 +121,20 @@ graph TD
     C --> F
     F --> G[Payments]
     G --> H[MercadoPago Service]
-    I[Admin] --> B
-    J[Shared] --> A
-    J --> B
-    J --> C
-    J --> D
-    J --> E
-    J --> F
-    J --> G
-    J --> I
+    C --> I[Schedule]
+    B --> I
+    I --> F
+    I --> G
+    J[Admin] --> B
+    K[Shared] --> A
+    K --> B
+    K --> C
+    K --> D
+    K --> E
+    K --> F
+    K --> G
+    K --> I
+    K --> J
 ```
 
 ## Flujo de Comunicación
@@ -125,9 +142,11 @@ graph TD
 1. **Registro de Usuario:** Users crea usuario con rol STUDENT.
 2. **Autenticación:** Auth valida contra Users, genera tokens.
 3. **Registro de Instructor:** Instructors valida que sea STUDENT, crea instructor, actualiza rol en Users, asigna permisos de Permissions y asocia cars.
-4. **Creación de Clase:** DrivingClass valida estudiante e instructor, crea clase.
-5. **Pago:** Payments crea preferencia en MercadoPago, asocia a clase.
-6. **Webhook:** MercadoPago notifica a Payments, actualiza estado.
+4. **Creación de Slot:** Schedule valida instructor, crea slots de disponibilidad.
+5. **Reserva de Turno:** Schedule valida slot libre, permisos del instructor, crea DrivingClass y inicia pago en Payments.
+6. **Creación de Clase:** DrivingClass valida estudiante e instructor, crea clase.
+7. **Pago:** Payments crea preferencia en MercadoPago, asocia a clase.
+8. **Webhook:** MercadoPago notifica a Payments, actualiza estado.
 
 ## Comunicación entre Módulos
 

@@ -1,5 +1,5 @@
 import express from "express";
-import diContainer from "./DiContainer/container";
+import diContainer from "./shared/DiContainer/container";
 import errorHandler from "./shared/middlewares/errorMiddleware";
 import notFoundHandler from "./shared/middlewares/notFoundMiddleware";
 import {
@@ -25,6 +25,9 @@ import { DrivingClassController } from "./drivingClass/controller";
 import PaymentController from "./payments/payment.controller";
 import PaymentRouter from "./payments/payment.routes";
 
+import { ScheduleController } from "./schedule/schedule.controller";
+import { ScheduleRouter } from "./schedule/schedule.routes";
+
 export const buildApp = () => {
 
     const userController = diContainer.resolve<UserController>("userController");
@@ -42,6 +45,9 @@ export const buildApp = () => {
     const paymentController = diContainer.resolve<PaymentController>("paymentController");
     const paymentRouter = new PaymentRouter(paymentController).init();
 
+    const scheduleController = diContainer.resolve<ScheduleController>("scheduleController");
+    const scheduleRouter = new ScheduleRouter(scheduleController).init();
+
     const app = express();
 
     // Logging middlewares (should be first)
@@ -57,6 +63,7 @@ export const buildApp = () => {
     app.use("/auth", authRouter);
     app.use("/classes", drivingClassRouter);
     app.use("/payments", paymentRouter);
+    app.use("/schedule", scheduleRouter);
     //modulos
     // app.use("/permissions"); // ya registrado arriba
     // app.use("/admin");
@@ -78,7 +85,8 @@ export const buildApp = () => {
         '/cars',
         '/auth',
         '/classes',
-        '/payments'
+        '/payments',
+        '/schedule'
       ]
     });
 
