@@ -1,4 +1,6 @@
 import express from "express";
+const swaggerJSDoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
 import diContainer from "./shared/DiContainer/container";
 import errorHandler from "./shared/middlewares/errorMiddleware";
 import notFoundHandler from "./shared/middlewares/notFoundMiddleware";
@@ -50,11 +52,49 @@ export const buildApp = () => {
 
     const app = express();
 
+    // Swagger configuration
+    const swaggerOptions = {
+      definition: {
+        openapi: '3.0.0',
+        info: {
+          title: 'ManejApp API',
+          version: '1.0.0',
+          description: 'API documentation for ManejApp - Driving School Management System',
+        },
+        servers: [
+          {
+            url: 'http://localhost:3000',
+            description: 'Development server',
+          },
+        ],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT',
+            },
+          },
+        },
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+      },
+      apis: ['./src/**/*.ts'], // Paths to files containing OpenAPI definitions
+    };
+
+    const specs = swaggerJSDoc(swaggerOptions);
+
     // Logging middlewares (should be first)
     app.use(requestLoggerMiddleware);
     app.use(performanceLoggerMiddleware(2000)); // Log requests slower than 2 seconds
 
     app.use(express.json());
+
+    // Swagger UI
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
     app.use("/users", userRouter);
     app.use("/instructors", instructorRouter);
