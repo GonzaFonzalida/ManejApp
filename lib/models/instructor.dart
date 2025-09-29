@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 class Instructor {
   final int id;
   final String licenseNumber;

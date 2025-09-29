@@ -100,7 +100,7 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
               radius: 40,
               backgroundImage: instructor?.image != null && instructor!.image!.startsWith('http')
                   ? NetworkImage(instructor.image!) as ImageProvider
-                  : const AssetImage("assets/default_profile.png"),
+                  : const AssetImage("assets/car3.png"),
             ),
             const SizedBox(height: 12),
             Text(

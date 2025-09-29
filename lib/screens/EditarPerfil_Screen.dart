@@ -104,7 +104,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               children: [
                 const CircleAvatar(
                   radius: 55,
-                  backgroundImage: AssetImage("assets/avatar_placeholder.png"),
+                  backgroundImage: AssetImage("assets/car3.png"),
                 ),
                 Container(
                   decoration: BoxDecoration(
@@ -112,7 +112,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     color: Colors.blue.shade600,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       )

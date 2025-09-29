@@ -5,7 +5,7 @@ import 'package:manejapp/screens/payment_screen.dart';
 import 'package:manejapp/screens/register_screen.dart';
 import 'package:manejapp/screens/ChooseRoleScreen.dart';
 import 'package:manejapp/screens/home_screen.dart';
-import 'package:manejapp/screens/editarPerfil_screen.dart';
+import 'package:manejapp/screens/EditarPerfil_Screen.dart';
 import 'package:manejapp/screens/profile_screen.dart';
 import 'package:manejapp/screens/ReservarClase_Screen.dart';
 import 'package:manejapp/services/api_service.dart';
@@ -18,6 +18,7 @@ import 'package:manejapp/screens/sub_screens/first_steps_screen.dart';
 import 'package:manejapp/screens/sub_screens/offers_screen.dart';
 import 'package:manejapp/screens/sub_screens/settings_screen.dart';
 import 'package:manejapp/screens/sub_screens/top_instructors_screen.dart';
+import 'package:manejapp/screens/map_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -81,6 +82,7 @@ class _MyAppState extends State<MyApp> {
         ReservarClaseScreen.routeName: (context) => const ReservarClaseScreen(),
         ProfileScreen.routeName: (context) => const ProfileScreen(),
         InfoScreen.routeName: (context) => const InfoScreen(),
+        MapScreen.routeName: (context) => const MapScreen(),
         PaymentScreen.routeName: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
           if (arguments is Map<String, dynamic>) {

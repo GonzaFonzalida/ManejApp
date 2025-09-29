@@ -117,7 +117,7 @@ class InfoScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 CircleAvatar(
-                  backgroundColor: iconColor.withOpacity(0.1),
+                  backgroundColor: iconColor.withValues(alpha: 0.1),
                   child: Icon(icon, color: iconColor, size: 30),
                 ),
                 const SizedBox(height: 10),

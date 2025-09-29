@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 import 'package:manejapp/screens/ReservarClase_Screen.dart';
 import 'package:manejapp/screens/profile_screen.dart';
 import 'package:manejapp/services/api_service.dart';
@@ -14,14 +19,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Lista original de instructores obtenida de la API
   List<Instructor> _instructors = [];
-  // Lista que se mostrará en pantalla, filtrada por la búsqueda
   List<Instructor> _filteredInstructors = [];
   bool _isLoading = true;
   int _selectedIndex = 1;
-  // Controlador para el campo de texto de búsqueda
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final MapController _mapController = MapController();
+  LatLng _mapCenter = LatLng(-34.4596, -58.7402);
+  List<Marker> _mapMarkers = [];
+  bool _locationSearching = false;
 
   final List<String> _locations = [
     'Tortuguitas',
@@ -36,17 +43,33 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
   String _selectedLocation = 'Tortuguitas';
 
+  // Coordenadas de ejemplo (Tortuguitas, Bs As)
+  final LatLng _defaultCenter = LatLng(-34.4596, -58.7402);
+
   @override
   void initState() {
     super.initState();
     _loadInstructors();
-    // Añade un listener al controlador de texto para filtrar en tiempo real
     _searchController.addListener(_filterInstructors);
+    _mapCenter = _defaultCenter;
+    _mapMarkers = [
+      Marker(
+        point: _defaultCenter,
+        width: 40,
+        height: 40,
+        child: const Icon(
+          Icons.location_pin,
+          color: Color(0xFF003087),
+          size: 40,
+        ),
+      ),
+    ];
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -55,12 +78,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final data = await ApiService.getInstructors();
       setState(() {
         _instructors = data.map((e) => Instructor.fromJson(e)).toList();
-        // Inicializa la lista filtrada con todos los instructores
         _filteredInstructors = _instructors;
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading instructors: $e');
+      debugPrint('Error loading instructors: $e');
       setState(() {
         _isLoading = false;
       });
@@ -71,10 +93,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final query = _searchController.text.toLowerCase();
     setState(() {
       if (query.isEmpty) {
-        // Si el buscador está vacío, muestra todos los instructores
         _filteredInstructors = _instructors;
       } else {
-        // Filtra los instructores que coincidan con el nombre o apellido
         _filteredInstructors = _instructors.where((instructor) {
           final fullName =
               '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}'
@@ -83,6 +103,81 @@ class _HomeScreenState extends State<HomeScreen> {
         }).toList();
       }
     });
+  }
+
+  Future<void> _searchAddress() async {
+    final query = _addressController.text.trim();
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresá una dirección')),
+      );
+      return;
+    }
+    setState(() => _locationSearching = true);
+    try {
+      final uri = Uri.https(
+        'nominatim.openstreetmap.org',
+        '/search',
+        {
+          'q': query,
+          'format': 'jsonv2',
+          'limit': '1',
+          'countrycodes': 'ar',
+        },
+      );
+      final res = await http.get(
+        uri,
+        headers: {'User-Agent': 'ManejApp/1.0 (Flutter)'},
+      );
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List<dynamic>;
+        if (list.isNotEmpty) {
+          final first = list[0] as Map<String, dynamic>;
+          final lat = double.tryParse(first['lat']?.toString() ?? '');
+          final lon = double.tryParse(first['lon']?.toString() ?? '');
+          if (lat != null && lon != null) {
+            final pos = LatLng(lat, lon);
+            setState(() {
+              _mapCenter = pos;
+              _mapMarkers = [
+                Marker(
+                  point: pos,
+                  width: 40,
+                  height: 40,
+                  child: const Icon(
+                    Icons.location_pin,
+                    color: Color(0xFF003087),
+                    size: 40,
+                  ),
+                ),
+              ];
+            });
+            _mapController.move(pos, 15.0);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se pudo interpretar la ubicación')),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se encontró la dirección')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error buscando dirección (HTTP ${res.statusCode})')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error geocodificando: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error buscando la dirección: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _locationSearching = false);
+      }
+    }
   }
 
   void _onItemTapped(int index) {
@@ -132,62 +227,60 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Colors.white,
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedLocation,
-                    icon: const Icon(Icons.arrow_drop_down, color: Colors.black54),
-                    style: const TextStyle(
-                      fontSize: 16.0,
-                      color: Colors.black87,
-                    ),
-                    items: _locations.map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Row(
-                          children: [
-                            const Icon(Icons.location_on_outlined, color: Colors.black54),
-                            const SizedBox(width: 8.0),
-                            Text(value),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedLocation = newValue!;
-                      });
-                    },
+                child: TextField(
+                  controller: _addressController,
+                  decoration: InputDecoration(
+                    hintText: 'Ingresá una dirección exacta',
+                    prefixIcon: const Icon(Icons.location_on_outlined, color: Colors.black54),
+                    suffixIcon: _locationSearching
+                        ? const Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.search, color: Colors.black54),
+                            onPressed: _searchAddress,
+                          ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
                   ),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _searchAddress(),
                 ),
               ),
             ),
             const SizedBox(height: 16.0),
+            // Mapa real con flutter_map
             Container(
-              height: 150.0,
+              height: 200.0,
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12.0),
                 color: Colors.grey.shade200,
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: const <Widget>[
-                  Text('Mapa Placeholder', style: TextStyle(color: Colors.grey)),
-                  Positioned(
-                    left: 50,
-                    top: 30,
-                    child: Icon(Icons.directions_car, size: 30, color: Color(0xFF003087)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12.0),
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _mapCenter,
+                    initialZoom: 14.0,
                   ),
-                  Positioned(
-                    right: 60,
-                    top: 80,
-                    child: Icon(Icons.directions_car, size: 30, color: Color(0xFF003087)),
-                  ),
-                  Positioned(
-                    bottom: 20,
-                    child: Icon(Icons.directions_car, size: 30, color: Color(0xFF003087)),
-                  ),
-                ],
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      subdomains: const ['a', 'b', 'c'],
+                    ),
+                    MarkerLayer(
+                      markers: _mapMarkers,
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16.0),
@@ -253,9 +346,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         CircleAvatar(
                           radius: 30.0,
                           backgroundColor: Colors.blue.shade100,
-                          backgroundImage: instructor.image != null && instructor.image!.startsWith('http')
-                              ? NetworkImage(instructor.image!) as ImageProvider
-                              : const AssetImage('assets/default_profile.png'),
+                          backgroundImage: instructor.image != null &&
+                                  instructor.image!.startsWith('http')
+                              ? NetworkImage(instructor.image!)
+                                  as ImageProvider
+                              : const AssetImage('assets/car3.png'),
                         ),
                         const SizedBox(width: 12.0),
                         Expanded(

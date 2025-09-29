@@ -75,7 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await storage.write(key: 'user_email', value: _email.trim());
       }
 
-      print('UserId obtenido en RegisterScreen: $userId, Type: ${userId.runtimeType}'); // Depuración
+      debugPrint('UserId obtenido en RegisterScreen: $userId, Type: ${userId.runtimeType}'); // Depuración
       
       if (!mounted) return;
       if (userId.isNotEmpty) {

@@ -6,7 +6,7 @@ import 'dart:developer' as developer;
 const storage = FlutterSecureStorage();
 
 class ApiService {
-  static const String _baseUrl = 'http://192.168.0.69:3000';
+  static const String _baseUrl = 'http://192.168.0.18:3000';
 
   // ===========================
   // USERS / AUTH
@@ -186,20 +186,6 @@ class ApiService {
     }
   }
 
-  static Future<void> _ensureStudentUpsert(String userId, String token) async {
-    try {
-      await http.patch(
-        Uri.parse('$_baseUrl/users/$userId/role'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'role': 'Alumno'}), // backend normaliza -> STUDENT
-      );
-    } catch (_) {
-      // noop: upsert preventivo puede fallar sin ser crítico
-    }
-  }
   static Future<Map<String, dynamic>> reserveClass(String instructorId, Map<String, dynamic> reservationData) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {

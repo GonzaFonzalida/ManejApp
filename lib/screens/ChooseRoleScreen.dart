@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
 import 'login_screen.dart'; // Importamos LoginScreen
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -30,8 +31,8 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
   Future<void> _submitRole() async {
     setState(() => _isLoading = true);
     try {
-      print('Intentando completar registro con userId: ${widget.userId}, role: $_selectedRole');
-      print('Licence: ${_licenceController.text}, Experience: ${_experienceController.text}');
+      debugPrint('Intentando completar registro con userId: ${widget.userId}, role: $_selectedRole');
+      debugPrint('Licence: ${_licenceController.text}, Experience: ${_experienceController.text}');
       await ApiService.completeRegistration(
         widget.userId,
         _selectedRole,
@@ -54,7 +55,7 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
       Navigator.pushReplacementNamed(context, LoginScreen.routeName); // Navegamos a LoginScreen
     } catch (e) {
       if (!mounted) return;
-      print('Error en _submitRole: $e');
+      debugPrint('Error en _submitRole: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al completar el registro: $e')),
       );
@@ -170,7 +171,7 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF003087).withOpacity(0.1),
+                    color: Color(0xFF003087).withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )

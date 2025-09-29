@@ -28,7 +28,7 @@ class LoginController {
       }
       onUpdate();
     } catch (e) {
-      print('Error loading saved credentials: $e');
+      debugPrint('Error loading saved credentials: $e');
     }
   }
 
@@ -82,7 +82,7 @@ class LoginController {
         await storage.write(key: 'session_id', value: sessionData['id']?.toString() ?? '');
         await storage.write(key: 'session_created_at', value: sessionData['createdAt']?.toString() ?? '');
         await storage.write(key: 'session_expires_at', value: sessionData['expiresAt']?.toString() ?? '');
-        print('Sesión creada exitosamente: ${sessionData['id']}');
+        debugPrint('Sesión creada exitosamente: ${sessionData['id']}');
       }
 
       if (!context.mounted) return;
