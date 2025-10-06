@@ -162,14 +162,28 @@ class ApiService {
     }
   }
 
-  // ✅ Actualizar perfil usando PUT /users/:id
+  // ✅ Actualizar perfil de instructor usando PUT /instructors/:id
   static Future<void> updateProfile(String userId, Map<String, dynamic> data) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
     }
 
-    final url = '$_baseUrl/users/$userId';
+    developer.log('updateProfile - userId: $userId, data: $data', name: 'ApiService');
+
+    // Obtener el instructor ID basado en el userId
+    final instructors = await getInstructors();
+    final instructor = instructors.firstWhere(
+      (inst) => inst['userId'].toString() == userId,
+      orElse: () => throw Exception('Instructor no encontrado para userId: $userId'),
+    );
+    
+    final instructorId = instructor['id'].toString();
+    final url = '$_baseUrl/instructors/$instructorId';
+    
+    developer.log('Actualizando instructor - URL: $url', name: 'ApiService');
+    developer.log('Datos: ${jsonEncode(data)}', name: 'ApiService');
+    
     final response = await http.put(
       Uri.parse(url),
       headers: <String, String>{
@@ -178,12 +192,17 @@ class ApiService {
       },
       body: jsonEncode(data),
     );
+    
+    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
+    developer.log('Response body: ${response.body}', name: 'ApiService');
 
     if (response.statusCode != 200) {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
       final message = errorData?['message'] ?? 'Error al actualizar el perfil';
       throw Exception(message);
     }
+
+
   }
 
   static Future<Map<String, dynamic>> reserveClass(String instructorId, Map<String, dynamic> reservationData) async {
@@ -559,6 +578,511 @@ class ApiService {
   }
 
     // ===========================
+  // AUTH EXTENDED
+  // ===========================
+
+  static Future<Map<String, dynamic>> getMe() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/auth/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo información del usuario');
+    }
+  }
+
+  static Future<List<dynamic>> getSessions() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/auth/sessions'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo sesiones');
+    }
+  }
+
+  static Future<void> revokeSession(String sessionId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/auth/revoke/$sessionId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error revocando sesión');
+    }
+  }
+
+  static Future<void> revokeAllSessions() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/auth/revoke-all'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error revocando todas las sesiones');
+    }
+  }
+
+  // ===========================
+  // USERS EXTENDED
+  // ===========================
+
+  static Future<List<dynamic>> getUsersByRole(String role) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/role/$role'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo usuarios por rol');
+    }
+  }
+
+  // ===========================
+  // INSTRUCTORS EXTENDED
+  // ===========================
+
+  static Future<void> updateInstructor(String instructorId, Map<String, dynamic> data) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/instructors/$instructorId'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error actualizando instructor');
+    }
+  }
+
+  // ===========================
+  // CARS MANAGEMENT
+  // ===========================
+
+  static Future<Map<String, dynamic>> createCar(Map<String, dynamic> carData) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/cars'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(carData),
+    );
+
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error creando auto');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getCar(String carId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/cars/$carId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo auto');
+    }
+  }
+
+  static Future<void> updateCar(String carId, Map<String, dynamic> carData) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/cars/$carId'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(carData),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error actualizando auto');
+    }
+  }
+
+  static Future<void> deleteCar(String carId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/cars/$carId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error eliminando auto');
+    }
+  }
+
+  // ===========================
+  // DRIVING CLASSES
+  // ===========================
+
+  static Future<List<dynamic>> getDrivingClasses() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo clases');
+    }
+  }
+
+  static Future<List<dynamic>> getMyDrivingClasses() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/my-classes'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo mis clases');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getDrivingClass(String classId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/$classId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo clase');
+    }
+  }
+
+  static Future<Map<String, dynamic>> createDrivingClass(Map<String, dynamic> classData) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/classes'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(classData),
+    );
+
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error creando clase');
+    }
+  }
+
+  static Future<void> updateDrivingClass(String classId, Map<String, dynamic> classData) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/classes/$classId'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(classData),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error actualizando clase');
+    }
+  }
+
+  static Future<void> cancelDrivingClass(String classId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/classes/$classId/cancel'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error cancelando clase');
+    }
+  }
+
+  static Future<void> deleteDrivingClass(String classId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/classes/$classId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error eliminando clase');
+    }
+  }
+
+  // ===========================
+  // PAYMENTS EXTENDED
+  // ===========================
+
+  static Future<List<dynamic>> getPayments() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/payments'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo pagos');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getPayment(String paymentId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/payments/$paymentId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo pago');
+    }
+  }
+
+  static Future<List<dynamic>> getPaymentsByClass(String classId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/payments/driving-class/$classId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo pagos de la clase');
+    }
+  }
+
+  static Future<void> updatePaymentStatus(String paymentId, String status) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/payments/$paymentId/status'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'status': status}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error actualizando estado del pago');
+    }
+  }
+
+  // ===========================
+  // SCHEDULE MANAGEMENT
+  // ===========================
+
+  static Future<Map<String, dynamic>> createScheduleSlot(Map<String, dynamic> slotData) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/schedule/slots'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(slotData),
+    );
+
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error creando horario');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getScheduleSlot(String slotId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/schedule/$slotId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo horario');
+    }
+  }
+
+  static Future<List<dynamic>> getInstructorSchedule(String instructorId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/schedule/instructor/$instructorId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo horarios del instructor');
+    }
+  }
+
+  static Future<Map<String, dynamic>> reserveScheduleSlot(String slotId) async {
+    String? token = await storage.read(key: 'auth_token');
+    
+    if (token == null || token.isEmpty) {
+      developer.log('Token not found, trying to refresh...', name: 'ApiService');
+      try {
+        final refreshResult = await refreshToken();
+        token = refreshResult['token'];
+      } catch (e) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      }
+    }
+
+    if (slotId.isEmpty) {
+      throw Exception('ID del slot no puede estar vacío');
+    }
+
+    developer.log('Reservando slot - slotId: "$slotId"', name: 'ApiService');
+    developer.log('Token exists: ${token!.isNotEmpty}', name: 'ApiService');
+    
+    final url = '$_baseUrl/schedule/reserve/$slotId';
+    developer.log('URL: $url', name: 'ApiService');
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
+    developer.log('Response body: ${response.body}', name: 'ApiService');
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body);
+      if (errorData is List) {
+        final firstError = errorData.isNotEmpty ? errorData[0] : {};
+        throw Exception(firstError['message'] ?? 'Error reservando horario');
+      } else if (errorData is Map<String, dynamic>) {
+        throw Exception(errorData['message'] ?? 'Error reservando horario');
+      } else {
+        throw Exception('Error reservando horario');
+      }
+    }
+  }
+
+  static Future<void> cancelScheduleSlot(String slotId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/schedule/cancel/$slotId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error cancelando reserva');
+    }
+  }
+
+  static Future<void> deleteScheduleSlot(String slotId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/schedule/$slotId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error eliminando horario');
+    }
+  }
+
+  // ===========================
   // MERCADO PAGO – FRONTEND
   // ===========================
 

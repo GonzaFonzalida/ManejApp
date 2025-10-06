@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-
-import 'package:manejapp/screens/ReservarClase_Screen.dart';
-import 'package:manejapp/screens/profile_screen.dart';
+import 'package:manejapp/screens/reservar_clase_screen.dart';
 import 'package:manejapp/services/api_service.dart';
 import 'package:manejapp/models/instructor.dart';
-import 'package:manejapp/screens/info_screen.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -22,48 +20,18 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Instructor> _instructors = [];
   List<Instructor> _filteredInstructors = [];
   bool _isLoading = true;
-  int _selectedIndex = 1;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final MapController _mapController = MapController();
-  LatLng _mapCenter = LatLng(-34.4596, -58.7402);
-  List<Marker> _mapMarkers = [];
-  bool _locationSearching = false;
-
-  final List<String> _locations = [
-    'Tortuguitas',
-    'Malvinas Argentinas',
-    'Grand Bourg',
-    'Los Polvorines',
-    'Ingeniero Pablo Nogues',
-    'Villa de Mayo',
-    'Tierras Altas',
-    'Ing. Adolfo Sourdeaux',
-    'Área de Promoción',
-  ];
-  String _selectedLocation = 'Tortuguitas';
-
-  // Coordenadas de ejemplo (Tortuguitas, Bs As)
-  final LatLng _defaultCenter = LatLng(-34.4596, -58.7402);
+  LatLng _currentLocation = LatLng(-34.505, -58.695);
+  bool _locationLoading = false;
+  bool _addressSearching = false;
 
   @override
   void initState() {
     super.initState();
     _loadInstructors();
     _searchController.addListener(_filterInstructors);
-    _mapCenter = _defaultCenter;
-    _mapMarkers = [
-      Marker(
-        point: _defaultCenter,
-        width: 40,
-        height: 40,
-        child: const Icon(
-          Icons.location_pin,
-          color: Color(0xFF003087),
-          size: 40,
-        ),
-      ),
-    ];
   }
 
   @override
@@ -105,6 +73,44 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _getCurrentLocation() async {
+    setState(() => _locationLoading = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw 'Los servicios de ubicación están deshabilitados.';
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Permisos de ubicación denegados';
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Permisos de ubicación denegados permanentemente.';
+      }
+
+      Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+      });
+      _mapController.move(_currentLocation, 15.0);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error obteniendo ubicación: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _locationLoading = false);
+      }
+    }
+  }
+
   Future<void> _searchAddress() async {
     final query = _addressController.text.trim();
     if (query.isEmpty) {
@@ -113,7 +119,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-    setState(() => _locationSearching = true);
+    
+    setState(() => _addressSearching = true);
     try {
       final uri = Uri.https(
         'nominatim.openstreetmap.org',
@@ -138,314 +145,356 @@ class _HomeScreenState extends State<HomeScreen> {
           if (lat != null && lon != null) {
             final pos = LatLng(lat, lon);
             setState(() {
-              _mapCenter = pos;
-              _mapMarkers = [
-                Marker(
-                  point: pos,
-                  width: 40,
-                  height: 40,
-                  child: const Icon(
-                    Icons.location_pin,
-                    color: Color(0xFF003087),
-                    size: 40,
-                  ),
-                ),
-              ];
+              _currentLocation = pos;
             });
-            _mapController.move(pos, 15.0);
+            _mapController.move(pos, 16.0);
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No se pudo interpretar la ubicación')),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No se pudo interpretar la ubicación')),
+              );
+            }
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No se encontró la dirección')),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se encontró la dirección')),
+            );
+          }
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error buscando dirección (HTTP ${res.statusCode})')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error buscando dirección (HTTP ${res.statusCode})')),
+          );
+        }
       }
     } catch (e) {
-      debugPrint('Error geocodificando: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error buscando la dirección: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error buscando la dirección: $e')),
+        );
+      }
     } finally {
       if (mounted) {
-        setState(() => _locationSearching = false);
+        setState(() => _addressSearching = false);
       }
     }
-  }
-
-  void _onItemTapped(int index) {
-    if (index == 2) {
-      Navigator.pushNamed(context, ProfileScreen.routeName);
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
-  }
-
-  Widget _buildHomeContent() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const SizedBox(height: 20.0),
-            const Center(
-              child: Text(
-                'ManejApp',
-                style: TextStyle(
-                  fontSize: 36.0,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF003087),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8.0),
-            const Center(
-              child: Text(
-                'Conectá con tu próximo instructor',
-                style: TextStyle(
-                  fontSize: 16.0,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16.0),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20.0),
-                  color: Colors.white,
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: TextField(
-                  controller: _addressController,
-                  decoration: InputDecoration(
-                    hintText: 'Ingresá una dirección exacta',
-                    prefixIcon: const Icon(Icons.location_on_outlined, color: Colors.black54),
-                    suffixIcon: _locationSearching
-                        ? const Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : IconButton(
-                            icon: const Icon(Icons.search, color: Colors.black54),
-                            onPressed: _searchAddress,
-                          ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
-                  ),
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _searchAddress(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16.0),
-            // Mapa real con flutter_map
-            Container(
-              height: 200.0,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12.0),
-                color: Colors.grey.shade200,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12.0),
-                child: FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _mapCenter,
-                    initialZoom: 14.0,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      subdomains: const ['a', 'b', 'c'],
-                    ),
-                    MarkerLayer(
-                      markers: _mapMarkers,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16.0),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20.0),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  hintText: 'Buscar instructor',
-                  prefixIcon: Icon(Icons.menu, color: Colors.black54),
-                  suffixIcon: Icon(Icons.search, color: Colors.black54),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.all(16.0),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24.0),
-            const Text(
-              'Instructores cercanos',
-              style: TextStyle(
-                fontSize: 20.0,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12.0),
-            if (_isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40.0),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_filteredInstructors.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40.0),
-                  child: Text(
-                    'No se encontraron instructores con ese nombre.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16.0,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _filteredInstructors.length,
-                itemBuilder: (context, index) {
-                  final instructor = _filteredInstructors.elementAt(index);
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                      children: <Widget>[
-                        CircleAvatar(
-                          radius: 30.0,
-                          backgroundColor: Colors.blue.shade100,
-                          backgroundImage: instructor.image != null &&
-                                  instructor.image!.startsWith('http')
-                              ? NetworkImage(instructor.image!)
-                                  as ImageProvider
-                              : const AssetImage('assets/car3.png'),
-                        ),
-                        const SizedBox(width: 12.0),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16.0,
-                                ),
-                              ),
-                              Row(
-                                children: <Widget>[
-                                  const Icon(Icons.star,
-                                      color: Colors.amber, size: 16.0),
-                                  const SizedBox(width: 4.0),
-                                  Text('${instructor.rating ?? '0.0'} ★',
-                                      style: const TextStyle(fontSize: 14.0)),
-                                  const SizedBox(width: 8.0),
-                                  Text(
-                                    '${instructor.experienceYears} años de experiencia',
-                                    style: const TextStyle(
-                                        fontSize: 12.0, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushNamed(
-                              context,
-                              ReservarClaseScreen.routeName,
-                              arguments: instructor,
-                            );
-                          },
-                          child: const Text('Reservar'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            const SizedBox(height: 20.0),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoContent() {
-    return const InfoScreen();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        title: const Text('Buscar Instructor'),
+        backgroundColor: const Color(0xFF003087),
+        foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 10.0),
-          child: Icon(Icons.arrow_back, color: Colors.black),
-        ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 10.0),
-            child: Icon(Icons.info_outline, color: Colors.black),
-          ),
-        ],
+
       ),
-      body: _selectedIndex == 0 ? _buildInfoContent() : _buildHomeContent(),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.directions_car),
-            label: 'Info',
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: 20.0),
+              const Center(
+                child: Text(
+                  'Encuentra el instructor perfecto para ti',
+                  style: TextStyle(
+                    fontSize: 16.0,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24.0),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20.0),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _addressController,
+                        decoration: InputDecoration(
+                          hintText: 'Ingresá una dirección exacta',
+                          prefixIcon: const Icon(Icons.location_on, color: Color(0xFF003087)),
+                          suffixIcon: _locationLoading
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12.0),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : IconButton(
+                                  icon: const Icon(Icons.my_location, color: Color(0xFF003087)),
+                                  onPressed: _getCurrentLocation,
+                                  tooltip: 'Usar mi ubicación',
+                                ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16.0),
+                        ),
+                        onSubmitted: (_) => _searchAddress(),
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      child: ElevatedButton(
+                        onPressed: _addressSearching ? null : _searchAddress,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF003087),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        child: _addressSearching
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.search, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: _currentLocation,
+                      initialZoom: 13.0,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            width: 80.0,
+                            height: 80.0,
+                            point: _currentLocation,
+                            child: const Icon(
+                              Icons.location_pin,
+                              color: Colors.blue,
+                              size: 40,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              ElevatedButton(
+                onPressed: () {
+                  // Buscar instructores en la ubicación actual
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Buscando instructores en esta ubicación...')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF003087),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.search),
+                    SizedBox(width: 8),
+                    Text('Buscar instructor'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20.0),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Filtrar por nombre',
+                    prefixIcon: Icon(Icons.filter_list, color: Color(0xFF003087)),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.all(16.0),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24.0),
+              const Text(
+                'Instructores cercanos',
+                style: TextStyle(
+                  fontSize: 20.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12.0),
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_filteredInstructors.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40.0),
+                    child: Text(
+                      'No se encontraron instructores con ese nombre.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _filteredInstructors.length,
+                  itemBuilder: (context, index) {
+                    final instructor = _filteredInstructors.elementAt(index);
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8.0),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          children: <Widget>[
+                            CircleAvatar(
+                              radius: 35.0,
+                              backgroundColor: Colors.blue.shade100,
+                              backgroundImage: instructor.image != null &&
+                                      instructor.image!.startsWith('http')
+                                  ? NetworkImage(instructor.image!)
+                                      as ImageProvider
+                                  : const AssetImage('assets/car3.png'),
+                            ),
+                            const SizedBox(width: 16.0),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: <Widget>[
+                                      const Icon(Icons.star,
+                                          color: Colors.amber, size: 18.0),
+                                      const SizedBox(width: 4.0),
+                                      Text('${instructor.rating ?? '5.0'}',
+                                          style: const TextStyle(fontSize: 16.0, fontWeight: FontWeight.w500)),
+                                      const SizedBox(width: 12.0),
+                                      Icon(Icons.school, color: Colors.grey.shade600, size: 16),
+                                      const SizedBox(width: 4.0),
+                                      Text(
+                                        '${instructor.experienceYears} años',
+                                        style: TextStyle(
+                                            fontSize: 14.0, color: Colors.grey.shade600),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.attach_money, color: Colors.green.shade600, size: 16),
+                                      Text(
+                                        '\$${instructor.user?.hourlyRate?.toStringAsFixed(0) ?? '45.000'}/hora',
+                                        style: TextStyle(
+                                          fontSize: 14.0,
+                                          color: Colors.green.shade600,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  ReservarClaseScreen.routeName,
+                                  arguments: instructor,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF003087),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Reservar'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              const SizedBox(height: 20.0),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map_outlined),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFF003087),
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
+        ),
       ),
     );
   }

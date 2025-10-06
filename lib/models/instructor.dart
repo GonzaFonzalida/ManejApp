@@ -35,11 +35,17 @@ class User {
   final int id;
   final String? name;
   final String? surname;
+  final String? email;
+  final String? role;
+  final double? hourlyRate;
 
   User({
     required this.id,
     this.name,
     this.surname,
+    this.email,
+    this.role,
+    this.hourlyRate,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -47,6 +53,9 @@ class User {
       id: json['id'] as int,
       name: json['name'] as String?,
       surname: json['surname'] as String?,
+      email: json['email'] as String?,
+      role: json['role'] as String?,
+      hourlyRate: (json['hourlyRate'] as num?)?.toDouble(),
     );
   }
 }

@@ -86,9 +86,35 @@ class LoginController {
       }
 
       if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
+      
+      // Determinar la ruta según el rol del usuario
+      try {
+        final userInfo = await ApiService.getMe();
+        debugPrint('UserInfo completo: $userInfo');
+        final userRole = userInfo['user']?['role']?.toString().toLowerCase();
+        debugPrint('Rol detectado: $userRole');
+        
+        if (!context.mounted) return;
+        
+        String targetRoute;
+        if (userRole == 'instructor') {
+          targetRoute = '/instructor_dashboard';
+          debugPrint('Redirigiendo a instructor dashboard');
+        } else {
+          targetRoute = '/student_dashboard';
+          debugPrint('Redirigiendo a student dashboard');
+        }
+        
+        Navigator.pushReplacementNamed(context, targetRoute);
+      } catch (e) {
+        debugPrint('Error obteniendo rol del usuario: $e');
+        // Fallback al home normal si hay error obteniendo el rol
+        if (!context.mounted) return;
+        Navigator.pushReplacementNamed(context, HomeScreen.routeName);
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso - Sesión creada')),
+        const SnackBar(content: Text('Inicio de sesión exitoso')),
       );
     } catch (e) {
       debugPrint('Error en login: $e');

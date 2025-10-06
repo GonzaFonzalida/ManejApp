@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../controllers/EditarPerfil_Controller.dart';
+import '../controllers/editar_perfil_controller.dart';
 import '../services/api_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -30,8 +30,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       controller.nombreController.text = profile['name'] ?? '';
       controller.descripcionController.text = profile['description'] ?? '';
       controller.zonaController.text = profile['zone'] ?? '';
-      controller.precioController.text = profile['hourlyRate']?.toString() ?? '';
-      controller.disponibilidadController.text = profile['availability'] ?? '';
     }
   }
 
@@ -50,16 +48,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           'name': controller.nombreController.text,
           'description': controller.descripcionController.text,
           'zone': controller.zonaController.text,
-          'hourlyRate': int.tryParse(controller.precioController.text) ?? 0,
-          'availability': controller.disponibilidadController.text,
         });
       }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Perfil guardado')),
+        const SnackBar(content: Text('Perfil guardado exitosamente')),
       );
     } catch (e) {
+      debugPrint('Error guardando perfil: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al guardar perfil: $e')),
@@ -158,32 +155,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            _buildInputCard(
-              child: TextField(
-                controller: controller.precioController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.attach_money_outlined),
-                  labelText: "Precio por hora",
-                  prefixText: "\$ ",
-                  suffixText: "/h",
-                  border: InputBorder.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildInputCard(
-              child: TextField(
-                controller: controller.disponibilidadController,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.access_time),
-                  labelText: "Disponibilidad",
-                  hintText: "Ej: Lunes a Sábado, 9:00 - 19:00",
-                  border: InputBorder.none,
-                ),
-              ),
-            ),
+
           ],
         ),
       ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'EditarPerfil_Screen.dart';
+import 'editar_perfil_screen.dart';
 import 'home_screen.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
+import '../controllers/login_controller.dart';
 import 'package:intl/intl.dart';
 
 const storage = FlutterSecureStorage();
@@ -17,7 +18,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  int _selectedIndex = 2; // Profile is selected
+
   Map<String, dynamic>? _profile;
   String _selectedLocation = 'Tortuguitas';
 
@@ -50,15 +51,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == 0 || index == 1) { // Home or Map
-      Navigator.pushNamed(context, HomeScreen.routeName);
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar Sesión'),
+        content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cerrar Sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await ApiService.logout();
+        if (mounted) {
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/login',
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cerrar sesión: $e')),
+          );
+        }
+      }
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -116,10 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Botón cerrar sesión
             ElevatedButton(
-              onPressed: () {
-                // TODO: implementar logout
-                Navigator.popUntil(context, ModalRoute.withName('/'));
-              },
+              onPressed: _logout,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
@@ -129,26 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.directions_car),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map_outlined),
-            label: 'Map',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Color(0xFF003087),
-        unselectedItemColor: Colors.grey.shade500,
-        onTap: _onItemTapped,
-      ),
+
     );
   }
 

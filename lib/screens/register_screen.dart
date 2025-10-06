@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Asegúrate de tener esta importación
 import '../services/api_service.dart';
 import 'login_screen.dart';
-import 'ChooseRoleScreen.dart';
+import 'choose_role_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   static const routeName = '/register';

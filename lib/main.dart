@@ -3,22 +3,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:manejapp/screens/login_screen.dart';
 import 'package:manejapp/screens/payment_screen.dart';
 import 'package:manejapp/screens/register_screen.dart';
-import 'package:manejapp/screens/ChooseRoleScreen.dart';
+import 'package:manejapp/screens/choose_role_screen.dart';
 import 'package:manejapp/screens/home_screen.dart';
-import 'package:manejapp/screens/EditarPerfil_Screen.dart';
+import 'package:manejapp/screens/editar_perfil_screen.dart';
 import 'package:manejapp/screens/profile_screen.dart';
-import 'package:manejapp/screens/ReservarClase_Screen.dart';
+import 'package:manejapp/screens/reservar_clase_screen.dart';
 import 'package:manejapp/services/api_service.dart';
-import 'package:manejapp/screens/info_screen.dart';
-
-// ✅ Importación de las nuevas sub-pantallas
-import 'package:manejapp/screens/sub_screens/about_app_screen.dart';
-import 'package:manejapp/screens/sub_screens/contact_screen.dart';
-import 'package:manejapp/screens/sub_screens/first_steps_screen.dart';
-import 'package:manejapp/screens/sub_screens/offers_screen.dart';
-import 'package:manejapp/screens/sub_screens/settings_screen.dart';
-import 'package:manejapp/screens/sub_screens/top_instructors_screen.dart';
 import 'package:manejapp/screens/map_screen.dart';
+import 'package:manejapp/screens/instructor_dashboard_screen.dart';
+import 'package:manejapp/screens/student_dashboard_screen.dart';
+import 'package:manejapp/screens/student_classes_screen.dart';
+import 'package:manejapp/screens/student_payments_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -81,7 +76,6 @@ class _MyAppState extends State<MyApp> {
         EditarPerfilScreen.routeName: (context) => const EditarPerfilScreen(),
         ReservarClaseScreen.routeName: (context) => const ReservarClaseScreen(),
         ProfileScreen.routeName: (context) => const ProfileScreen(),
-        InfoScreen.routeName: (context) => const InfoScreen(),
         MapScreen.routeName: (context) => const MapScreen(),
         PaymentScreen.routeName: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
@@ -100,13 +94,12 @@ class _MyAppState extends State<MyApp> {
             description: 'Sin descripción',
           );
         },
-        // ✅ Rutas agregadas para las sub-pantallas de InfoScreen
-        FirstStepsScreen.routeName: (context) => const FirstStepsScreen(),
-        TopInstructorsScreen.routeName: (context) => const TopInstructorsScreen(),
-        ContactScreen.routeName: (context) => const ContactScreen(),
-        OffersScreen.routeName: (context) => const OffersScreen(),
-        SettingsScreen.routeName: (context) => const SettingsScreen(),
-        AboutAppScreen.routeName: (context) => const AboutAppScreen(),
+        // Rutas del instructor
+        InstructorDashboardScreen.routeName: (context) => const InstructorDashboardScreen(),
+        // Rutas del estudiante  
+        StudentDashboardScreen.routeName: (context) => const StudentDashboardScreen(),
+        '/student_classes': (context) => const StudentClassesScreen(),
+        '/student_payments': (context) => const StudentPaymentsScreen(),
       },
     );
   }
