@@ -14,21 +14,21 @@ import { logger } from "./shared/logging/LoggerConfig";
 import UserRouter from "./users/user.routes";
 import UserController from "./users/user.controller";
 
-import InstructorController from "./instructors/instructor.controller";
-import InstructorRouter from "./instructors/instructor.routes";
+import InstructorController from "./modules/instructors/instructor.controller";
+import InstructorRouter from "./modules/instructors/instructor.routes";
 
-import AuthController from "@auth/auth.controller";
-import buildAuthRouter from "@auth/auth.routes";
-import permissionsRouter from "./permissions/permissions.routes";
-import carRouters from "./cars/cars.routes";
-import DrivingClassRouter from "./drivingClass/routes";
-import { DrivingClassController } from "./drivingClass/controller";
+import AuthController from "src/modules/auth/auth.controller";
+import buildAuthRouter from "src/modules/auth/auth.routes";
+import permissionsRouter from "./modules/permissions/permissions.routes";
+import carRouters from "./modules/cars/cars.routes";
+import DrivingClassRouter from "./modules/drivingClass/routes";
+import { DrivingClassController } from "./modules/drivingClass/controller";
 
-import PaymentController from "./payments/payment.controller";
-import PaymentRouter from "./payments/payment.routes";
+import PaymentController from "./modules/payments/payment.controller";
+import PaymentRouter from "./modules/payments/payment.routes";
 
-import { ScheduleController } from "./schedule/schedule.controller";
-import { ScheduleRouter } from "./schedule/schedule.routes";
+import { ScheduleController } from "./modules/schedule/schedule.controller";
+import { ScheduleRouter } from "./modules/schedule/schedule.routes";
 
 export const buildApp = () => {
 

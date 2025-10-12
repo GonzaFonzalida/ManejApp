@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DrivingClassController } from "./controller";
-import GenericRouter from "../shared/classes/GenericRouter";
+import GenericRouter from "../../shared/classes/GenericRouter";
 import {createDrivingClassSchema, updateDrivingClassSchema} from "./schemas";
 import { validate } from "@shared/middlewares/zod/validateBody";
 import { validateParams } from "@shared/middlewares/zod/validateParams";

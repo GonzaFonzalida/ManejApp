@@ -1,8 +1,8 @@
 import { Router } from "express";
 import PaymentController from "./payment.controller";
-import diContainer from "../shared/DiContainer/container";
+import diContainer from "../../shared/DiContainer/container";
 import GenericRouter from "@shared/classes/GenericRouter";
-import { validate } from "../users/user.middleware";
+import { validate } from "../../users/user.middleware";
 import * as schema from "./payment.schemas";
 
 export default class PaymentRouter extends GenericRouter {

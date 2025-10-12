@@ -2,7 +2,7 @@ import { Router } from "express";
 import { PermissionController } from "./permissions.controller";
 import { PermissionService } from "./permissions.services";
 import { PrismaPermissionRepository } from "./repositories/PrismaPermissionsRepository";
-import { validate } from "../users/user.middleware";
+import { validate } from "../../users/user.middleware";
 import { createPermissionSchema, updatePermissionSchema } from "./permissions.schemas";
 
 const permissionsRouter = Router();

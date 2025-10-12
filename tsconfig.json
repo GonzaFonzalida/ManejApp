@@ -114,7 +114,7 @@
     "baseUrl" : "./",
     "paths": {
       "@config/*" : ["src/config/*"],
-      "@auth/*" : ["src/auth/*"],
+      "@auth/*" : ["src/modules/auth/*"],
       "@utils/*" : ["src/shared/utils/*"],
       "@types/*" : ["src/shared/types/*"],
       "@shared/*" : ["src/shared/*"],

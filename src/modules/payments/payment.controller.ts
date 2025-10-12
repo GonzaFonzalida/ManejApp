@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import PaymentService from "./payment.services";
-import { ExpressFunction } from "../shared/types/ExpressFunction";
+import { ExpressFunction } from "../../shared/types/ExpressFunction";
 import CustomizedError from "@shared/classes/CustomizedError";
 
 export default class PaymentController {

@@ -1,5 +1,5 @@
 import { DrivingClassService } from "./services";
-import { ExpressFunction } from "../shared/types/ExpressFunction";
+import { ExpressFunction } from "../../shared/types/ExpressFunction";
 export class DrivingClassController {
   constructor(private service: DrivingClassService) {}
 

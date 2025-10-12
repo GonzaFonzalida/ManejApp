@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { PermissionService } from "./permissions.services";
 import CustomizedError from "@shared/classes/CustomizedError";
-import { ExpressFunction } from "../shared/types/ExpressFunction";
+import { ExpressFunction } from "../../shared/types/ExpressFunction";
 
 export class PermissionController {
   constructor(private service: PermissionService) {}

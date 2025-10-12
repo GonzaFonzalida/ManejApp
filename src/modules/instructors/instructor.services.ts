@@ -2,7 +2,7 @@ import { InstructorRepository } from "./repositories/InstructorRepository";
 import { Instructor } from "@prisma/client";
 import CustomizedError from "@shared/classes/CustomizedError";
 import { PermissionRepository } from "../permissions/repositories/IPermissionsRepository";
-import { UserRepository } from "../users/repositories/userRepository";
+import { UserRepository } from "../../users/repositories/userRepository";
 
 export default class InstructorService {
   constructor(

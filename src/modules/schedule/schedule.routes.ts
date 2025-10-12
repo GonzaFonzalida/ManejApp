@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { ScheduleController } from "./schedule.controller";
 import GenericRouter from "@shared/classes/GenericRouter";
-import { validate } from "../users/user.middleware";
+import { validate } from "../../users/user.middleware";
 import { validateParams } from "@shared/middlewares/zod/validateParams";
 import * as schema from "./schedule.schema";
 

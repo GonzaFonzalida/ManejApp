@@ -31,12 +31,13 @@ model User {
   role        Role      @default(STUDENT)
   lastLoginAt DateTime? // opcional: útil para auditoría
   sessions    Session[]
-  
-  
+
+
   student     Student?
   instructor  Instructor?
   admin       Admin?
-  
+  notificationTokens NotificationToken[]
+
   @@index([role])
 }
 
@@ -156,7 +157,6 @@ model Payment {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
-
 model ScheduleSlot {
   id             String   @id @default(cuid())
   instructorId   Int
@@ -172,5 +172,17 @@ model ScheduleSlot {
   @@index([instructorId])
   @@index([startTime, endTime])
 }
+
+model NotificationToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
 
 
