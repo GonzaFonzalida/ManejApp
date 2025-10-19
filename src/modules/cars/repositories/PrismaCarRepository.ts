@@ -16,6 +16,29 @@ export class PrismaCarRepository implements CarRepository {
     return prisma.car.findMany();
   }
 
+  async findMany(page: number, limit: number, filters: any): Promise<CarWithId[]> {
+    const skip = (page - 1) * limit;
+    const where: any = {};
+
+    if (filters.instructorId) where.instructorId = filters.instructorId;
+    if (filters.isActive !== undefined) where.isActive = filters.isActive;
+    if (filters.transmission) where.transmission = filters.transmission;
+    if (filters.brand) where.brand = { contains: filters.brand, mode: 'insensitive' };
+
+    return prisma.car.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } });
+  }
+
+  async count(filters: any): Promise<number> {
+    const where: any = {};
+
+    if (filters.instructorId) where.instructorId = filters.instructorId;
+    if (filters.isActive !== undefined) where.isActive = filters.isActive;
+    if (filters.transmission) where.transmission = filters.transmission;
+    if (filters.brand) where.brand = { contains: filters.brand, mode: 'insensitive' };
+
+    return prisma.car.count({ where });
+  }
+
   async update(id: number, data: Partial<CarDTO>): Promise<CarWithId | null> {
     try {
       return await prisma.car.update({ where: { id }, data });

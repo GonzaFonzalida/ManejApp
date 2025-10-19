@@ -57,8 +57,14 @@ model Car {
   year         Int
   licensePlate String       @unique
   transmission Transmission
+  isActive     Boolean      @default(true)
   instructorId Int
   instructor   Instructor   @relation(fields: [instructorId], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([instructorId])
+  @@index([isActive])
 }
 
 model Instructor {

@@ -29,7 +29,7 @@ import InstructorRouter from "@instructors/instructor.routes";
 import AuthController from "@auth/auth.controller";
 import buildAuthRouter from "@auth/auth.routes";
 import permissionsRouter from "@permissions/permissions.routes";
-import carRouters from "@cars/cars.routes";
+import improvedCarRoutes from "@cars/improved-cars.routes";
 import DrivingClassRouter from "@drivingClass/routes";
 import { DrivingClassController } from "@drivingClass/controller";
 
@@ -145,7 +145,7 @@ export const buildApp = () => {
     app.use("/api/v1/users", userRouter);
     app.use("/api/v1/instructors", instructorRouter);
     app.use("/api/v1/permissions", permissionsRouter);
-    app.use("/api/v1/cars", carRouters);
+    app.use("/api/v1/cars", improvedCarRoutes);
     app.use("/api/v1/auth", authRouter);
     app.use("/api/v1/classes", drivingClassRouter);
     app.use("/api/v1/payments", paymentRouter);
