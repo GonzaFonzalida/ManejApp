@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { JWT_SECRET, JWT_REFRESH_SECRET, JWT_REFRESH_EXPIRATION } from "../../config/config";
+import { JWT_SECRET, JWT_REFRESH_SECRET, JWT_REFRESH_EXPIRATION } from "@config/config";
 
 type JwtPayload = { id: number; role: string };
 

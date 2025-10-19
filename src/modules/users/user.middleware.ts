@@ -1,4 +1,4 @@
-import { ExpressFunction } from "../shared/types/ExpressFunction";
+import { ExpressFunction } from "@shared/types/ExpressFunction";
 import { z } from "zod";
 
 export const validate =

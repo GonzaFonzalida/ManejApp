@@ -1,36 +1,36 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@config/prismaClient';
 import { INotificationTokenRepository } from './NotificationTokenRepository';
 
 export class PrismaNotificationTokenRepository implements INotificationTokenRepository {
-  constructor(private prisma: PrismaClient) {}
+  constructor() {}
 
   async findByUserId(userId: number) {
-    return this.prisma.notificationToken.findUnique({
+    return prisma.notificationToken.findUnique({
       where: { userId },
     });
   }
 
   async create(data: { userId: number; token: string }) {
-    return this.prisma.notificationToken.create({
+    return prisma.notificationToken.create({
       data,
     });
   }
 
   async updateByUserId(userId: number, token: string) {
-    return this.prisma.notificationToken.upsert({
+    return prisma.notificationToken.upsert({
       where: { userId },
-      update: { token, updatedAt: new Date() },
+      update: { token },
       create: { userId, token },
     });
   }
 
   async deleteByUserId(userId: number) {
-    await this.prisma.notificationToken.delete({
+    await prisma.notificationToken.delete({
       where: { userId },
     });
   }
 
   async findAll() {
-    return this.prisma.notificationToken.findMany();
+    return prisma.notificationToken.findMany();
   }
 }

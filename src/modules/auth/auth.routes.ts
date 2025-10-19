@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "./auth.middlewares";
 import AuthController from "./auth.controller";
-import { validate } from "../../shared/middlewares/zod/validateBody";
+import { validate } from "@shared/middlewares/zod/validateBody";
 import { loginSchema } from "./auth.schemas";
 
 export default function buildAuthRouter(controller: AuthController) {

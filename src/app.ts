@@ -1,34 +1,37 @@
 import express from "express";
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
-import diContainer from "./shared/DiContainer/container";
-import errorHandler from "./shared/middlewares/errorMiddleware";
-import notFoundHandler from "./shared/middlewares/notFoundMiddleware";
+import diContainer from "@shared/DiContainer/container";
+import errorHandler from "@middlewares/errorMiddleware";
+import notFoundHandler from "@middlewares/notFoundMiddleware";
 import {
   requestLoggerMiddleware,
   errorLoggerMiddleware,
   performanceLoggerMiddleware
-} from "./shared/logging/middleware/requestLogger";
-import { logger } from "./shared/logging/LoggerConfig";
+} from "@logging/middleware/requestLogger";
+import { logger } from "@logging/LoggerConfig";
 
-import UserRouter from "./users/user.routes";
-import UserController from "./users/user.controller";
+import UserRouter from "@users/user.routes";
+import UserController from "@users/user.controller";
 
-import InstructorController from "./modules/instructors/instructor.controller";
-import InstructorRouter from "./modules/instructors/instructor.routes";
+import InstructorController from "@instructors/instructor.controller";
+import InstructorRouter from "@instructors/instructor.routes";
 
-import AuthController from "src/modules/auth/auth.controller";
-import buildAuthRouter from "src/modules/auth/auth.routes";
-import permissionsRouter from "./modules/permissions/permissions.routes";
-import carRouters from "./modules/cars/cars.routes";
-import DrivingClassRouter from "./modules/drivingClass/routes";
-import { DrivingClassController } from "./modules/drivingClass/controller";
+import AuthController from "@auth/auth.controller";
+import buildAuthRouter from "@auth/auth.routes";
+import permissionsRouter from "@permissions/permissions.routes";
+import carRouters from "@cars/cars.routes";
+import DrivingClassRouter from "@drivingClass/routes";
+import { DrivingClassController } from "@drivingClass/controller";
 
-import PaymentController from "./modules/payments/payment.controller";
-import PaymentRouter from "./modules/payments/payment.routes";
+import PaymentController from "@payments/payment.controller";
+import PaymentRouter from "@payments/payment.routes";
 
-import { ScheduleController } from "./modules/schedule/schedule.controller";
-import { ScheduleRouter } from "./modules/schedule/schedule.routes";
+import { ScheduleController } from "@schedule/schedule.controller";
+import { ScheduleRouter } from "@schedule/schedule.routes";
+
+import { NotificationController } from "@notifications/controller";
+import { NotificationRoutes } from "@notifications/routes";
 
 export const buildApp = () => {
 
@@ -49,6 +52,9 @@ export const buildApp = () => {
 
     const scheduleController = diContainer.resolve<ScheduleController>("scheduleController");
     const scheduleRouter = new ScheduleRouter(scheduleController).init();
+
+    const notificationController = diContainer.resolve<NotificationController>("notificationController");
+    const notificationRouter = new NotificationRoutes(notificationController).getRouter();
 
     const app = express();
 
@@ -104,6 +110,7 @@ export const buildApp = () => {
     app.use("/classes", drivingClassRouter);
     app.use("/payments", paymentRouter);
     app.use("/schedule", scheduleRouter);
+    app.use("/notifications", notificationRouter);
     //modulos
     // app.use("/permissions"); // ya registrado arriba
     // app.use("/admin");
@@ -126,7 +133,8 @@ export const buildApp = () => {
         '/auth',
         '/classes',
         '/payments',
-        '/schedule'
+        '/schedule',
+        '/notifications'
       ]
     });
 

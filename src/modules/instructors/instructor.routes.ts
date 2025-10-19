@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import InstructorController  from "./instructor.controller";
-import diContainer from "../../shared/DiContainer/container";
+import diContainer from "@shared/DiContainer/container";
 import GenericRouter from "@shared/classes/GenericRouter";
-import { validate } from "../../users/user.middleware";
+import { validate } from "@users/user.middleware";
 import { validateParams } from "@shared/middlewares/zod/validateParams";
 import * as schema from "./instructor.schema";
 

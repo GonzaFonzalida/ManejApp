@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import  InstructorService from "./instructor.services";
-import { ExpressFunction } from "../../shared/types/ExpressFunction";
+import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import CustomizedError from "@shared/classes/CustomizedError";
 
 export default class InstructorController {

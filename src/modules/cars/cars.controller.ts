@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import CarService from "./cars.services";
-import CustomizedError from "../../shared/classes/CustomizedError";
+import CustomizedError from "@classes/CustomizedError";
 
 export default class CarController {
   constructor(private readonly service: CarService) {}

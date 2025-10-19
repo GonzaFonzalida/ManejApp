@@ -2,8 +2,8 @@
 
 import UserService from "./user.services";
 import { UserWithOutPassword, User, UserWithOutId, UserWithDates } from "./user.types";
-import { ExpressFunction } from "../shared/types/ExpressFunction"
-import CustomizedError from "../shared/classes/CustomizedError";
+import { ExpressFunction } from "@sharedTypes/ExpressFunction";
+import CustomizedError from "@classes/CustomizedError";
 
 export default class UserController {
     constructor(private userService: UserService) { }

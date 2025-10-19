@@ -1,5 +1,5 @@
 import UserController from "./user.controller";
-import GenericRouter from "../shared/classes/GenericRouter";
+import GenericRouter from "@shared/classes/GenericRouter";
 import {registerSchema, loginSchema, getUserByRoleSchema} from "./user.schema" ;
 import { validate } from "./user.middleware";
 import { validateParams } from "@shared/middlewares/zod/validateParams";

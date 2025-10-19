@@ -114,11 +114,21 @@
     "baseUrl" : "./",
     "paths": {
       "@config/*" : ["src/config/*"],
-      "@auth/*" : ["src/modules/auth/*"],
-      "@utils/*" : ["src/shared/utils/*"],
-      "@types/*" : ["src/shared/types/*"],
       "@shared/*" : ["src/shared/*"],
-      
+      "@utils/*" : ["src/shared/utils/*"],
+      "@sharedTypes/*" : ["src/shared/types/*"],
+      "@classes/*" : ["src/shared/classes/*"],
+      "@middlewares/*" : ["src/shared/middlewares/*"],
+      "@logging/*" : ["src/shared/logging/*"],
+      "@auth/*" : ["src/modules/auth/*"],
+      "@users/*" : ["src/modules/users/*"],
+      "@cars/*" : ["src/modules/cars/*"],
+      "@instructors/*" : ["src/modules/instructors/*"],
+      "@permissions/*" : ["src/modules/permissions/*"],
+      "@drivingClass/*" : ["src/modules/drivingClass/*"],
+      "@payments/*" : ["src/modules/payments/*"],
+      "@schedule/*" : ["src/modules/schedule/*"],
+      "@notifications/*" : ["src/modules/notifications/*"]
     }
   }
 }

@@ -2,8 +2,9 @@ import * as admin from 'firebase-admin';
 import { Logger } from '@shared/logging/Logger';
 import CustomizedError  from '@shared/classes/CustomizedError';
 import { INotificationTokenRepository } from './repositories/NotificationTokenRepository';
-import { UserRepository } from 'src/users/repositories/userRepository';
+import { UserRepository } from '@users/repositories/userRepository';
 import { Role } from '@prisma/client';
+import { getFirebaseApp } from '@config/firebase';
 
 export class NotificationService {
   private fcm: admin.messaging.Messaging;
@@ -13,18 +14,23 @@ export class NotificationService {
     private notificationTokenRepo: INotificationTokenRepository,
     private userRepo: UserRepository
   ) {
-    // Inicializar FCM
-    if (!admin.apps.length) {
-      // Asumir que las credenciales están en config
-      // TODO: Configurar credenciales
-      this.fcm = admin.messaging();
-    } else {
-      this.fcm = admin.messaging();
+    try {
+      const app = getFirebaseApp();
+      this.fcm = admin.messaging(app);
+    } catch (error) {
+      this.logger.warn('Firebase not available, notifications will be mocked', error instanceof Error ? error : new Error(String(error)));
+      // Mock FCM para desarrollo
+      this.fcm = null as any;
     }
   }
 
   async sendToUser(userId: number, title: string, body: string): Promise<void> {
     try {
+      if (!this.fcm) {
+        this.logger.info(`[MOCK] Notification to user ${userId}: ${title} - ${body}`);
+        return;
+      }
+
       const tokenRecord = await this.notificationTokenRepo.findByUserId(userId);
       if (!tokenRecord) {
         this.logger.warn(`No FCM token found for user ${userId}`);
@@ -49,7 +55,11 @@ export class NotificationService {
 
   async sendToRole(role: Role, title: string, body: string): Promise<void> {
     try {
-      // Obtener usuarios por role
+      if (!this.fcm) {
+        this.logger.info(`[MOCK] Notification to role ${role}: ${title} - ${body}`);
+        return;
+      }
+
       const users = await this.userRepo.findByRole(role.toString());
       const tokens: string[] = [];
 
@@ -83,7 +93,11 @@ export class NotificationService {
 
   async broadcast(title: string, body: string): Promise<void> {
     try {
-      // Obtener todos los tokens
+      if (!this.fcm) {
+        this.logger.info(`[MOCK] Broadcast notification: ${title} - ${body}`);
+        return;
+      }
+
       const tokenRecords = await this.notificationTokenRepo.findAll();
       const tokens = tokenRecords.map(r => r.token);
 

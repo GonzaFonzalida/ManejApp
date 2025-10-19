@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import AuthService from "./auth.services";
-import { ExpressFunction } from "../../shared/types/ExpressFunction";
+import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 
 export default class AuthController {
   constructor(private readonly authService: AuthService) {}

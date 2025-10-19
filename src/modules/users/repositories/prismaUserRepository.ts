@@ -2,7 +2,7 @@
 
 import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPasswordAndDates } from "../user.types";
 import { UserRepository } from "./userRepository"
-import { prisma } from "../../config/prismaClient";
+import { prisma } from "@config/prismaClient";
 import { error } from "console";
 
 export default class UserPrismaRepository implements UserRepository {
