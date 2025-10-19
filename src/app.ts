@@ -1,6 +1,7 @@
 import express from "express";
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+import cors from 'cors';
 import diContainer from "@shared/DiContainer/container";
 import errorHandler from "@middlewares/errorMiddleware";
 import notFoundHandler from "@middlewares/notFoundMiddleware";
@@ -10,6 +11,14 @@ import {
   performanceLoggerMiddleware
 } from "@logging/middleware/requestLogger";
 import { logger } from "@logging/LoggerConfig";
+import { 
+  generalRateLimit, 
+  corsOptions, 
+  helmetConfig 
+} from "@middlewares/security";
+import { sanitizeInput } from "@middlewares/validation";
+import { healthCheck } from "@middlewares/healthCheck";
+import { preventSQLInjection, preventXSS } from "@middlewares/advancedValidation";
 
 import UserRouter from "@users/user.routes";
 import UserController from "@users/user.controller";
@@ -69,8 +78,12 @@ export const buildApp = () => {
         },
         servers: [
           {
-            url: 'http://localhost:3000',
-            description: 'Development server',
+            url: 'http://localhost:3000/api/v1',
+            description: 'Development server v1',
+          },
+          {
+            url: 'https://api.manejapp.com/api/v1',
+            description: 'Production server v1',
           },
         ],
         components: {
@@ -89,28 +102,55 @@ export const buildApp = () => {
         ],
       },
       apis: ['./src/**/*.ts'], // Paths to files containing OpenAPI definitions
+      tags: [
+        {
+          name: 'Authentication',
+          description: 'Authentication and authorization endpoints'
+        },
+        {
+          name: 'Users',
+          description: 'User management endpoints'
+        },
+        {
+          name: 'Security',
+          description: 'Security and monitoring endpoints'
+        }
+      ]
     };
 
     const specs = swaggerJSDoc(swaggerOptions);
 
-    // Logging middlewares (should be first)
+    // Security middlewares (should be first)
+    app.use(helmetConfig);
+    app.use(cors(corsOptions));
+    app.use(generalRateLimit);
+    app.use(preventSQLInjection);
+    app.use(preventXSS);
+    app.use(sanitizeInput);
+    
+    // Logging middlewares
     app.use(requestLoggerMiddleware);
     app.use(performanceLoggerMiddleware(2000)); // Log requests slower than 2 seconds
 
-    app.use(express.json());
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+    // Health check endpoint (before rate limiting)
+    app.get('/health', healthCheck);
+    
     // Swagger UI
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
-    app.use("/users", userRouter);
-    app.use("/instructors", instructorRouter);
-    app.use("/permissions", permissionsRouter);
-    app.use("/cars", carRouters);
-    app.use("/auth", authRouter);
-    app.use("/classes", drivingClassRouter);
-    app.use("/payments", paymentRouter);
-    app.use("/schedule", scheduleRouter);
-    app.use("/notifications", notificationRouter);
+    // API v1 routes
+    app.use("/api/v1/users", userRouter);
+    app.use("/api/v1/instructors", instructorRouter);
+    app.use("/api/v1/permissions", permissionsRouter);
+    app.use("/api/v1/cars", carRouters);
+    app.use("/api/v1/auth", authRouter);
+    app.use("/api/v1/classes", drivingClassRouter);
+    app.use("/api/v1/payments", paymentRouter);
+    app.use("/api/v1/schedule", scheduleRouter);
+    app.use("/api/v1/notifications", notificationRouter);
     //modulos
     // app.use("/permissions"); // ya registrado arriba
     // app.use("/admin");

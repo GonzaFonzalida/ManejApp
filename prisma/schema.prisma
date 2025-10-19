@@ -7,6 +7,188 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                 Int                @id @default(autoincrement())
+  name               String
+  surname            String
+  email              String             @unique
+  password           String
+  dni                String             @unique
+  createdAt          DateTime           @default(now())
+  birthDate          DateTime
+  isActive           Boolean            @default(false)
+  role               Role               @default(STUDENT)
+  lastLoginAt        DateTime?
+  admin              Admin?
+  instructor         Instructor?
+  notificationTokens NotificationToken?
+  sessions           Session[]
+  student            Student?
+
+  @@index([role])
+}
+
+model Session {
+  id          String    @id @default(uuid())
+  userId      Int
+  refreshHash String    @unique
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Student {
+  id             Int            @id @default(autoincrement())
+  userId         Int            @unique
+  drivingClasses DrivingClass[]
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Car {
+  id           Int          @id @default(autoincrement())
+  brand        String
+  model        String
+  year         Int
+  licensePlate String       @unique
+  transmission Transmission
+  instructorId Int
+  instructor   Instructor   @relation(fields: [instructorId], references: [id])
+}
+
+model Instructor {
+  id              Int                    @id @default(autoincrement())
+  userId          Int                    @unique
+  licenseNumber   String
+  experienceYears Int
+  available       Boolean                @default(true)
+  isValid         Boolean                @default(false)
+  cars            Car[]
+  drivingClasses  DrivingClass[]
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions     InstructorPermission[]
+  scheduleSlots   ScheduleSlot[]
+}
+
+model Admin {
+  id          Int    @id
+  companyName String
+  user        User   @relation(fields: [id], references: [id])
+}
+
+model Permission {
+  id          Int                    @id @default(autoincrement())
+  name        String
+  description String
+  isMandatory Boolean                @default(true)
+  instructors InstructorPermission[]
+}
+
+model InstructorPermission {
+  instructorId Int
+  permissionId Int
+  granted      Boolean    @default(false)
+  instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([instructorId, permissionId])
+}
+
+model DrivingClass {
+  id           Int           @id @default(autoincrement())
+  date         DateTime      @default(now())
+  duration     Int
+  status       String        @default("scheduled")
+  notes        String?
+  studentId    Int
+  instructorId Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  instructor   Instructor    @relation(fields: [instructorId], references: [id])
+  student      Student       @relation(fields: [studentId], references: [id])
+  payments     Payment[]
+  scheduleSlot ScheduleSlot?
+}
+
+model Payment {
+  id                Int          @id @default(autoincrement())
+  amount            Float
+  status            String       @default("pending")
+  paymentMethod     String
+  drivingClassId    Int
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  externalReference String?
+  paymentId         String?
+  preferenceId      String?
+  idempotencyKey    String?      @unique @map("idempotency_key") @db.VarChar(255)
+  lastRecoveryAt    DateTime?    @map("last_recovery_at")
+  recoveryAttempts  Int          @default(0) @map("recovery_attempts")
+  drivingClass      DrivingClass @relation(fields: [drivingClassId], references: [id])
+
+  @@index([idempotencyKey])
+  @@index([externalReference])
+  @@index([status])
+}
+
+model ScheduleSlot {
+  id             String        @id @default(cuid())
+  instructorId   Int
+  startTime      DateTime
+  endTime        DateTime
+  isBooked       Boolean       @default(false)
+  drivingClassId Int?          @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  drivingClass   DrivingClass? @relation(fields: [drivingClassId], references: [id])
+  instructor     Instructor    @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@index([instructorId])
+  @@index([startTime, endTime])
+}
+
+model NotificationToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PaymentRecoveryLog {
+  id        Int      @id @default(autoincrement())
+  paymentId Int      @map("payment_id")
+  step      String   @db.VarChar(100)
+  status    String   @db.VarChar(20)
+  data      String?  @default("{}")
+  error     String?
+  timestamp DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([timestamp])
+  @@index([status])
+  @@map("payment_recovery_logs")
+}
+
+model BlacklistedToken {
+  id        Int      @id @default(autoincrement())
+  jti       String   @unique @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([jti])
+  @@index([expiresAt])
+  @@map("blacklisted_tokens")
+}
+
 enum Role {
   STUDENT
   INSTRUCTOR
@@ -17,172 +199,3 @@ enum Transmission {
   MANUAL
   AUTOMATIC
 }
-
-model User {
-  id          Int       @id @default(autoincrement())
-  name        String
-  surname     String
-  email       String    @unique
-  password    String
-  dni         String    @unique
-  createdAt   DateTime  @default(now())
-  birthDate   DateTime
-  isActive    Boolean   @default(false)
-  role        Role      @default(STUDENT)
-  lastLoginAt DateTime? // opcional: útil para auditoría
-  sessions    Session[]
-
-
-  student     Student?
-  instructor  Instructor?
-  admin       Admin?
-  notificationTokens NotificationToken[]
-
-  @@index([role])
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  userId       Int
-  // Guarda el refresh token hasheado para poder invalidarlo sin exponerlo
-  refreshHash  String   @unique
-  userAgent    String?
-  ip           String?
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?
-
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-
-
-model Student {
-  id      Int   @id @default(autoincrement())
-  userId  Int   @unique
-  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drivingClasses DrivingClass[]
-}
-
-model Car {
-  id           Int         @id @default(autoincrement())
-  brand        String
-  model        String
-  year         Int
-  licensePlate String      @unique
-  transmission Transmission
-
-  instructorId Int      
-  instructor   Instructor?  @relation(fields: [instructorId], references: [id])
-}
-
-model Instructor {
-  id              Int       @id @default(autoincrement())
-  userId          Int       @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  licenseNumber   String
-  experienceYears Int
-  available       Boolean   @default(true)
-  isValid         Boolean   @default(false)
-
-  cars      Car[]
-  drivingClasses DrivingClass[]
-  permissions     InstructorPermission[]
-  scheduleSlots   ScheduleSlot[]
-}
-
-model Admin {
-  id      Int  @id
-  user    User @relation(fields: [id], references: [id])
-  // Campos propios del administrador/cliente
-  companyName String
-} 
-
-model Permission {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String
-  isMandatory Boolean  @default(true)
-
-  instructors InstructorPermission[]
-}
-
-model InstructorPermission {
-  instructorId Int
-  permissionId Int
-  granted      Boolean     @default(false)
-
-  instructor   Instructor  @relation(fields: [instructorId], references: [id], onDelete: Cascade)
-  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@id([instructorId, permissionId])
-}
-
-model DrivingClass {
-  id           Int       @id @default(autoincrement())
-  date         DateTime  @default(now())
-  duration     Int       // duración en minutos
-  status       String    @default("scheduled") // scheduled | completed | canceled
-  notes        String?   // comentarios opcionales
-
-  studentId    Int
-  student      Student   @relation(fields: [studentId], references: [id])
-
-  instructorId Int
-  instructor   Instructor @relation(fields: [instructorId], references: [id])
-
-  payments     Payment[]
-  scheduleSlot ScheduleSlot?
-
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-}
-
-model Payment {
-  id                 Int       @id @default(autoincrement())
-  amount             Float
-  status             String    @default("pending") // pending | paid | failed
-  paymentMethod      String    // cash | card | transfer | mercadopago
-  drivingClassId     Int
-  drivingClass       DrivingClass @relation(fields: [drivingClassId], references: [id])
-
-  // Mercado Pago specific fields
-  preferenceId       String?   // Mercado Pago preference ID
-  paymentId          String?   // Mercado Pago payment ID
-  externalReference  String?   // External reference for Mercado Pago
-
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-}
-model ScheduleSlot {
-  id             String   @id @default(cuid())
-  instructorId   Int
-  instructor     Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
-  startTime      DateTime
-  endTime        DateTime
-  isBooked       Boolean  @default(false)
-  drivingClassId Int?     @unique
-  drivingClass   DrivingClass? @relation(fields: [drivingClassId], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([instructorId])
-  @@index([startTime, endTime])
-}
-
-model NotificationToken {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @unique
-  token     String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-}
-
-
-

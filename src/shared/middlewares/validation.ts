@@ -1,0 +1,70 @@
+import { Request, Response, NextFunction } from 'express';
+import { body, param, query, validationResult } from 'express-validator';
+import { ZodSchema } from 'zod';
+
+// Enhanced Zod validation middleware
+export const validateZodSchema = (schema: ZodSchema) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = schema.parse({
+        body: req.body,
+        params: req.params,
+        query: req.query,
+      });
+      
+      const parsedResult = result as { body?: any; params?: any; query?: any };
+      
+      req.body = parsedResult.body || req.body;
+      req.params = parsedResult.params || req.params;
+      req.query = parsedResult.query || req.query;
+      
+      next();
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: error.errors || error.message,
+      });
+    }
+  };
+};
+
+// Express-validator middleware for common validations
+export const handleValidationErrors = (req: Request, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array(),
+    });
+  }
+  next();
+};
+
+// Common validation rules
+export const emailValidation = () => body('email').isEmail().normalizeEmail();
+export const passwordValidation = () => body('password').isLength({ min: 8 }).matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/);
+export const dniValidation = () => body('dni').isLength({ min: 7, max: 8 }).isNumeric();
+export const idParamValidation = () => param('id').isInt({ min: 1 });
+
+// Sanitization middleware
+export const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
+  const sanitizeObject = (obj: any): any => {
+    if (typeof obj === 'string') {
+      return obj.trim().replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      for (const key in obj) {
+        obj[key] = sanitizeObject(obj[key]);
+      }
+    }
+    return obj;
+  };
+
+  req.body = sanitizeObject(req.body);
+  req.query = sanitizeObject(req.query);
+  req.params = sanitizeObject(req.params);
+  
+  next();
+};

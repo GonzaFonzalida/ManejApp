@@ -35,6 +35,11 @@ const envSchema = z.object({
   // Database logging configuration
   LOG_TABLE_NAME: z.string().default("logs"),
   LOG_RETENTION_DAYS: z.string().default("30").transform(val => parseInt(val, 10)),
+  
+  // Security configuration
+  RATE_LIMIT_WINDOW_MS: z.string().default("900000").transform(val => parseInt(val, 10)), // 15 minutes
+  RATE_LIMIT_MAX_REQUESTS: z.string().default("100").transform(val => parseInt(val, 10)),
+  AUTH_RATE_LIMIT_MAX: z.string().default("5").transform(val => parseInt(val, 10)),
 });
 
 // Parseamos y validamos process.env
@@ -69,6 +74,11 @@ export const LOG_MAX_SIZE = env.LOG_MAX_SIZE;
 export const LOG_MAX_FILES = env.LOG_MAX_FILES;
 export const LOG_TABLE_NAME = env.LOG_TABLE_NAME;
 export const LOG_RETENTION_DAYS = env.LOG_RETENTION_DAYS;
+
+// Security configuration exports
+export const RATE_LIMIT_WINDOW_MS = env.RATE_LIMIT_WINDOW_MS;
+export const RATE_LIMIT_MAX_REQUESTS = env.RATE_LIMIT_MAX_REQUESTS;
+export const AUTH_RATE_LIMIT_MAX = env.AUTH_RATE_LIMIT_MAX;
 
 // Helper function to get the appropriate URL for Mercado Pago
 export const getMercadoPagoUrl = (): string => {
