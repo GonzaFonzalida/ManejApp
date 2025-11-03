@@ -18,4 +18,9 @@ npx prisma generate
 
 # Iniciar la aplicación
 echo "✅ Iniciando servidor..."
-exec node dist/index.js
+# Verificar si existe dist/index.js, si no usar src/index.ts con ts-node
+if [ -f "dist/index.js" ]; then
+    exec node dist/index.js
+else
+    exec npx ts-node -r tsconfig-paths/register src/index.ts
+fi

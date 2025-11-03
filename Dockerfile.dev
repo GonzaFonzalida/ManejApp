@@ -1,0 +1,36 @@
+# Dockerfile para desarrollo - sin compilación
+FROM node:20-alpine
+
+# Instalar dependencias del sistema
+RUN apk add --no-cache openssl
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Instalar pnpm
+RUN npm install -g pnpm
+
+# Copiar archivos de dependencias
+COPY package*.json pnpm-lock.yaml ./
+
+# Instalar dependencias
+RUN pnpm install
+
+# Copiar código fuente
+COPY . .
+
+# Generar cliente de Prisma
+RUN npx prisma generate
+
+# Crear directorio de logs
+RUN mkdir -p logs
+
+# Exponer puerto
+EXPOSE 3000
+
+# Variables de entorno
+ENV NODE_ENV=development
+ENV PORT=3000
+
+# Comando de inicio usando ts-node
+CMD ["npx", "ts-node", "-r", "tsconfig-paths/register", "src/index.ts"]

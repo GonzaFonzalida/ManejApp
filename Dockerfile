@@ -25,9 +25,6 @@ COPY . .
 # Generar cliente de Prisma
 RUN npx prisma generate
 
-# Construir la aplicación
-RUN pnpm run build
-
 # Etapa de producción
 FROM base AS runner
 

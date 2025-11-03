@@ -9,7 +9,17 @@
 
 ## 🚀 Despliegue rápido
 
-### Con Docker Compose (Recomendado)
+### Opción 1: Desarrollo (Recomendado para evitar errores de compilación)
+
+```bash
+# Usar la versión de desarrollo con ts-node
+docker-compose -f docker-compose.dev.yml up --build
+
+# En modo detached
+docker-compose -f docker-compose.dev.yml up -d --build
+```
+
+### Opción 2: Producción (requiere código sin errores TypeScript)
 
 ```bash
 # Construir y ejecutar todo el stack
@@ -45,6 +55,22 @@ COOKIE_SECRET=your-super-secret-cookie-key-minimum-32-characters-long
 
 ## 📝 Comandos útiles
 
+### Para desarrollo:
+```bash
+# Ver logs del backend
+docker-compose -f docker-compose.dev.yml logs -f backend
+
+# Ejecutar migraciones
+docker-compose -f docker-compose.dev.yml exec backend npx prisma migrate deploy
+
+# Acceder al contenedor
+docker-compose -f docker-compose.dev.yml exec backend sh
+
+# Detener servicios
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Para producción:
 ```bash
 # Ver logs del backend
 docker-compose logs -f backend
