@@ -6,7 +6,7 @@ const Logger_1 = require("./Logger");
 const ConsoleTransport_1 = require("./transports/ConsoleTransport");
 const FileTransport_1 = require("./transports/FileTransport");
 const DatabaseTransport_1 = require("./transports/DatabaseTransport");
-const config_1 = require("../../config/config");
+const config_1 = require("@config/config");
 class LoggerFactory {
     static instance = null;
     static createLogger() {

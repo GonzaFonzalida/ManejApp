@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMercadoPagoUrl = exports.LOG_RETENTION_DAYS = exports.LOG_TABLE_NAME = exports.LOG_MAX_FILES = exports.LOG_MAX_SIZE = exports.LOG_FILENAME = exports.LOG_DIRECTORY = exports.ENABLE_DATABASE_LOGS = exports.ENABLE_FILE_LOGS = exports.ENABLE_CONSOLE_LOGS = exports.LOG_LEVEL = exports.APP_URL_PUBLIC = exports.APP_URL = exports.MERCADOPAGO_PUBLIC_KEY = exports.MERCADOPAGO_ACCESS_TOKEN = exports.COOKIE_SECRET = exports.JWT_REFRESH_EXPIRATION = exports.JWT_EXPIRATION = exports.JWT_REFRESH_SECRET = exports.JWT_SECRET = exports.DATABASE_URL = exports.PORT = exports.NODE_ENV = void 0;
+exports.getMercadoPagoUrl = exports.AUTH_RATE_LIMIT_MAX = exports.RATE_LIMIT_MAX_REQUESTS = exports.RATE_LIMIT_WINDOW_MS = exports.LOG_RETENTION_DAYS = exports.LOG_TABLE_NAME = exports.LOG_MAX_FILES = exports.LOG_MAX_SIZE = exports.LOG_FILENAME = exports.LOG_DIRECTORY = exports.ENABLE_DATABASE_LOGS = exports.ENABLE_FILE_LOGS = exports.ENABLE_CONSOLE_LOGS = exports.LOG_LEVEL = exports.APP_URL_PUBLIC = exports.APP_URL = exports.MERCADOPAGO_PUBLIC_KEY = exports.MERCADOPAGO_ACCESS_TOKEN = exports.COOKIE_SECRET = exports.JWT_REFRESH_EXPIRATION = exports.JWT_EXPIRATION = exports.JWT_REFRESH_SECRET = exports.JWT_SECRET = exports.DATABASE_URL = exports.PORT = exports.NODE_ENV = void 0;
 const zod_1 = require("zod");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
@@ -35,6 +35,10 @@ const envSchema = zod_1.z.object({
     // Database logging configuration
     LOG_TABLE_NAME: zod_1.z.string().default("logs"),
     LOG_RETENTION_DAYS: zod_1.z.string().default("30").transform(val => parseInt(val, 10)),
+    // Security configuration
+    RATE_LIMIT_WINDOW_MS: zod_1.z.string().default("900000").transform(val => parseInt(val, 10)), // 15 minutes
+    RATE_LIMIT_MAX_REQUESTS: zod_1.z.string().default("100").transform(val => parseInt(val, 10)),
+    AUTH_RATE_LIMIT_MAX: zod_1.z.string().default("5").transform(val => parseInt(val, 10)),
 });
 // Parseamos y validamos process.env
 const env = envSchema.parse(process.env);
@@ -63,6 +67,10 @@ exports.LOG_MAX_SIZE = env.LOG_MAX_SIZE;
 exports.LOG_MAX_FILES = env.LOG_MAX_FILES;
 exports.LOG_TABLE_NAME = env.LOG_TABLE_NAME;
 exports.LOG_RETENTION_DAYS = env.LOG_RETENTION_DAYS;
+// Security configuration exports
+exports.RATE_LIMIT_WINDOW_MS = env.RATE_LIMIT_WINDOW_MS;
+exports.RATE_LIMIT_MAX_REQUESTS = env.RATE_LIMIT_MAX_REQUESTS;
+exports.AUTH_RATE_LIMIT_MAX = env.AUTH_RATE_LIMIT_MAX;
 // Helper function to get the appropriate URL for Mercado Pago
 const getMercadoPagoUrl = () => {
     // In development, prefer public URL if available (for ngrok, etc.)
