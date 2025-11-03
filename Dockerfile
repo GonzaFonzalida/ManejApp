@@ -42,8 +42,8 @@ COPY start.sh ./start.sh
 # Crear directorio de logs y asignar permisos
 RUN mkdir -p logs && chown -R nextjs:nodejs logs
 
-# Hacer ejecutable el script de inicio
-RUN chmod +x start.sh
+# Hacer ejecutable el script de inicio y cambiar propietario
+RUN chmod +x start.sh && chown nextjs:nodejs start.sh
 
 # Cambiar al usuario no-root
 USER nextjs
@@ -56,4 +56,4 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Comando de inicio
-CMD ["./start.sh"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
