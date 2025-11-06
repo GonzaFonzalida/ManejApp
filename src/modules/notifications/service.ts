@@ -131,4 +131,32 @@ export class NotificationService {
       throw new CustomizedError('Failed to register token', 500);
     }
   }
+
+  async sendClassReminder(drivingClassId: number): Promise<void> {
+    try {
+      // Aquí iría la lógica para obtener la clase y enviar recordatorios
+      // Se implementaría con el repositorio de DrivingClass
+      this.logger.info(`Class reminder sent for class ${drivingClassId}`);
+    } catch (error) {
+      this.logger.error(`Error sending class reminder:`, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  async sendPaymentConfirmation(paymentId: number): Promise<void> {
+    try {
+      // Lógica para confirmar pago
+      this.logger.info(`Payment confirmation sent for payment ${paymentId}`);
+    } catch (error) {
+      this.logger.error(`Error sending payment confirmation:`, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  async sendClassStatusUpdate(drivingClassId: number, newStatus: string): Promise<void> {
+    try {
+      // Lógica para actualización de estado
+      this.logger.info(`Class status update sent for class ${drivingClassId}: ${newStatus}`);
+    } catch (error) {
+      this.logger.error(`Error sending class status update:`, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
 }

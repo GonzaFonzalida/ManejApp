@@ -42,6 +42,9 @@ import { ScheduleRouter } from "@schedule/schedule.routes";
 import { NotificationController } from "@notifications/controller";
 import { NotificationRoutes } from "@notifications/routes";
 
+import adminRoutes from "./modules/admin/admin.routes";
+import SchedulerService from "./shared/services/SchedulerService";
+
 export const buildApp = () => {
 
     const userController = diContainer.resolve<UserController>("userController");
@@ -152,10 +155,10 @@ export const buildApp = () => {
     app.use("/api/v1/payments", commissionRoutes);
     app.use("/api/v1/schedule", scheduleRouter);
     app.use("/api/v1/notifications", notificationRouter);
-    //modulos
-    // app.use("/permissions"); // ya registrado arriba
-    // app.use("/admin");
-    // app.use("/cars") // ya registrado arriba
+    app.use("/api/v1/admin", adminRoutes);
+    
+    // Iniciar tareas programadas
+    SchedulerService.start();
 
     app.use(notFoundHandler);
     app.use(errorLoggerMiddleware); // Log errors before handling them
