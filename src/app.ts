@@ -33,8 +33,8 @@ import improvedCarRoutes from "@cars/improved-cars.routes";
 import DrivingClassRouter from "@drivingClass/routes";
 import { DrivingClassController } from "@drivingClass/controller";
 
-import PaymentController from "@payments/payment.controller";
-import PaymentRouter from "@payments/payment.routes";
+import { functionalPaymentRoutes, webhookRouter } from "@payments/functional-payment.routes";
+import commissionRoutes from "@payments/commission.routes";
 
 import { ScheduleController } from "@schedule/schedule.controller";
 import { ScheduleRouter } from "@schedule/schedule.routes";
@@ -56,8 +56,7 @@ export const buildApp = () => {
     const drivingClassController = diContainer.resolve<DrivingClassController>("DrivingClassController");
     const drivingClassRouter = new DrivingClassRouter(drivingClassController).init();
 
-    const paymentController = diContainer.resolve<PaymentController>("paymentController");
-    const paymentRouter = new PaymentRouter(paymentController).init();
+    // Payment routes are now self-contained
 
     const scheduleController = diContainer.resolve<ScheduleController>("scheduleController");
     const scheduleRouter = new ScheduleRouter(scheduleController).init();
@@ -148,7 +147,9 @@ export const buildApp = () => {
     app.use("/api/v1/cars", improvedCarRoutes);
     app.use("/api/v1/auth", authRouter);
     app.use("/api/v1/classes", drivingClassRouter);
-    app.use("/api/v1/payments", paymentRouter);
+    app.use("/api/v1/payments", functionalPaymentRoutes);
+    app.use("/api/v1/payments", webhookRouter);
+    app.use("/api/v1/payments", commissionRoutes);
     app.use("/api/v1/schedule", scheduleRouter);
     app.use("/api/v1/notifications", notificationRouter);
     //modulos

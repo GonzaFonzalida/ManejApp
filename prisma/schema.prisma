@@ -74,11 +74,16 @@ model Instructor {
   experienceYears Int
   available       Boolean                @default(true)
   isValid         Boolean                @default(false)
+  mpCollectorId   String?                @map("mp_collector_id") // Mercado Pago Collector ID
+  mpAccessToken   String?                @map("mp_access_token") // MP Access Token del instructor
+  commissionRate  Float                  @default(80) @map("commission_rate") // % que recibe (80%)
   cars            Car[]
   drivingClasses  DrivingClass[]
   user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   permissions     InstructorPermission[]
   scheduleSlots   ScheduleSlot[]
+
+  @@index([mpCollectorId])
 }
 
 model Admin {
@@ -135,6 +140,10 @@ model Payment {
   idempotencyKey    String?      @unique @map("idempotency_key") @db.VarChar(255)
   lastRecoveryAt    DateTime?    @map("last_recovery_at")
   recoveryAttempts  Int          @default(0) @map("recovery_attempts")
+  // Commission fields
+  appCommission     Float?       @map("app_commission") // Comisión de la app
+  instructorAmount  Float?       @map("instructor_amount") // Monto para instructor
+  commissionRate    Float?       @map("commission_rate") // % de comisión aplicado
   drivingClass      DrivingClass @relation(fields: [drivingClassId], references: [id])
 
   @@index([idempotencyKey])

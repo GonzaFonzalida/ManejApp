@@ -1,6 +1,6 @@
 import { prisma } from '@config/prismaClient';
 import { PaymentRepository } from './repositories/PaymentRepository';
-import EnhancedMercadoPagoService from './enhanced-mercadopago.service';
+import MercadoPagoService from './mercadopago.service';
 import { AuditService, AuditAction } from '@shared/services/AuditService';
 
 export interface PaymentRecoveryLog {
@@ -16,7 +16,7 @@ export interface PaymentRecoveryLog {
 export default class PaymentRecoveryService {
   constructor(
     private paymentRepo: PaymentRepository,
-    private mercadoPagoService: EnhancedMercadoPagoService
+    private mercadoPagoService: MercadoPagoService
   ) {}
 
   // Log cada paso del proceso de pago
