@@ -1,0 +1,50 @@
+# Dependencias
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Archivos de desarrollo
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+
+# Archivos de construcción
+# dist  # Comentado para incluir archivos compilados
+build
+
+# Archivos de Git
+.git
+.gitignore
+
+# Archivos de IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Documentación
+docs
+README*.md
+
+# Scripts de desarrollo
+scripts
+
+# Archivos de testing
+coverage
+.nyc_output
+
+# Archivos temporales
+tmp
+temp

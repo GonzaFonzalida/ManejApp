@@ -7,20 +7,25 @@ exports.buildApp = void 0;
 const express_1 = __importDefault(require("express"));
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
-const container_1 = __importDefault(require("./shared/DiContainer/container"));
-const errorMiddleware_1 = __importDefault(require("./shared/middlewares/errorMiddleware"));
-const notFoundMiddleware_1 = __importDefault(require("./shared/middlewares/notFoundMiddleware"));
-const requestLogger_1 = require("./shared/logging/middleware/requestLogger");
-const LoggerConfig_1 = require("./shared/logging/LoggerConfig");
-const user_routes_1 = __importDefault(require("./modules/users/user.routes"));
-const instructor_routes_1 = __importDefault(require("./modules/instructors/instructor.routes"));
-const auth_routes_1 = __importDefault(require("./modules/auth/auth.routes"));
-const permissions_routes_1 = __importDefault(require("./modules/permissions/permissions.routes"));
-const cars_routes_1 = __importDefault(require("./modules/cars/cars.routes"));
-const routes_1 = __importDefault(require("./modules/drivingClass/routes"));
-const payment_routes_1 = __importDefault(require("./modules/payments/payment.routes"));
-const schedule_routes_1 = require("./modules/schedule/schedule.routes");
-const routes_2 = require("./modules/notifications/routes");
+const cors_1 = __importDefault(require("cors"));
+const container_1 = __importDefault(require("@shared/DiContainer/container"));
+const errorMiddleware_1 = __importDefault(require("@middlewares/errorMiddleware"));
+const notFoundMiddleware_1 = __importDefault(require("@middlewares/notFoundMiddleware"));
+const requestLogger_1 = require("@logging/middleware/requestLogger");
+const LoggerConfig_1 = require("@logging/LoggerConfig");
+const security_1 = require("@middlewares/security");
+const validation_1 = require("@middlewares/validation");
+const healthCheck_1 = require("@middlewares/healthCheck");
+const advancedValidation_1 = require("@middlewares/advancedValidation");
+const user_routes_1 = __importDefault(require("@users/user.routes"));
+const instructor_routes_1 = __importDefault(require("@instructors/instructor.routes"));
+const auth_routes_1 = __importDefault(require("@auth/auth.routes"));
+const permissions_routes_1 = __importDefault(require("@permissions/permissions.routes"));
+const improved_cars_routes_1 = __importDefault(require("@cars/improved-cars.routes"));
+const routes_1 = __importDefault(require("@drivingClass/routes"));
+const payment_routes_1 = __importDefault(require("@payments/payment.routes"));
+const schedule_routes_1 = require("@schedule/schedule.routes");
+const routes_2 = require("@notifications/routes");
 const buildApp = () => {
     const userController = container_1.default.resolve("userController");
     const userRouter = new user_routes_1.default(userController).init();
@@ -48,8 +53,12 @@ const buildApp = () => {
             },
             servers: [
                 {
-                    url: 'http://localhost:3000',
-                    description: 'Development server',
+                    url: 'http://localhost:3000/api/v1',
+                    description: 'Development server v1',
+                },
+                {
+                    url: 'https://api.manejapp.com/api/v1',
+                    description: 'Production server v1',
                 },
             ],
             components: {
@@ -68,23 +77,48 @@ const buildApp = () => {
             ],
         },
         apis: ['./src/**/*.ts'], // Paths to files containing OpenAPI definitions
+        tags: [
+            {
+                name: 'Authentication',
+                description: 'Authentication and authorization endpoints'
+            },
+            {
+                name: 'Users',
+                description: 'User management endpoints'
+            },
+            {
+                name: 'Security',
+                description: 'Security and monitoring endpoints'
+            }
+        ]
     };
     const specs = swaggerJSDoc(swaggerOptions);
-    // Logging middlewares (should be first)
+    // Security middlewares (should be first)
+    app.use(security_1.helmetConfig);
+    app.use((0, cors_1.default)(security_1.corsOptions));
+    app.use(security_1.generalRateLimit);
+    app.use(advancedValidation_1.preventSQLInjection);
+    app.use(advancedValidation_1.preventXSS);
+    app.use(validation_1.sanitizeInput);
+    // Logging middlewares
     app.use(requestLogger_1.requestLoggerMiddleware);
     app.use((0, requestLogger_1.performanceLoggerMiddleware)(2000)); // Log requests slower than 2 seconds
-    app.use(express_1.default.json());
+    app.use(express_1.default.json({ limit: '10mb' }));
+    app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
+    // Health check endpoint (before rate limiting)
+    app.get('/health', healthCheck_1.healthCheck);
     // Swagger UI
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
-    app.use("/users", userRouter);
-    app.use("/instructors", instructorRouter);
-    app.use("/permissions", permissions_routes_1.default);
-    app.use("/cars", cars_routes_1.default);
-    app.use("/auth", authRouter);
-    app.use("/classes", drivingClassRouter);
-    app.use("/payments", paymentRouter);
-    app.use("/schedule", scheduleRouter);
-    app.use("/notifications", notificationRouter);
+    // API v1 routes
+    app.use("/api/v1/users", userRouter);
+    app.use("/api/v1/instructors", instructorRouter);
+    app.use("/api/v1/permissions", permissions_routes_1.default);
+    app.use("/api/v1/cars", improved_cars_routes_1.default);
+    app.use("/api/v1/auth", authRouter);
+    app.use("/api/v1/classes", drivingClassRouter);
+    app.use("/api/v1/payments", paymentRouter);
+    app.use("/api/v1/schedule", scheduleRouter);
+    app.use("/api/v1/notifications", notificationRouter);
     //modulos
     // app.use("/permissions"); // ya registrado arriba
     // app.use("/admin");
