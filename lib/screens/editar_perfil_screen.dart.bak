@@ -65,12 +65,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           final fullImageUrl = profileImage != null && profileImage.isNotEmpty
               ? (profileImage.startsWith('http') ? profileImage : 'http://192.168.0.3:3000$profileImage')
               : null;
-          final hourlyRateValue = profile['hourlyRate'];
-          final hourlyRateStr = hourlyRateValue != null ? hourlyRateValue.toString() : '';
           setState(() {
             controller.nombreController.text = profile['name'] ?? '';
             controller.zonaController.text = profile['location'] ?? '';
-            controller.precioController.text = hourlyRateStr;
+            controller.precioController.text = profile['hourlyRate']?.toString() ?? '';
             _currentImageUrl = fullImageUrl;
             _isInstructor = isInstructor;
           });
@@ -184,7 +182,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         throw Exception('Sesión inválida. Por favor, inicia sesión nuevamente.');
       }
 
-      final Map<String, dynamic> userData = {
+      final userData = {
         'name': controller.nombreController.text.trim(),
         'location': controller.zonaController.text.trim(),
       };
@@ -201,6 +199,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               : 'http://192.168.0.3:3000$imageUrl';
           userData['profileImage'] = fullImageUrl;
           
+          // Guardar en storage como workaround
           await storage.write(key: 'profile_image_url', value: fullImageUrl);
           
           if (mounted) {
@@ -219,10 +218,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         }
       }
 
-debugPrint('=== GUARDANDO USUARIO ====');
-      debugPrint('userData: $userData');
       await ApiService.updateUser(userId, userData);
-      debugPrint('Usuario actualizado');
       
       if (_isInstructor) {
         try {
@@ -232,19 +228,16 @@ debugPrint('=== GUARDANDO USUARIO ====');
             orElse: () => null,
           );
           if (instructor != null) {
-            debugPrint('=== GUARDANDO INSTRUCTOR ====');
-            debugPrint('instructorId: ${instructor['id']}');
-            debugPrint('description: ${controller.descripcionController.text.trim()}');
             await ApiService.updateInstructor(instructor['id'].toString(), {
               'description': controller.descripcionController.text.trim(),
             });
-            debugPrint('Instructor actualizado');
           }
         } catch (e) {
           debugPrint('Error actualizando instructor: $e');
         }
       }
 
+      // Recargar perfil para mostrar cambios
       await _loadProfile();
 
       if (!mounted) return;
@@ -256,6 +249,7 @@ debugPrint('=== GUARDANDO USUARIO ====');
         ),
       );
       
+      // Esperar un momento para que el usuario vea el mensaje
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -383,26 +377,11 @@ debugPrint('=== GUARDANDO USUARIO ====');
                   ),
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.camera_alt, size: 16, color: Colors.blue.shade600),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Toca para cambiar foto",
-                        style: TextStyle(
-                          color: Colors.blue.shade600,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                Text(
+                  "Toca para cambiar foto",
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -472,7 +451,7 @@ debugPrint('=== GUARDANDO USUARIO ====');
                 ),
                 const SizedBox(height: 16),
                 
-                if (_isInstructor) ...[
+                if (_isInstructor) ..[
                   _buildModernInputCard(
                     icon: Icons.attach_money,
                     label: "Tarifa por Hora",
@@ -483,7 +462,7 @@ debugPrint('=== GUARDANDO USUARIO ====');
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         hintText: "Ej: 5000",
-                        prefix: Text("\$ "),
+                        prefixText: "\$ ",
                       ),
                     ),
                   ),
@@ -597,6 +576,3 @@ debugPrint('=== GUARDANDO USUARIO ====');
     );
   }
 }
-
-
-

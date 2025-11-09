@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
@@ -63,8 +65,10 @@ class _InstructorScheduleScreenState extends State<InstructorScheduleScreen> {
   }
 
   Future<void> _createScheduleSlot() async {
+    final ctx = context;
+    final messenger = ScaffoldMessenger.of(ctx);
     final result = await showDialog<Map<String, dynamic>>(
-      context: context,
+      context: ctx,
       builder: (context) => const CreateScheduleSlotDialog(),
     );
 
@@ -75,22 +79,20 @@ class _InstructorScheduleScreenState extends State<InstructorScheduleScreen> {
           ...result,
         });
         
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Horario creado exitosamente')),
-          );
-          _loadSchedule();
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Horario creado exitosamente')),
+        );
+        _loadSchedule();
       } catch (e) {
-        if (mounted) {
-          String errorMessage = 'Error creando horario: $e';
-          if (e.toString().contains('superpone')) {
-            errorMessage = 'Ya tienes un horario en ese rango de tiempo. Elige otro horario.';
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage)),
-          );
+        if (!mounted) return;
+        String errorMessage = 'Error creando horario: $e';
+        if (e.toString().contains('superpone')) {
+          errorMessage = 'Ya tienes un horario en ese rango de tiempo. Elige otro horario.';
         }
+        messenger.showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
       }
     }
   }
@@ -98,7 +100,7 @@ class _InstructorScheduleScreenState extends State<InstructorScheduleScreen> {
   Future<void> _editHourlyRate() async {
     final currentRate = await _getCurrentHourlyRate();
     final controller = TextEditingController(text: currentRate.toString());
-    
+    final messenger = ScaffoldMessenger.of(context);
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -135,14 +137,14 @@ class _InstructorScheduleScreenState extends State<InstructorScheduleScreen> {
           });
           
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               const SnackBar(content: Text('Precio actualizado exitosamente')),
             );
           }
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(content: Text('Error actualizando precio: $e')),
           );
         }

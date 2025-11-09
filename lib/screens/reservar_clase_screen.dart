@@ -90,14 +90,14 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
     try {
       // Validate slot ID
       final slotId = _selectedSlot!.id;
-      print('DEBUG: Slot ID: $slotId (type: ${slotId.runtimeType})');
+      debugPrint('DEBUG: Slot ID: $slotId (type: ${slotId.runtimeType})');
       
       if (slotId == null) {
         throw Exception('ID del slot es null');
       }
       
       final slotIdString = slotId.toString();
-      print('DEBUG: Slot ID string: "$slotIdString"');
+      debugPrint('DEBUG: Slot ID string: "$slotIdString"');
       
       if (slotIdString.isEmpty || slotIdString == 'null') {
         throw Exception('ID del slot no válido: $slotIdString');
@@ -107,7 +107,7 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
       final reservationResult = await ApiService.reserveScheduleSlot(slotIdString);
       final classId = reservationResult['drivingClass']['id'];
       
-      print('DEBUG: Class ID from reservation: $classId');
+      debugPrint('DEBUG: Class ID from reservation: $classId');
       
       // 3. Crear preferencia de pago
       final response = await ApiService.mpCreatePreference(

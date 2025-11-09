@@ -4,6 +4,7 @@ class Instructor {
   final int experienceYears;
   final String? image;
   final double? rating;
+  final String? description;
   // ✅ The user object is now optional to prevent TypeErrors
   final User? user;
 
@@ -14,6 +15,7 @@ class Instructor {
     this.user,
     this.image,
     this.rating,
+    this.description,
   });
 
   factory Instructor.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class Instructor {
           : null,
       rating: (json['rating'] as num?)?.toDouble(),
       image: json['image'] as String?,
+      description: json['description'] as String?,
     );
   }
 }
@@ -38,6 +41,8 @@ class User {
   final String? email;
   final String? role;
   final double? hourlyRate;
+  final String? location;
+  final String? profileImage;
 
   User({
     required this.id,
@@ -46,6 +51,8 @@ class User {
     this.email,
     this.role,
     this.hourlyRate,
+    this.location,
+    this.profileImage,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -56,6 +63,8 @@ class User {
       email: json['email'] as String?,
       role: json['role'] as String?,
       hourlyRate: (json['hourlyRate'] as num?)?.toDouble(),
+      location: json['location'] as String?,
+      profileImage: json['profileImage'] as String?,
     );
   }
 }

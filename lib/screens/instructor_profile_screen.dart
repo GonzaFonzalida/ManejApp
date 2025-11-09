@@ -18,12 +18,16 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
   final _experienceController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _hourlyRateController = TextEditingController();
+  final _locationController = TextEditingController();
   
   Map<String, dynamic>? _instructor;
   Map<String, dynamic>? _user;
   bool _isLoading = true;
   bool _isEditing = false;
   String? _instructorId;
+  String? _userId;
+  List<Map<String, String>> _locationSuggestions = [];
+  bool _showSuggestions = false;
 
   @override
   void initState() {
@@ -37,6 +41,7 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
     _experienceController.dispose();
     _descriptionController.dispose();
     _hourlyRateController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -44,10 +49,9 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
     try {
       final userId = await storage.read(key: 'user_id');
       if (userId != null) {
-        // Obtener información del usuario
+        _userId = userId;
         _user = await ApiService.getUserProfile(userId);
         
-        // Obtener información del instructor
         final instructors = await ApiService.getInstructors();
         _instructor = instructors.firstWhere(
           (i) => i['userId'].toString() == userId,
@@ -59,7 +63,8 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
           _licenseController.text = _instructor!['licenseNumber'] ?? '';
           _experienceController.text = _instructor!['experienceYears']?.toString() ?? '';
           _descriptionController.text = _instructor!['description'] ?? '';
-          _hourlyRateController.text = _instructor!['hourlyRate']?.toString() ?? '';
+          _hourlyRateController.text = _user?['hourlyRate']?.toString() ?? '';
+          _locationController.text = _user?['location'] ?? '';
         }
       }
     } catch (e) {
@@ -76,27 +81,62 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
     }
   }
 
+  Future<void> _searchLocations(String query) async {
+    if (query.length < 3) {
+      if (mounted) {
+        setState(() {
+          _locationSuggestions = [];
+          _showSuggestions = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final results = await ApiService.searchLocations(query);
+      if (mounted) {
+        setState(() {
+          _locationSuggestions = results;
+          _showSuggestions = results.isNotEmpty;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _locationSuggestions = [];
+          _showSuggestions = false;
+        });
+      }
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
       setState(() => _isLoading = true);
       
+      if (_userId != null) {
+        await ApiService.updateUser(_userId!, {
+          'location': _locationController.text.trim(),
+          'hourlyRate': double.tryParse(_hourlyRateController.text) ?? 0.0,
+        });
+      }
+      
       if (_instructorId != null) {
         await ApiService.updateInstructor(_instructorId!, {
           'licenseNumber': _licenseController.text,
           'experienceYears': int.tryParse(_experienceController.text) ?? 0,
           'description': _descriptionController.text,
-          'hourlyRate': double.tryParse(_hourlyRateController.text) ?? 0,
         });
+      }
         
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Perfil actualizado exitosamente')),
-          );
-          setState(() => _isEditing = false);
-          _loadProfile();
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Perfil actualizado exitosamente')),
+        );
+        setState(() => _isEditing = false);
+        _loadProfile();
       }
     } catch (e) {
       if (mounted) {
@@ -130,7 +170,7 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
       ),
     );
 
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       final loginController = LoginController();
       await loginController.logout(context);
     }
@@ -148,7 +188,6 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header
                     Row(
                       children: [
                         const Expanded(
@@ -174,42 +213,15 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Foto de perfil
                     Center(
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 60,
-                            backgroundImage: _instructor?['image'] != null
-                                ? NetworkImage(_instructor!['image'])
-                                : const AssetImage('assets/car3.png') as ImageProvider,
-                          ),
-                          if (_isEditing)
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF003087),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
-                                  onPressed: () {
-                                    // TODO: Implementar cambio de foto
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Función de cambio de foto próximamente')),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.camera_alt, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                        ],
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.blue.shade100,
+                        child: Icon(Icons.person, size: 60, color: Colors.blue.shade600),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Información personal
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -245,7 +257,6 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Información profesional
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -304,6 +315,63 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                               },
                             ),
                             const SizedBox(height: 16),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextFormField(
+                                  controller: _locationController,
+                                  enabled: _isEditing,
+                                  onChanged: _searchLocations,
+                                  decoration: InputDecoration(
+                                    labelText: 'Ubicación',
+                                    prefixIcon: const Icon(Icons.location_on),
+                                    hintText: 'Ej: Tortuguitas, Buenos Aires',
+                                    border: _isEditing ? const OutlineInputBorder() : InputBorder.none,
+                                    filled: !_isEditing,
+                                    fillColor: _isEditing ? null : Colors.grey.shade100,
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Ingrese su ubicación';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                if (_showSuggestions && _locationSuggestions.isNotEmpty && _isEditing)
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey.shade300),
+                                    ),
+                                    child: ListView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      itemCount: _locationSuggestions.length,
+                                      itemBuilder: (context, index) {
+                                        final suggestion = _locationSuggestions[index];
+                                        return ListTile(
+                                          dense: true,
+                                          leading: const Icon(Icons.location_on, size: 18),
+                                          title: Text(
+                                            suggestion['display']!,
+                                            style: const TextStyle(fontSize: 14),
+                                          ),
+                                          onTap: () {
+                                            _locationController.text = suggestion['display']!;
+                                            setState(() {
+                                              _showSuggestions = false;
+                                              _locationSuggestions = [];
+                                            });
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
                             _buildEditableField(
                               'Descripción',
                               _descriptionController,
@@ -322,7 +390,6 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Botones de acción
                     if (_isEditing) ...[
                       Row(
                         children: [
@@ -330,7 +397,7 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                             child: OutlinedButton(
                               onPressed: () {
                                 setState(() => _isEditing = false);
-                                _loadProfile(); // Recargar datos originales
+                                _loadProfile();
                               },
                               child: const Text('Cancelar'),
                             ),

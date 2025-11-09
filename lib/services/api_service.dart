@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:developer' as developer;
@@ -6,7 +7,8 @@ import 'dart:developer' as developer;
 const storage = FlutterSecureStorage();
 
 class ApiService {
-  static const String _baseUrl = 'http://192.168.0.18:3000';
+  static const String _baseUrl = 'http://192.168.0.3:3000/api/v1';
+
 
   // ===========================
   // USERS / AUTH
@@ -21,7 +23,7 @@ class ApiService {
     String birthDate,
   ) async {
     final userAgent = 'Flutter-Mobile-App/1.0';
-    final ip = '192.168.0.69';
+    final ip = '192.168.0.3';
     final deviceId = 'flutter-mobile-app';
 
     final response = await http.post(
@@ -382,7 +384,7 @@ class ApiService {
     final ip = '192.168.1.1';
 
     final response = await http.post(
-      Uri.parse('$_baseUrl/users/login'),
+      Uri.parse('$_baseUrl/auth/login'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'User-Agent': userAgent,
@@ -498,19 +500,147 @@ class ApiService {
     }
   }
 
+  static Future<void> updateUser(String userId, Map<String, dynamic> data) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) {
+      throw Exception('No hay token de autenticación disponible.');
+    }
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/users/$userId'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error al actualizar usuario');
+    }
+  }
+
+  static Future<String> uploadProfileImage(String userId, File imageFile) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    developer.log('Subiendo imagen - userId: $userId, path: ${imageFile.path}', name: 'ApiService');
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_baseUrl/users/$userId/upload-profile-image'),
+    );
+    
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(await http.MultipartFile.fromPath('profileImage', imageFile.path));
+
+    developer.log('Enviando request...', name: 'ApiService');
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
+    developer.log('Response body: ${response.body}', name: 'ApiService');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final imageUrl = data['profileImage'] as String;
+      developer.log('Imagen subida exitosamente: $imageUrl', name: 'ApiService');
+      return imageUrl;
+    } else {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error al subir imagen (${response.statusCode})');
+    }
+  }
+
+  static Future<List<Map<String, String>>> searchLocations(String query) async {
+    if (query.length < 3) return [];
+    
+    final url = 'https://nominatim.openstreetmap.org/search?q=$query,Argentina&format=json&limit=5&addressdetails=1';
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'User-Agent': 'ManejApp/1.0'},
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> results = jsonDecode(response.body);
+      return results.map((r) {
+        final address = r['address'] as Map<String, dynamic>?;
+        final city = address?['city'] ?? address?['town'] ?? address?['village'] ?? '';
+        final state = address?['state'] ?? '';
+        return {
+          'display': '$city, $state',
+          'lat': r['lat'] as String,
+          'lon': r['lon'] as String,
+        };
+      }).toList();
+    }
+    return [];
+  }
+
+  static Future<void> changePassword(String currentPassword, String newPassword) async {
+    final token = await storage.read(key: 'auth_token');
+    final userId = await storage.read(key: 'user_id');
+    if (token == null || userId == null) {
+      throw Exception('No hay sesión activa');
+    }
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/users/$userId'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'password': newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error al cambiar contraseña');
+    }
+  }
+
+  static Future<void> changeEmail(String newEmail, String password) async {
+    final token = await storage.read(key: 'auth_token');
+    final userId = await storage.read(key: 'user_id');
+    if (token == null || userId == null) {
+      throw Exception('No hay sesión activa');
+    }
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/users/$userId'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'email': newEmail,
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error al cambiar email');
+    }
+    
+    await storage.write(key: 'user_email', value: newEmail);
+  }
+
   static Future<void> logout() async {
-    final sessionId = await storage.read(key: 'session_id');
     final token = await storage.read(key: 'auth_token');
 
-    if (sessionId != null && token != null) {
+    if (token != null) {
       try {
         await http.post(
-          Uri.parse('$_baseUrl/sessions/revoke'),
+          Uri.parse('$_baseUrl/auth/logout'),
           headers: <String, String>{
             'Content-Type': 'application/json; charset=UTF-8',
             'Authorization': 'Bearer $token',
           },
-          body: jsonEncode({'sessionId': sessionId}),
         );
       } catch (_) {
         // noop
@@ -669,14 +799,22 @@ class ApiService {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
+    final url = '$_baseUrl/instructors/$instructorId';
+    developer.log('=== UPDATE INSTRUCTOR ===', name: 'ApiService');
+    developer.log('URL: $url', name: 'ApiService');
+    developer.log('Data: ${jsonEncode(data)}', name: 'ApiService');
+
     final response = await http.put(
-      Uri.parse('$_baseUrl/instructors/$instructorId'),
+      Uri.parse(url),
       headers: {
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode(data),
     );
+
+    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
+    developer.log('Response body: ${response.body}', name: 'ApiService');
 
     if (response.statusCode != 200) {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
@@ -1034,6 +1172,7 @@ class ApiService {
         'Content-Type': 'application/json; charset=UTF-8',
         'Authorization': 'Bearer $token',
       },
+      body: jsonEncode({}),
     );
 
     developer.log('Response status: ${response.statusCode}', name: 'ApiService');

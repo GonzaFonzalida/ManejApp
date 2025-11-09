@@ -7,6 +7,10 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math' as math;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+const storage = FlutterSecureStorage();
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -19,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Instructor> _instructors = [];
   List<Instructor> _filteredInstructors = [];
+  Map<String, LatLng> _instructorLocations = {};
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
@@ -44,33 +49,88 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadInstructors() async {
     try {
       final data = await ApiService.getInstructors();
-      setState(() {
-        _instructors = data.map((e) => Instructor.fromJson(e)).toList();
-        _filteredInstructors = _instructors;
-        _isLoading = false;
-      });
+      final instructors = data.map((e) => Instructor.fromJson(e)).toList();
+      
+      // Geocodificar ubicaciones de instructores
+      for (final instructor in instructors) {
+        final location = instructor.user?.location;
+        if (location != null && location.isNotEmpty) {
+          try {
+            final coords = await _geocodeAddress(location);
+            if (coords != null) {
+              _instructorLocations[instructor.id.toString()] = coords;
+            }
+          } catch (e) {
+            debugPrint('Error geocodificando $location: $e');
+          }
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _instructors = instructors;
+          _filteredInstructors = _instructors;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading instructors: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+  
+  Future<LatLng?> _geocodeAddress(String address) async {
+    try {
+      final uri = Uri.https(
+        'nominatim.openstreetmap.org',
+        '/search',
+        {
+          'q': '$address, Argentina',
+          'format': 'jsonv2',
+          'limit': '1',
+        },
+      );
+      final res = await http.get(
+        uri,
+        headers: {'User-Agent': 'ManejApp/1.0 (Flutter)'},
+      );
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List<dynamic>;
+        if (list.isNotEmpty) {
+          final first = list[0] as Map<String, dynamic>;
+          final lat = double.tryParse(first['lat']?.toString() ?? '');
+          final lon = double.tryParse(first['lon']?.toString() ?? '');
+          if (lat != null && lon != null) {
+            return LatLng(lat, lon);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error geocodificando: $e');
+    }
+    return null;
   }
 
   void _filterInstructors() {
     final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredInstructors = _instructors;
-      } else {
-        _filteredInstructors = _instructors.where((instructor) {
-          final fullName =
-              '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}'
-                  .toLowerCase();
-          return fullName.contains(query);
-        }).toList();
-      }
-    });
+    if (mounted) {
+      setState(() {
+        if (query.isEmpty) {
+          _filteredInstructors = _instructors;
+        } else {
+          _filteredInstructors = _instructors.where((instructor) {
+            final fullName =
+                '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}'
+                    .toLowerCase();
+            return fullName.contains(query);
+          }).toList();
+        }
+      });
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -111,6 +171,79 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _searchNearbyInstructors() {
+    // Calcular distancias y ordenar instructores por cercanía
+    final instructorsWithDistance = _instructors.where((instructor) {
+      return _instructorLocations.containsKey(instructor.id.toString());
+    }).map((instructor) {
+      final instructorLocation = _instructorLocations[instructor.id.toString()]!;
+      final distance = _calculateDistance(
+        _currentLocation.latitude,
+        _currentLocation.longitude,
+        instructorLocation.latitude,
+        instructorLocation.longitude,
+      );
+      return {'instructor': instructor, 'distance': distance};
+    }).toList();
+
+    instructorsWithDistance.sort((a, b) => 
+      (a['distance'] as double).compareTo(b['distance'] as double)
+    );
+
+    if (mounted) {
+      setState(() {
+        _filteredInstructors = instructorsWithDistance
+          .map((e) => e['instructor'] as Instructor)
+          .toList();
+      });
+    }
+
+    if (_filteredInstructors.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se encontraron instructores con ubicación registrada')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Se encontraron ${_filteredInstructors.length} instructores cercanos')),
+      );
+    }
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double earthRadius = 6371; // Radio de la Tierra en km
+    final dLat = _degreesToRadians(lat2 - lat1);
+    final dLon = _degreesToRadians(lon2 - lon1);
+    final a = 
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(_degreesToRadians(lat1)) * math.cos(_degreesToRadians(lat2)) *
+      math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.asin(math.sqrt(a));
+    return earthRadius * c;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * math.pi / 180;
+  }
+
+  Future<String?> _getInstructorImageUrl(Instructor instructor) async {
+    var profileImage = instructor.user?.profileImage;
+    
+    // Workaround: si el backend no devuelve la imagen, intentar desde storage
+    if ((profileImage == null || profileImage.isEmpty) && instructor.user?.id != null) {
+      final userId = await storage.read(key: 'user_id');
+      if (userId == instructor.user!.id.toString()) {
+        profileImage = await storage.read(key: 'profile_image_url');
+      }
+    }
+    
+    if (profileImage != null && profileImage.isNotEmpty) {
+      return profileImage.startsWith('http') 
+          ? profileImage 
+          : 'http://192.168.0.3:3000$profileImage';
+    }
+    return null;
+  }
+
   Future<void> _searchAddress() async {
     final query = _addressController.text.trim();
     if (query.isEmpty) {
@@ -144,9 +277,11 @@ class _HomeScreenState extends State<HomeScreen> {
           final lon = double.tryParse(first['lon']?.toString() ?? '');
           if (lat != null && lon != null) {
             final pos = LatLng(lat, lon);
-            setState(() {
-              _currentLocation = pos;
-            });
+            if (mounted) {
+              setState(() {
+                _currentLocation = pos;
+              });
+            }
             _mapController.move(pos, 16.0);
           } else {
             if (mounted) {
@@ -299,16 +434,30 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       MarkerLayer(
                         markers: [
+                          // Marcador de ubicación actual
                           Marker(
                             width: 80.0,
                             height: 80.0,
                             point: _currentLocation,
                             child: const Icon(
-                              Icons.location_pin,
+                              Icons.my_location,
                               color: Colors.blue,
                               size: 40,
                             ),
                           ),
+                          // Marcadores de instructores
+                          ..._instructorLocations.entries.map((entry) {
+                            return Marker(
+                              width: 80.0,
+                              height: 80.0,
+                              point: entry.value,
+                              child: const Icon(
+                                Icons.person_pin_circle,
+                                color: Colors.red,
+                                size: 40,
+                              ),
+                            );
+                          }),
                         ],
                       ),
                     ],
@@ -317,12 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16.0),
               ElevatedButton(
-                onPressed: () {
-                  // Buscar instructores en la ubicación actual
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Buscando instructores en esta ubicación...')),
-                  );
-                },
+                onPressed: _searchNearbyInstructors,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF003087),
                   foregroundColor: Colors.white,
@@ -412,14 +556,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(16.0),
                         child: Row(
                           children: <Widget>[
-                            CircleAvatar(
-                              radius: 35.0,
-                              backgroundColor: Colors.blue.shade100,
-                              backgroundImage: instructor.image != null &&
-                                      instructor.image!.startsWith('http')
-                                  ? NetworkImage(instructor.image!)
-                                      as ImageProvider
-                                  : const AssetImage('assets/car3.png'),
+                            FutureBuilder<String?>(
+                              future: _getInstructorImageUrl(instructor),
+                              builder: (context, snapshot) {
+                                final imageUrl = snapshot.data;
+                                return CircleAvatar(
+                                  radius: 35.0,
+                                  backgroundColor: Colors.blue.shade100,
+                                  backgroundImage: imageUrl != null
+                                      ? NetworkImage(imageUrl)
+                                      : null,
+                                  child: imageUrl == null
+                                      ? Icon(Icons.person, size: 35, color: Colors.blue.shade600)
+                                      : null,
+                                );
+                              },
                             ),
                             const SizedBox(width: 16.0),
                             Expanded(

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'editar_perfil_screen.dart';
-import 'home_screen.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
-import '../controllers/login_controller.dart';
 import 'package:intl/intl.dart';
 
 const storage = FlutterSecureStorage();
@@ -20,19 +18,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
 
   Map<String, dynamic>? _profile;
-  String _selectedLocation = 'Tortuguitas';
-
-  final List<String> _locations = [
-    'Malvinas Argentinas',
-    'Grand Bourg',
-    'Los Polvorines',
-    'Ingeniero Pablo Nogues',
-    'Tortuguitas',
-    'Villa de Mayo',
-    'Tierras Altas',
-    'Ing. Adolfo Sourdeaux',
-    'Área de Promoción',
-  ];
+  String? _profileImageUrl;
+  int _imageTimestamp = DateTime.now().millisecondsSinceEpoch;
+  String? _instructorDescription;
+  double? _hourlyRate;
 
   @override
   void initState() {
@@ -44,10 +33,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final userId = await storage.read(key: 'user_id');
     if (userId != null) {
       final profile = await ApiService.getUserProfile(userId);
-      setState(() {
-        _profile = profile;
-        _selectedLocation = _profile?['location'] ?? 'Tortuguitas';
-      });
+      var profileImage = profile['profileImage'] as String?;
+      
+      if (profileImage == null || profileImage.isEmpty) {
+        profileImage = await storage.read(key: 'profile_image_url');
+      }
+      
+      debugPrint('=== PROFILE SCREEN DEBUG ===');
+      debugPrint('Profile image from API: ${profile['profileImage']}');
+      debugPrint('Profile image from storage: ${await storage.read(key: 'profile_image_url')}');
+      debugPrint('Using: $profileImage');
+      
+      final fullImageUrl = profileImage != null && profileImage.isNotEmpty
+          ? (profileImage.startsWith('http') ? profileImage : 'http://192.168.0.3:3000$profileImage')
+          : null;
+      debugPrint('Full image URL: $fullImageUrl');
+      debugPrint('===========================');
+      
+      String? instructorDescription;
+      double? hourlyRate = profile['hourlyRate'] as double?;
+      
+      if (profile['role'] == 'INSTRUCTOR') {
+        try {
+          final instructors = await ApiService.getInstructors();
+          final instructor = instructors.firstWhere(
+            (i) => i['userId'].toString() == userId,
+            orElse: () => null,
+          );
+          if (instructor != null) {
+            instructorDescription = instructor['description'] as String?;
+          }
+        } catch (e) {
+          debugPrint('Error cargando datos de instructor: $e');
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _profileImageUrl = fullImageUrl;
+          _imageTimestamp = DateTime.now().millisecondsSinceEpoch;
+          _instructorDescription = instructorDescription;
+          _hourlyRate = hourlyRate;
+        });
+      }
     }
   }
 
@@ -90,8 +119,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,9 +127,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: [
             const SizedBox(height: 30),
-            const CircleAvatar(
-              radius: 50,
-              backgroundImage: AssetImage('assets/car3.png'), // imagen genérica
+            GestureDetector(
+              onTap: () async {
+                final result = await Navigator.pushNamed(context, EditarPerfilScreen.routeName);
+                if (result == true && mounted) {
+                  await _loadProfile();
+                }
+              },
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.blue.shade100,
+                    backgroundImage: _profileImageUrl != null
+                        ? NetworkImage('$_profileImageUrl?t=$_imageTimestamp')
+                        : null,
+                    onBackgroundImageError: _profileImageUrl != null
+                        ? (exception, stackTrace) {
+                            debugPrint('Error cargando imagen de perfil: $exception');
+                          }
+                        : null,
+                    child: _profileImageUrl == null
+                        ? Icon(Icons.person, size: 50, color: Colors.blue.shade600)
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.camera_alt,
+                        color: Colors.blue.shade600,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Toca para editar foto",
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -111,54 +193,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pushNamed(context, EditarPerfilScreen.routeName);
+              onPressed: () async {
+                final result = await Navigator.pushNamed(context, EditarPerfilScreen.routeName);
+                if (result == true && mounted) {
+                  await _loadProfile();
+                }
               },
               child: const Text("Editar Perfil"),
             ),
             const SizedBox(height: 20),
 
-            // Información de perfil
             _buildProfileItem(Icons.person, "Nombre completo", _profile?['name'] ?? "Nombre de Usuario"),
             _buildProfileItem(Icons.email, "Correo electrónico", _profile?['email'] ?? "usuario@email.com"),
             _buildProfileItem(Icons.calendar_today, "Fecha de nacimiento", _formatDate(_profile?['birthDate'])),
-            _buildLocationItem(Icons.location_on, "Vivo en", _selectedLocation),
+            _buildProfileItem(Icons.location_on, "Ubicación", _profile?['location'] ?? "No especificada"),
+            if (_hourlyRate != null)
+              _buildProfileItem(Icons.attach_money, "Tarifa por hora", "\$${_hourlyRate!.toStringAsFixed(0)}"),
             const SizedBox(height: 20),
 
-            // Sobre mí
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Row(
-                children: const [
-                  Icon(Icons.info_outline, color: Colors.blue),
-                  SizedBox(width: 8),
-                  Text(
-                    "Sobre mí",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
+            if (_instructorDescription != null && _instructorDescription!.isNotEmpty) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: const [
+                    Icon(Icons.info_outline, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text(
+                      "Sobre mí",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "Aquí irá la descripción del usuario. Puede actualizarla en Editar Perfil.",
-              style: TextStyle(fontSize: 14, color: Colors.black87),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                _instructorDescription!,
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+              ),
+            ],
             const SizedBox(height: 30),
 
-            // Botón cerrar sesión
-            ElevatedButton(
-              onPressed: _logout,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/settings');
+                },
+                icon: const Icon(Icons.settings),
+                label: const Text("Configuración"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF003087),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
               ),
-              child: const Text("Cerrar Sesión"),
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout),
+                label: const Text("Cerrar Sesión"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+              ),
             ),
           ],
         ),
       ),
-
     );
   }
 
@@ -178,41 +285,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(value,
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationItem(IconData icon, String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.blue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                DropdownButton<String>(
-                  value: value,
-                  items: _locations.map((String location) {
-                    return DropdownMenuItem<String>(
-                      value: location,
-                      child: Text(location),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedLocation = newValue!;
-                    });
-                  },
-                ),
               ],
             ),
           ),

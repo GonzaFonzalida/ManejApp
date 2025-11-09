@@ -256,6 +256,20 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
                     ],
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF003087)),
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/chat',
+                      arguments: {
+                        'recipientName': '${drivingClass.instructor?['user']?['name'] ?? ''} ${drivingClass.instructor?['user']?['surname'] ?? ''}',
+                        'recipientId': drivingClass.instructor?['id']?.toString() ?? '',
+                      },
+                    );
+                  },
+                  tooltip: 'Chat con instructor',
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
