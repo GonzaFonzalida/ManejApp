@@ -7,7 +7,8 @@ import 'dart:developer' as developer;
 const storage = FlutterSecureStorage();
 
 class ApiService {
-  static const String _baseUrl = 'http://192.168.0.3:3000/api/v1';
+  static const String _baseUrl = 'http://72.60.166.178:3000/api/v1';
+
 
 
   // ===========================
