@@ -57,17 +57,7 @@ export default class CommissionPaymentService {
         marketplace_fee: appCommission, // Comisión de la app
         
         // Configuración del split
-        additional_info: {
-          items: [
-            {
-              id: 'driving-class',
-              title: data.description,
-              description: `Clase de conducción - Comisión app: ${this.appCommissionPercentage}%`,
-              quantity: 1,
-              unit_price: data.amount,
-            }
-          ]
-        },
+        additional_info: `Clase de conducción - Comisión app: ${this.appCommissionPercentage}% - Monto total: ${data.amount}`,
 
         // Split de pagos
         disbursements: [

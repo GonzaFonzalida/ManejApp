@@ -42,6 +42,9 @@ import { ScheduleRouter } from "@schedule/schedule.routes";
 import { NotificationController } from "@notifications/controller";
 import { NotificationRoutes } from "@notifications/routes";
 
+import MessageController from "./modules/messages/messages.controller";
+import messageRoutes from "./modules/messages/messages.routes";
+
 import adminRoutes from "./modules/admin/admin.routes";
 import SchedulerService from "./shared/services/SchedulerService";
 
@@ -66,6 +69,8 @@ export const buildApp = () => {
 
     const notificationController = diContainer.resolve<NotificationController>("notificationController");
     const notificationRouter = new NotificationRoutes(notificationController).getRouter();
+
+    const messageController = diContainer.resolve<MessageController>("messageController");
 
     const app = express();
 
@@ -155,6 +160,7 @@ export const buildApp = () => {
     app.use("/api/v1/payments", commissionRoutes);
     app.use("/api/v1/schedule", scheduleRouter);
     app.use("/api/v1/notifications", notificationRouter);
+    app.use("/api/v1/messages", messageRoutes);
     app.use("/api/v1/admin", adminRoutes);
     
     // Iniciar tareas programadas
@@ -178,7 +184,8 @@ export const buildApp = () => {
         '/classes',
         '/payments',
         '/schedule',
-        '/notifications'
+        '/notifications',
+        '/messages'
       ]
     });
 

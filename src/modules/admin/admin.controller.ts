@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { formatResponse } from '../../shared/utils/responseFormatter';
+import { ResponseFormatter } from '../../shared/utils/responseFormatter';
 
 const prisma = new PrismaClient();
 
@@ -56,10 +56,10 @@ export class AdminController {
         }
       };
 
-      res.json(formatResponse(true, 'Estadísticas del dashboard', stats));
+      ResponseFormatter.success(res, stats, 'Estadísticas del dashboard');
     } catch (error) {
       console.error('Error getting dashboard stats:', error);
-      res.status(500).json(formatResponse(false, 'Error interno del servidor'));
+      ResponseFormatter.error(res, 'Error interno del servidor', 500);
     }
   }
 
@@ -92,10 +92,10 @@ export class AdminController {
         status: (inactiveUsers + failedPayments + instructorsWithoutMP + oldPendingClasses) === 0 ? 'healthy' : 'needs_attention'
       };
 
-      res.json(formatResponse(true, 'Estado del sistema', health));
+      ResponseFormatter.success(res, health, 'Estado del sistema');
     } catch (error) {
       console.error('Error getting system health:', error);
-      res.status(500).json(formatResponse(false, 'Error interno del servidor'));
+      ResponseFormatter.error(res, 'Error interno del servidor', 500);
     }
   }
 
@@ -109,7 +109,7 @@ export class AdminController {
       });
 
       if (!user) {
-        return res.status(404).json(formatResponse(false, 'Usuario no encontrado'));
+        return ResponseFormatter.error(res, 'Usuario no encontrado', 404);
       }
 
       switch (action) {
@@ -126,13 +126,13 @@ export class AdminController {
           });
           break;
         default:
-          return res.status(400).json(formatResponse(false, 'Acción no válida'));
+          return ResponseFormatter.error(res, 'Acción no válida', 400);
       }
 
-      res.json(formatResponse(true, `Usuario ${action} exitosamente`));
+      ResponseFormatter.success(res, null, `Usuario ${action} exitosamente`);
     } catch (error) {
       console.error('Error managing user:', error);
-      res.status(500).json(formatResponse(false, 'Error interno del servidor'));
+      ResponseFormatter.error(res, 'Error interno del servidor', 500);
     }
   }
 }

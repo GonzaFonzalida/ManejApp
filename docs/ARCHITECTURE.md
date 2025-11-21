@@ -100,7 +100,19 @@ ManejApp es una aplicación de gestión de clases de conducción que permite a e
 - Integra con Payments para iniciar pagos.
 - Usa Users para roles de estudiante/instructor.
 
-### 10. Compartido (Shared)
+### 10. Mensajería (Messages)
+**Funcionalidades:**
+- Comunicación directa entre estudiantes e instructores.
+- Conversaciones privadas con historial de mensajes.
+- Marcado de mensajes como leídos.
+- Conteo de mensajes no leídos.
+
+**Conexiones:**
+- Asociado a Users: cualquier usuario puede enviar mensajes.
+- Usa notificaciones para alertas de nuevos mensajes.
+- Integra con el sistema de autenticación.
+
+### 11. Compartido (Shared)
 **Funcionalidades:**
 - Utilidades: logging, middlewares, validaciones Zod.
 - Contenedor de DI para inyección de dependencias.
@@ -125,6 +137,8 @@ graph TD
     B --> I
     I --> F
     I --> G
+    B --> L[Messages]
+    L --> M[Notifications]
     J[Admin] --> B
     K[Shared] --> A
     K --> B
@@ -135,6 +149,7 @@ graph TD
     K --> G
     K --> I
     K --> J
+    K --> L
 ```
 
 ## Flujo de Comunicación

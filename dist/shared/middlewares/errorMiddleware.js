@@ -31,7 +31,11 @@ const errorHandler = (err, req, res, next) => {
         });
     }
     // Log unexpected errors as errors
-    requestLogger.error(`Unhandled error: ${err.message}`, err, {
+    requestLogger.error(`Unhandled error: ${err.message}`, {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+    }, {
         statusCode: 500,
         responseTime,
     }, {
@@ -39,16 +43,6 @@ const errorHandler = (err, req, res, next) => {
         host: req.host,
         url: req.originalUrl,
         method: req.method,
-    });
-    return res.status(500).json({
-        message: "Error interno del servidor",
-        errorName: err.name,
-        host: req.host,
-        url: req.originalUrl,
-        method: req.method,
-        statusCode: 500,
-        ok: false,
-        time: time,
     });
 };
 exports.default = errorHandler;

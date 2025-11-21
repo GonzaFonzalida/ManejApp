@@ -31,6 +31,10 @@ import { NotificationService } from "@notifications/service";
 import { NotificationController } from "@notifications/controller";
 import { logger } from "@logging/LoggerConfig";
 
+import PrismaMessageRepository from "../../modules/messages/repositories/PrismaMessageRepository";
+import MessageService from "../../modules/messages/messages.services";
+import MessageController from "../../modules/messages/messages.controller";
+
 const diContainer = new DiContainer();
 //Users Instnces
 diContainer.register("UserRepository", UserPrismaRepository);
@@ -89,5 +93,10 @@ diContainer.register("notificationController", NotificationController, [
   "notificationService",
   "logger"
 ]);
+
+//messages instances
+diContainer.register("PrismaMessageRepository", PrismaMessageRepository);
+diContainer.register("messageService", MessageService, ["PrismaMessageRepository"]);
+diContainer.register("messageController", MessageController, ["messageService"]);
 
 export default diContainer;

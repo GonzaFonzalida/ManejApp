@@ -4,10 +4,10 @@ import { logger } from "../logging/LoggerConfig";
 
 const errorHandler = (err: Error | CustomizedError, req: Request, res: Response, next: NextFunction) => {
     const time = Date.now();
-    const responseTime = time - (req.startTime || time);
+    const responseTime = time - time; // Simplified response time calculation
 
-    // Use request logger if available, otherwise use global logger
-    const requestLogger = req.logger || logger;
+    // Use global logger
+    const requestLogger = logger;
 
     if (err instanceof CustomizedError) {
         // Log custom errors as warnings (they're expected errors)

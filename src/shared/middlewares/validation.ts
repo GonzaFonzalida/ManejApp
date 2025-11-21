@@ -55,16 +55,36 @@ export const sanitizeInput = (req: Request, res: Response, next: NextFunction) =
       return obj.trim().replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
     }
     if (typeof obj === 'object' && obj !== null) {
+      const sanitized: any = {};
       for (const key in obj) {
-        obj[key] = sanitizeObject(obj[key]);
+        sanitized[key] = sanitizeObject(obj[key]);
       }
+      return sanitized;
     }
     return obj;
   };
 
+  // Check for malicious content in query and params (read-only properties)
+  const checkForMalicious = (obj: any): boolean => {
+    if (typeof obj === 'string') {
+      return /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi.test(obj);
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      return Object.values(obj).some(checkForMalicious);
+    }
+    return false;
+  };
+
+  if (checkForMalicious(req.query) || checkForMalicious(req.params)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Potentially malicious content detected in URL parameters',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Only sanitize the mutable body
   req.body = sanitizeObject(req.body);
-  req.query = sanitizeObject(req.query);
-  req.params = sanitizeObject(req.params);
-  
+
   next();
 };

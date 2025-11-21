@@ -53,6 +53,26 @@ export const preventXSS = (req: Request, res: Response, next: NextFunction) => {
     /<embed/gi
   ];
 
+  const checkForXSS = (value: any): boolean => {
+    if (typeof value === 'string') {
+      return xssPatterns.some(pattern => pattern.test(value));
+    }
+    if (typeof value === 'object' && value !== null) {
+      return Object.values(value).some(checkForXSS);
+    }
+    return false;
+  };
+
+  // Check for XSS in body, query, and params
+  if (checkForXSS(req.body) || checkForXSS(req.query) || checkForXSS(req.params)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Potentially malicious content detected',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Sanitize only the body (which is mutable)
   const sanitizeValue = (value: any): any => {
     if (typeof value === 'string') {
       let sanitized = value;
@@ -72,8 +92,6 @@ export const preventXSS = (req: Request, res: Response, next: NextFunction) => {
   };
 
   req.body = sanitizeValue(req.body);
-  req.query = sanitizeValue(req.query);
-  req.params = sanitizeValue(req.params);
 
   next();
 };

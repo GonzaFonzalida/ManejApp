@@ -24,6 +24,9 @@ model User {
   notificationTokens NotificationToken?
   sessions           Session[]
   student            Student?
+  sentMessages       Message[]
+  conversationsAsP1  Conversation[]     @relation("ConversationParticipant1")
+  conversationsAsP2  Conversation[]     @relation("ConversationParticipant2")
 
   @@index([role])
 }
@@ -202,6 +205,36 @@ model BlacklistedToken {
   @@index([jti])
   @@index([expiresAt])
   @@map("blacklisted_tokens")
+}
+
+model Conversation {
+  id             Int      @id @default(autoincrement())
+  participant1Id Int
+  participant2Id Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  messages       Message[]
+  participant1   User     @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2   User     @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+
+  @@index([participant1Id])
+  @@index([participant2Id])
+  @@unique([participant1Id, participant2Id])
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  content        String
+  sentAt         DateTime     @default(now())
+  readAt         DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([sentAt])
 }
 
 enum Role {

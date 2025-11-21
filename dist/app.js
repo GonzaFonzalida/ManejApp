@@ -23,9 +23,13 @@ const auth_routes_1 = __importDefault(require("@auth/auth.routes"));
 const permissions_routes_1 = __importDefault(require("@permissions/permissions.routes"));
 const improved_cars_routes_1 = __importDefault(require("@cars/improved-cars.routes"));
 const routes_1 = __importDefault(require("@drivingClass/routes"));
-const payment_routes_1 = __importDefault(require("@payments/payment.routes"));
+const functional_payment_routes_1 = require("@payments/functional-payment.routes");
+const commission_routes_1 = __importDefault(require("@payments/commission.routes"));
 const schedule_routes_1 = require("@schedule/schedule.routes");
 const routes_2 = require("@notifications/routes");
+const messages_routes_1 = __importDefault(require("./modules/messages/messages.routes"));
+const admin_routes_1 = __importDefault(require("./modules/admin/admin.routes"));
+const SchedulerService_1 = __importDefault(require("./shared/services/SchedulerService"));
 const buildApp = () => {
     const userController = container_1.default.resolve("userController");
     const userRouter = new user_routes_1.default(userController).init();
@@ -35,12 +39,12 @@ const buildApp = () => {
     const authRouter = (0, auth_routes_1.default)(authController);
     const drivingClassController = container_1.default.resolve("DrivingClassController");
     const drivingClassRouter = new routes_1.default(drivingClassController).init();
-    const paymentController = container_1.default.resolve("paymentController");
-    const paymentRouter = new payment_routes_1.default(paymentController).init();
+    // Payment routes are now self-contained
     const scheduleController = container_1.default.resolve("scheduleController");
     const scheduleRouter = new schedule_routes_1.ScheduleRouter(scheduleController).init();
     const notificationController = container_1.default.resolve("notificationController");
     const notificationRouter = new routes_2.NotificationRoutes(notificationController).getRouter();
+    const messageController = container_1.default.resolve("messageController");
     const app = (0, express_1.default)();
     // Swagger configuration
     const swaggerOptions = {
@@ -116,13 +120,15 @@ const buildApp = () => {
     app.use("/api/v1/cars", improved_cars_routes_1.default);
     app.use("/api/v1/auth", authRouter);
     app.use("/api/v1/classes", drivingClassRouter);
-    app.use("/api/v1/payments", paymentRouter);
+    app.use("/api/v1/payments", functional_payment_routes_1.functionalPaymentRoutes);
+    app.use("/api/v1/payments", functional_payment_routes_1.webhookRouter);
+    app.use("/api/v1/payments", commission_routes_1.default);
     app.use("/api/v1/schedule", scheduleRouter);
     app.use("/api/v1/notifications", notificationRouter);
-    //modulos
-    // app.use("/permissions"); // ya registrado arriba
-    // app.use("/admin");
-    // app.use("/cars") // ya registrado arriba
+    app.use("/api/v1/messages", messages_routes_1.default);
+    app.use("/api/v1/admin", admin_routes_1.default);
+    // Iniciar tareas programadas
+    SchedulerService_1.default.start();
     app.use(notFoundMiddleware_1.default);
     app.use(requestLogger_1.errorLoggerMiddleware); // Log errors before handling them
     app.use(errorMiddleware_1.default);
@@ -140,7 +146,8 @@ const buildApp = () => {
             '/classes',
             '/payments',
             '/schedule',
-            '/notifications'
+            '/notifications',
+            '/messages'
         ]
     });
     return app;
