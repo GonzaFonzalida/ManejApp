@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createLogsTableSQL = exports.DatabaseTransport = void 0;
-const prismaClient_1 = require("@config/prismaClient");
+const prismaClient_1 = require("../../../config/prismaClient");
 class DatabaseTransport {
     config;
     cleanupInterval = null;
