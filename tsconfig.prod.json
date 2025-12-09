@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./",
+    "paths": {
+      "@config/*": ["src/config/*"],
+      "@shared/*": ["src/shared/*"],
+      "@utils/*": ["src/shared/utils/*"],
+      "@sharedTypes/*": ["src/shared/types/*"],
+      "@classes/*": ["src/shared/classes/*"],
+      "@middlewares/*": ["src/shared/middlewares/*"],
+      "@logging/*": ["src/shared/logging/*"],
+      "@auth/*": ["src/modules/auth/*"],
+      "@users/*": ["src/modules/users/*"],
+      "@cars/*": ["src/modules/cars/*"],
+      "@instructors/*": ["src/modules/instructors/*"],
+      "@permissions/*": ["src/modules/permissions/*"],
+      "@drivingClass/*": ["src/modules/drivingClass/*"],
+      "@payments/*": ["src/modules/payments/*"],
+      "@schedule/*": ["src/modules/schedule/*"],
+      "@notifications/*": ["src/modules/notifications/*"]
+    }
+  }
+}
