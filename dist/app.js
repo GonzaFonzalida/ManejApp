@@ -46,6 +46,8 @@ const buildApp = () => {
     const notificationRouter = new routes_2.NotificationRoutes(notificationController).getRouter();
     const messageController = container_1.default.resolve("messageController");
     const app = (0, express_1.default)();
+    // Trust proxy for production (behind reverse proxy/load balancer)
+    app.set('trust proxy', true);
     // Swagger configuration
     const swaggerOptions = {
         definition: {

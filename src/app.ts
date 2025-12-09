@@ -74,6 +74,9 @@ export const buildApp = () => {
 
     const app = express();
 
+    // Trust proxy for production (behind reverse proxy/load balancer)
+    app.set('trust proxy', true);
+
     // Swagger configuration
     const swaggerOptions = {
       definition: {
