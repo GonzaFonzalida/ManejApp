@@ -47,7 +47,8 @@ const buildApp = () => {
     const messageController = container_1.default.resolve("messageController");
     const app = (0, express_1.default)();
     // Trust proxy for production (behind reverse proxy/load balancer)
-    app.set('trust proxy', true);
+    // Set to 1 to trust the first proxy (common for single proxy setups)
+    app.set('trust proxy', 1);
     // Swagger configuration
     const swaggerOptions = {
         definition: {
