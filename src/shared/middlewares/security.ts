@@ -13,6 +13,9 @@ export const generalRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    trustProxy: false, // Disable trust proxy validation
+  },
 });
 
 // Stricter rate limiting for auth endpoints
@@ -25,6 +28,9 @@ export const authRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    trustProxy: false, // Disable trust proxy validation
+  },
 });
 
 // CORS configuration

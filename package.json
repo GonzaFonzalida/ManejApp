@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "start": "pnpm run build && node dist/index.js",
+    "start": "pnpm run build && node -r ./tsconfig-paths-bootstrap.js dist/index.js",
     "dev": "ts-node-dev --watch --clear --quiet -r tsconfig-paths/register src/index.ts ",
     "build": "tsc && tsc-alias",
     "dev:ngrok": "concurrently \"npm run dev\" \"ngrok http 3000\"",
