@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ManejApp - Escuela de Manejo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 800px;
+            padding: 2rem;
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .description {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .feature h3 {
+            margin-bottom: 0.5rem;
+            color: #ffd700;
+        }
+
+        .status {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 2rem 0;
+        }
+
+        .api-link {
+            display: inline-block;
+            background: #ffd700;
+            color: #333;
+            padding: 0.75rem 1.5rem;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 1rem 0.5rem 0 0;
+            transition: transform 0.2s;
+        }
+
+        .api-link:hover {
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            margin-top: 3rem;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 3rem;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚗 ManejApp</div>
+        <div class="subtitle">Escuela de Manejo Profesional</div>
+
+        <div class="description">
+            Sistema completo de gestión para escuelas de manejo. Administra clases, instructores,
+            vehículos y pagos de forma automática con integración de Mercado Pago.
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <h3>📱 App Móvil</h3>
+                <p>Interfaz intuitiva para estudiantes e instructores</p>
+            </div>
+            <div class="feature">
+                <h3>💳 Pagos Automáticos</h3>
+                <p>Integración completa con Mercado Pago</p>
+            </div>
+            <div class="feature">
+                <h3>📊 Dashboard Admin</h3>
+                <p>Control total del sistema y reportes</p>
+            </div>
+            <div class="feature">
+                <h3>🔔 Notificaciones</h3>
+                <p>Push notifications automáticas</p>
+            </div>
+        </div>
+
+        <div class="status">
+            ✅ <strong>Sistema Operativo</strong> - API funcionando correctamente
+        </div>
+
+        <div>
+            <a href="/api-docs" class="api-link">📚 Documentación API</a>
+            <a href="/health" class="api-link">❤️ Health Check</a>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 ManejApp - Sistema de Gestión para Escuelas de Manejo</p>
+            <p>Versión 1.0.0 - Producción</p>
+        </div>
+    </div>
+</body>
+</html>
