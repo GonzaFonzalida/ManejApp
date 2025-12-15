@@ -117,7 +117,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                         return Chip(
                           avatar: Icon(_getLevelIcon(level), size: 16, color: _getLevelColor(level)),
                           label: Text('$level: $count'),
-                          backgroundColor: _getLevelColor(level).withOpacity(0.1),
+                          backgroundColor: _getLevelColor(level).withValues(alpha: 0.1),
                         );
                       }).toList(),
                     ),
@@ -130,7 +130,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _selectedLevel,
+                      initialValue: _selectedLevel,
                       decoration: const InputDecoration(
                         labelText: 'Filtrar por nivel',
                         border: OutlineInputBorder(),

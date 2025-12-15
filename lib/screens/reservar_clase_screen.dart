@@ -88,45 +88,33 @@ class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Validate slot ID
-      final slotId = _selectedSlot!.id;
-      debugPrint('DEBUG: Slot ID: $slotId (type: ${slotId.runtimeType})');
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedSlot!.date);
+      final timeStr = _selectedSlot!.startTime;
       
-      if (slotId == null) {
-        throw Exception('ID del slot es null');
-      }
+      final reservationData = {
+        'date': dateStr,
+        'time': timeStr,
+      };
       
-      final slotIdString = slotId.toString();
-      debugPrint('DEBUG: Slot ID string: "$slotIdString"');
+      final reservationResult = await ApiService.reserveClass(_instructorId!, reservationData);
+      final classId = reservationResult['id'];
       
-      if (slotIdString.isEmpty || slotIdString == 'null') {
-        throw Exception('ID del slot no válido: $slotIdString');
-      }
-      
-      // 1. Reservar el slot (esto ya crea la clase automáticamente)
-      final reservationResult = await ApiService.reserveScheduleSlot(slotIdString);
-      final classId = reservationResult['drivingClass']['id'];
-      
-      debugPrint('DEBUG: Class ID from reservation: $classId');
-      
-      // 3. Crear preferencia de pago
       final response = await ApiService.mpCreatePreference(
         drivingClassId: classId,
-        amount: 1, // Precio de prueba
+        amount: 1,
         description: 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''} el ${DateFormat('dd/MM/yyyy').format(_selectedSlot!.date)} a las ${_selectedSlot!.startTime}',
         payerEmail: await storage.read(key: 'user_email'),
       );
       
       if (!mounted) return;
       
-      // 4. Navegar a pantalla de pago
       Navigator.pushNamed(
         context,
         PaymentScreen.routeName,
         arguments: {
           'preferenceId': response['id'],
           'drivingClassId': classId,
-          'amount': 1, // Precio de prueba
+          'amount': 1,
           'description': 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}',
         },
       );

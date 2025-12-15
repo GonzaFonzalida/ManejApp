@@ -23,7 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Instructor> _instructors = [];
   List<Instructor> _filteredInstructors = [];
-  Map<String, LatLng> _instructorLocations = {};
+  final Map<String, LatLng> _instructorLocations = {};
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();

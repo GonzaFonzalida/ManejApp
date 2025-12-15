@@ -32,7 +32,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   }
 
   Future<void> _loadProfile() async {
+    debugPrint('=== LOADING PROFILE ===');
     String? userId = await storage.read(key: 'user_id');
+    debugPrint('userId from storage: $userId');
     
     if (userId == null || userId.isEmpty) {
       final token = await storage.read(key: 'auth_token');
@@ -57,8 +59,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     
     if (userId != null && userId.isNotEmpty) {
       try {
+        debugPrint('Fetching profile from API...');
         final profile = await ApiService.getUserProfile(userId);
+        debugPrint('Profile received: $profile');
         final isInstructor = profile['role'] == 'INSTRUCTOR';
+        debugPrint('Is instructor: $isInstructor');
         
         if (mounted) {
           final fullImageUrl = profile['profileImageUrl'] as String?;
@@ -75,15 +80,21 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         
         if (isInstructor) {
           try {
+            debugPrint('Fetching instructor data...');
             final instructors = await ApiService.getInstructors();
+            debugPrint('Instructors count: ${instructors.length}');
             final instructor = instructors.firstWhere(
               (i) => i['userId'].toString() == userId,
               orElse: () => null,
             );
-            if (instructor != null && mounted) {
-              setState(() {
-                controller.descripcionController.text = instructor['description'] ?? '';
-              });
+            debugPrint('Instructor found: ${instructor != null}');
+            if (instructor != null) {
+              debugPrint('Instructor description: ${instructor['description']}');
+              if (mounted) {
+                setState(() {
+                  controller.descripcionController.text = instructor['description'] ?? '';
+                });
+              }
             }
           } catch (e) {
             debugPrint('Error cargando instructor: $e');
@@ -296,7 +307,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withOpacity(0.3),
+                              color: Colors.blue.withValues(alpha: 0.3),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -347,7 +358,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             color: Colors.white,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -503,7 +514,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 elevation: 8,
-                shadowColor: Colors.blue.withOpacity(0.4),
+                shadowColor: Colors.blue.withValues(alpha: 0.4),
               ),
               child: _isLoading
                   ? const SizedBox(
@@ -547,7 +558,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

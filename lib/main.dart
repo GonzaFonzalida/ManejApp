@@ -18,6 +18,7 @@ import 'package:manejapp/screens/admin_dashboard_screen.dart';
 import 'package:manejapp/screens/settings_screen.dart';
 import 'package:manejapp/screens/chat_screen.dart';
 import 'package:manejapp/screens/onboarding_screen.dart';
+import 'package:manejapp/screens/instructor_car_screen.dart';
 import 'package:manejapp/services/notification_service.dart';
 import 'package:manejapp/services/config_service.dart';
 
@@ -134,6 +135,7 @@ class _MyAppState extends State<MyApp> {
         },
         // Rutas del instructor
         InstructorDashboardScreen.routeName: (context) => const InstructorDashboardScreen(),
+        '/instructor_car': (context) => const InstructorCarScreen(),
         // Rutas del estudiante  
         StudentDashboardScreen.routeName: (context) => const StudentDashboardScreen(),
         '/student_classes': (context) => const StudentClassesScreen(),

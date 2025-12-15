@@ -114,7 +114,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
                   Switch(
                     value: user['user']?['isActive'] ?? user['isActive'] ?? true,
                     onChanged: (value) => _toggleUserStatus(user, value),
-                    activeColor: Colors.green,
+                    activeTrackColor: Colors.green,
                   ),
                   PopupMenuButton(
                     itemBuilder: (context) => [

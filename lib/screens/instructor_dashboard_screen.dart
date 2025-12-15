@@ -264,6 +264,19 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, '/instructor_car'),
+                        icon: const Icon(Icons.directions_car),
+                        label: const Text('Mi Auto'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

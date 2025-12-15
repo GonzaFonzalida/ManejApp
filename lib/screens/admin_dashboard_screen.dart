@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../services/api_service.dart';
 import 'admin_users_screen.dart';
 import 'admin_reports_screen.dart';
@@ -22,7 +21,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    print('AdminDashboard initState called');
+    debugPrint('AdminDashboard initState called');
     _loadStats();
   }
 
@@ -115,7 +114,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildDashboard() {
-    print('Building dashboard with stats: $_stats');
+    debugPrint('Building dashboard with stats: $_stats');
     return RefreshIndicator(
       onRefresh: _loadStats,
       child: SingleChildScrollView(

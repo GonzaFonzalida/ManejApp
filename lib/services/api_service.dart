@@ -74,6 +74,9 @@ class ApiService {
     int? experienceYears,
     int? carId,
   }) async {
+    developer.log('=== COMPLETE REGISTRATION ===', name: 'ApiService');
+    developer.log('userId: $userId, role: $role', name: 'ApiService');
+    
     if (role == 'Instructor') {
       final data = {
         'userId': int.parse(userId),
@@ -94,28 +97,8 @@ class ApiService {
             errorData?['message'] ?? 'Error al registrar instructor';
         throw Exception(message);
       }
-    } else {
-      final data = {
-        'userId': int.parse(userId),
-      };
-      final response = await http.post(
-        Uri.parse('$_baseUrl/students/register'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(data),
-      );
-
-      if (response.statusCode != 201) {
-        final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-        final message = errorData?['message'] ?? 'Error al registrar estudiante';
-        throw Exception(message);
-      }
     }
-  }
-
-  static Future<void> registerAsStudent(String userId) async {
-    await completeRegistration(userId, 'Alumno');
+    // Para estudiantes no se hace nada, el backend los crea automáticamente al reservar
   }
 
   static Future<List<dynamic>> getCars() async {
