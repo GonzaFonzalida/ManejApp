@@ -123,48 +123,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Estado de Clases', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 200,
-                            child: PieChart(
-                              PieChartData(
-                                sections: [
-                                  PieChartSectionData(
-                                    value: _reportData['completedClasses'].toDouble(),
-                                    title: 'Completadas',
-                                    color: Colors.green,
-                                    radius: 80,
-                                  ),
-                                  PieChartSectionData(
-                                    value: (_reportData['totalClasses'] - _reportData['completedClasses'] - _reportData['canceledClasses']).toDouble(),
-                                    title: 'Programadas',
-                                    color: Colors.blue,
-                                    radius: 80,
-                                  ),
-                                  PieChartSectionData(
-                                    value: _reportData['canceledClasses'].toDouble(),
-                                    title: 'Canceladas',
-                                    color: Colors.red,
-                                    radius: 80,
-                                  ),
-                                ],
-                                sectionsSpace: 2,
-                                centerSpaceRadius: 40,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,

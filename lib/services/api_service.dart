@@ -3,11 +3,12 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:developer' as developer;
+import 'config_service.dart';
 
 const storage = FlutterSecureStorage();
 
 class ApiService {
-  static const String _baseUrl = 'http://72.60.166.178:3000/api/v1';
+  static String get _baseUrl => '${ConfigService.baseUrl}/api/v1';
 
 
 
@@ -24,7 +25,6 @@ class ApiService {
     String birthDate,
   ) async {
     final userAgent = 'Flutter-Mobile-App/1.0';
-    final ip = '192.168.0.3';
     final deviceId = 'flutter-mobile-app';
 
     final response = await http.post(
@@ -40,7 +40,6 @@ class ApiService {
         'dni': dni,
         'birthDate': birthDate,
         'userAgent': userAgent,
-        'ip': ip,
         'deviceId': deviceId,
       }),
     );
@@ -96,22 +95,18 @@ class ApiService {
         throw Exception(message);
       }
     } else {
-      // ✅ Registrar estudiante usando nueva ruta PATCH /users/:id/role
-      //    - Backend normaliza "Alumno" -> "STUDENT"
-      //    - Respuesta esperada: 200 OK con usuario sin password
-      final token = await storage.read(key: 'auth_token');
-      final headers = {
-        'Content-Type': 'application/json; charset=UTF-8',
-        if (token != null) 'Authorization': 'Bearer $token',
+      final data = {
+        'userId': int.parse(userId),
       };
-
-      final response = await http.patch(
-        Uri.parse('$_baseUrl/users/$userId/role'),
-        headers: headers,
-        body: jsonEncode({'role': role}),
+      final response = await http.post(
+        Uri.parse('$_baseUrl/students/register'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(data),
       );
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode != 201) {
         final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
         final message = errorData?['message'] ?? 'Error al registrar estudiante';
         throw Exception(message);
@@ -149,19 +144,27 @@ class ApiService {
       throw Exception('No hay token de autenticación disponible.');
     }
 
-    final response = await http.get(
-      Uri.parse('$_baseUrl/instructors'),
-      headers: <String, String>{
-        'Authorization': 'Bearer $token',
-      },
-    );
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/instructors'),
+        headers: <String, String>{
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    } else {
-      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-      final message = errorData?['message'] ?? 'Error al obtener instructores';
-      throw Exception(message);
+      developer.log('getInstructors - Status: ${response.statusCode}', name: 'ApiService');
+      developer.log('getInstructors - Body: ${response.body}', name: 'ApiService');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      } else {
+        final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+        final message = errorData?['message'] ?? 'Error al obtener instructores';
+        throw Exception(message);
+      }
+    } catch (e) {
+      developer.log('Error en getInstructors: $e', name: 'ApiService');
+      throw Exception('No se pudo conectar al servidor en $_baseUrl');
     }
   }
 
@@ -239,19 +242,6 @@ class ApiService {
       throw Exception('Sesión inválida. Inicia sesión nuevamente.');
     }
 
-    // Upsert de Student previo a la reserva (idempotente)
-    try {
-      await http.patch(
-        Uri.parse('$_baseUrl/users/$userId/role'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'role': 'Alumno'}),
-      );
-    } catch (_) {
-      // ignorar errores de upsert preventivo
-    }
     // Helper para reservar
     Future<http.Response> doReserve() {
       // Normalizar hora a HH:mm:ss si viene en HH:mm
@@ -332,17 +322,7 @@ class ApiService {
             (errText.contains('student') && (errText.contains('exist') || (errText.contains('not') && errText.contains('found'))));
 
         if (isStudentMissing) {
-          // Asegurar Student con PATCH role (backend hace upsert al poner STUDENT/"Alumno")
-          await http.patch(
-            Uri.parse('$_baseUrl/users/$userId/role'),
-            headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({'role': 'Alumno'}), // backend normaliza -> STUDENT
-          );
-
-          // Pequeño delay por consistencia eventual y reintentar una vez
+          // Reintentar la reserva
           await Future.delayed(const Duration(milliseconds: 500));
           response = await doReserve();
           developer.log('reserveClass retry status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
@@ -382,7 +362,6 @@ class ApiService {
 
   static Future<Map<String, dynamic>> login(String email, String password) async {
     final userAgent = 'Flutter-Mobile-App/1.0';
-    final ip = '192.168.1.1';
 
     final response = await http.post(
       Uri.parse('$_baseUrl/auth/login'),
@@ -394,7 +373,6 @@ class ApiService {
         'email': email,
         'password': password,
         'userAgent': userAgent,
-        'ip': ip,
         'deviceId': 'flutter-mobile-app',
       }),
     );
@@ -487,21 +465,26 @@ class ApiService {
     }
 
     final url = '$_baseUrl/users/$userId';
-    final response = await http.get(
-      Uri.parse(url),
-      headers: <String, String>{
-        'Authorization': 'Bearer $token',
-      },
-    );
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: <String, String>{
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error al obtener el perfil del usuario');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Error al obtener el perfil del usuario');
+      }
+    } catch (e) {
+      developer.log('Error en getUserProfile: $e', name: 'ApiService');
+      throw Exception('No se pudo conectar al servidor. Verifica tu conexión.');
     }
   }
 
-  static Future<void> updateUser(String userId, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateUser(String userId, Map<String, dynamic> data) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
@@ -516,17 +499,22 @@ class ApiService {
       body: jsonEncode(data),
     );
 
-    if (response.statusCode != 200) {
+    if (response.statusCode == 200) {
+      final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+      return responseData['user'] as Map<String, dynamic>? ?? responseData;
+    } else {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
       throw Exception(errorData?['message'] ?? 'Error al actualizar usuario');
     }
   }
 
-  static Future<String> uploadProfileImage(String userId, File imageFile) async {
+  static Future<Map<String, dynamic>> uploadProfileImage(String userId, File imageFile) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
-    developer.log('Subiendo imagen - userId: $userId, path: ${imageFile.path}', name: 'ApiService');
+    developer.log('=== UPLOAD IMAGE ===', name: 'ApiService');
+    developer.log('URL: $_baseUrl/users/$userId/upload-profile-image', name: 'ApiService');
+    developer.log('File: ${imageFile.path}', name: 'ApiService');
 
     final request = http.MultipartRequest(
       'POST',
@@ -536,7 +524,6 @@ class ApiService {
     request.headers['Authorization'] = 'Bearer $token';
     request.files.add(await http.MultipartFile.fromPath('profileImage', imageFile.path));
 
-    developer.log('Enviando request...', name: 'ApiService');
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
 
@@ -545,9 +532,7 @@ class ApiService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final imageUrl = data['profileImage'] as String;
-      developer.log('Imagen subida exitosamente: $imageUrl', name: 'ApiService');
-      return imageUrl;
+      return data;
     } else {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
       throw Exception(errorData?['message'] ?? 'Error al subir imagen (${response.statusCode})');
@@ -1281,6 +1266,100 @@ class ApiService {
     } else {
       final errorData = jsonDecode(res.body) as Map<String, dynamic>?;
       throw Exception(errorData?['message'] ?? 'Error al consultar estado');
+    }
+  }
+
+  // ===========================
+  // ADMIN
+  // ===========================
+
+  static Future<Map<String, dynamic>> getAdminDashboardStats() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/admin/dashboard/stats'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo estadísticas');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getSystemHealth() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/admin/system/health'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo salud del sistema');
+    }
+  }
+
+  static Future<void> manageUser(String userId, {required bool isActive}) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/admin/users/$userId/manage'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'action': isActive ? 'activate' : 'deactivate'}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error gestionando usuario');
+    }
+  }
+
+  // ===========================
+  // LOGS
+  // ===========================
+
+  static Future<Map<String, dynamic>> getLogs({String? level, int limit = 100, int offset = 0}) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final queryParams = {
+      'limit': limit.toString(),
+      'offset': offset.toString(),
+      if (level != null) 'level': level,
+    };
+
+    final uri = Uri.parse('$_baseUrl/logs').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo logs');
+    }
+  }
+
+  static Future<List<dynamic>> getLogStats() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/logs/stats'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo estadísticas de logs');
     }
   }
 }

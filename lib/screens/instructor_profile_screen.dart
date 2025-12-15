@@ -238,7 +238,7 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                             const SizedBox(height: 16),
                             _buildInfoField(
                               'Nombre Completo',
-                              '${_user?['name'] ?? ''} ${_user?['surname'] ?? ''}',
+                              '${_instructor?['user']?['firstName'] ?? _user?['firstName'] ?? ''} ${_instructor?['user']?['lastName'] ?? _user?['lastName'] ?? ''}',
                               Icons.person,
                             ),
                             _buildInfoField(

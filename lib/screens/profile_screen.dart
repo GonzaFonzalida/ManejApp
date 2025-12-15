@@ -33,25 +33,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final userId = await storage.read(key: 'user_id');
     if (userId != null) {
       final profile = await ApiService.getUserProfile(userId);
-      var profileImage = profile['profileImage'] as String?;
       
-      if (profileImage == null || profileImage.isEmpty) {
-        profileImage = await storage.read(key: 'profile_image_url');
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _profileImageUrl = profile['profileImageUrl'] as String?;
+          _imageTimestamp = DateTime.now().millisecondsSinceEpoch;
+          _hourlyRate = profile['hourlyRate'] as double?;
+        });
       }
-      
-      debugPrint('=== PROFILE SCREEN DEBUG ===');
-      debugPrint('Profile image from API: ${profile['profileImage']}');
-      debugPrint('Profile image from storage: ${await storage.read(key: 'profile_image_url')}');
-      debugPrint('Using: $profileImage');
-      
-      final fullImageUrl = profileImage != null && profileImage.isNotEmpty
-          ? (profileImage.startsWith('http') ? profileImage : 'http://192.168.0.3:3000$profileImage')
-          : null;
-      debugPrint('Full image URL: $fullImageUrl');
-      debugPrint('===========================');
-      
-      String? instructorDescription;
-      double? hourlyRate = profile['hourlyRate'] as double?;
       
       if (profile['role'] == 'INSTRUCTOR') {
         try {
@@ -60,22 +50,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             (i) => i['userId'].toString() == userId,
             orElse: () => null,
           );
-          if (instructor != null) {
-            instructorDescription = instructor['description'] as String?;
+          if (instructor != null && mounted) {
+            setState(() {
+              _instructorDescription = instructor['description'] as String?;
+            });
           }
         } catch (e) {
-          debugPrint('Error cargando datos de instructor: $e');
+          debugPrint('Error: $e');
         }
-      }
-      
-      if (mounted) {
-        setState(() {
-          _profile = profile;
-          _profileImageUrl = fullImageUrl;
-          _imageTimestamp = DateTime.now().millisecondsSinceEpoch;
-          _instructorDescription = instructorDescription;
-          _hourlyRate = hourlyRate;
-        });
       }
     }
   }
@@ -140,15 +122,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.blue.shade100,
-                    backgroundImage: _profileImageUrl != null
+                    backgroundImage: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
                         ? NetworkImage('$_profileImageUrl?t=$_imageTimestamp')
                         : null,
-                    onBackgroundImageError: _profileImageUrl != null
-                        ? (exception, stackTrace) {
-                            debugPrint('Error cargando imagen de perfil: $exception');
-                          }
-                        : null,
-                    child: _profileImageUrl == null
+                    child: _profileImageUrl == null || _profileImageUrl!.isEmpty
                         ? Icon(Icons.person, size: 50, color: Colors.blue.shade600)
                         : null,
                   ),
@@ -188,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _profile?['name'] ?? 'Nombre de Usuario',
+              '${_profile?['firstName'] ?? _profile?['name'] ?? ''} ${_profile?['lastName'] ?? _profile?['surname'] ?? ''}',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -203,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            _buildProfileItem(Icons.person, "Nombre completo", _profile?['name'] ?? "Nombre de Usuario"),
+            _buildProfileItem(Icons.person, "Nombre completo", '${_profile?['firstName'] ?? _profile?['name'] ?? ''} ${_profile?['lastName'] ?? _profile?['surname'] ?? ''}'),
             _buildProfileItem(Icons.email, "Correo electrónico", _profile?['email'] ?? "usuario@email.com"),
             _buildProfileItem(Icons.calendar_today, "Fecha de nacimiento", _formatDate(_profile?['birthDate'])),
             _buildProfileItem(Icons.location_on, "Ubicación", _profile?['location'] ?? "No especificada"),

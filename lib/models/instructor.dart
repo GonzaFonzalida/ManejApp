@@ -43,6 +43,7 @@ class User {
   final double? hourlyRate;
   final String? location;
   final String? profileImage;
+  final String? profileImageUrl;
 
   User({
     required this.id,
@@ -53,6 +54,7 @@ class User {
     this.hourlyRate,
     this.location,
     this.profileImage,
+    this.profileImageUrl,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -65,6 +67,7 @@ class User {
       hourlyRate: (json['hourlyRate'] as num?)?.toDouble(),
       location: json['location'] as String?,
       profileImage: json['profileImage'] as String?,
+      profileImageUrl: json['profileImageUrl'] as String?,
     );
   }
 }

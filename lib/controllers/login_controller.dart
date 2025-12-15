@@ -91,13 +91,16 @@ class LoginController {
       try {
         final userInfo = await ApiService.getMe();
         debugPrint('UserInfo completo: $userInfo');
-        final userRole = userInfo['user']?['role']?.toString().toLowerCase();
+        final userRole = userInfo['user']?['role']?.toString().toUpperCase();
         debugPrint('Rol detectado: $userRole');
         
         if (!context.mounted) return;
         
         String targetRoute;
-        if (userRole == 'instructor') {
+        if (userRole == 'ADMIN') {
+          targetRoute = '/admin_dashboard';
+          debugPrint('Redirigiendo a admin dashboard');
+        } else if (userRole == 'INSTRUCTOR') {
           targetRoute = '/instructor_dashboard';
           debugPrint('Redirigiendo a instructor dashboard');
         } else {

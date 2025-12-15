@@ -19,9 +19,11 @@ import 'package:manejapp/screens/settings_screen.dart';
 import 'package:manejapp/screens/chat_screen.dart';
 import 'package:manejapp/screens/onboarding_screen.dart';
 import 'package:manejapp/services/notification_service.dart';
+import 'package:manejapp/services/config_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ConfigService.loadConfig();
   await NotificationService.initialize();
   runApp(const MyApp());
 }
@@ -58,6 +60,24 @@ class _MyAppState extends State<MyApp> {
     final hasToken = await storage.read(key: 'auth_token') != null;
 
     if (isValid && hasToken) {
+      // Verificar el rol del usuario
+      try {
+        final userId = await storage.read(key: 'user_id');
+        if (userId != null) {
+          final profile = await ApiService.getUserProfile(userId);
+          final role = profile['role'] as String?;
+          
+          if (role == 'ADMIN') {
+            setState(() {
+              _initialRoute = AdminDashboardScreen.routeName;
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error verificando rol: $e');
+      }
+      
       setState(() {
         _initialRoute = HomeScreen.routeName;
       });

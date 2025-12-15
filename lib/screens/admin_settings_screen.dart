@@ -28,18 +28,7 @@ class AdminSettingsScreen extends StatelessWidget {
                   },
                 ),
                 const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.attach_money, color: Color(0xFF003087)),
-                  title: const Text('Tarifas y Precios'),
-                  subtitle: const Text('Gestionar precios de clases'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Gestión de tarifas próximamente')),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
+
                 ListTile(
                   leading: const Icon(Icons.security, color: Color(0xFF003087)),
                   title: const Text('Seguridad'),
@@ -56,28 +45,12 @@ class AdminSettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.backup, color: Color(0xFF003087)),
-                  title: const Text('Respaldo de Datos'),
-                  subtitle: const Text('Crear copia de seguridad'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Respaldo de datos próximamente')),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.info, color: Color(0xFF003087)),
-                  title: const Text('Acerca de'),
-                  subtitle: const Text('Información de la aplicación'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () => _showAboutDialog(context),
-                ),
-              ],
+            child: ListTile(
+              leading: const Icon(Icons.info, color: Color(0xFF003087)),
+              title: const Text('Acerca de'),
+              subtitle: const Text('Información de la aplicación'),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () => _showAboutDialog(context),
             ),
           ),
           const SizedBox(height: 24),

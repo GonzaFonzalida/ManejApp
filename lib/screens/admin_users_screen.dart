@@ -96,25 +96,33 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
               leading: CircleAvatar(
                 backgroundColor: const Color(0xFF003087),
                 child: Text(
-                  (user['name'] ?? 'U')[0].toUpperCase(),
+                  ((user['user']?['firstName'] ?? user['firstName'] ?? user['name'] ?? 'U')[0]).toUpperCase(),
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
-              title: Text('${user['name'] ?? ''} ${user['surname'] ?? ''}'),
+              title: Text('${user['user']?['firstName'] ?? user['firstName'] ?? user['name'] ?? ''} ${user['user']?['lastName'] ?? user['lastName'] ?? user['surname'] ?? ''}'),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(user['email'] ?? ''),
-                  Text('Rol: ${user['role'] ?? 'N/A'}', style: const TextStyle(fontSize: 12)),
+                  Text(user['user']?['email'] ?? user['email'] ?? ''),
+                  Text('Rol: ${user['user']?['role'] ?? user['role'] ?? 'N/A'}', style: const TextStyle(fontSize: 12)),
                 ],
               ),
-              trailing: PopupMenuButton(
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'view', child: Text('Ver detalles')),
-                  const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                  const PopupMenuItem(value: 'delete', child: Text('Eliminar', style: TextStyle(color: Colors.red))),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Switch(
+                    value: user['user']?['isActive'] ?? user['isActive'] ?? true,
+                    onChanged: (value) => _toggleUserStatus(user, value),
+                    activeColor: Colors.green,
+                  ),
+                  PopupMenuButton(
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'view', child: Text('Ver detalles')),
+                    ],
+                    onSelected: (value) => _handleUserAction(value, user),
+                  ),
                 ],
-                onSelected: (value) => _handleUserAction(value, user),
               ),
             ),
           );
@@ -123,19 +131,30 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
     );
   }
 
-  void _handleUserAction(String action, dynamic user) {
-    switch (action) {
-      case 'view':
-        _showUserDetails(user);
-        break;
-      case 'edit':
+  Future<void> _toggleUserStatus(dynamic user, bool isActive) async {
+    try {
+      final userId = (user['user']?['id'] ?? user['userId'] ?? user['id']).toString();
+      debugPrint('Toggling user $userId to ${isActive ? "active" : "inactive"}');
+      await ApiService.manageUser(userId, isActive: isActive);
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Función de edición próximamente')),
+          SnackBar(content: Text('Usuario ${isActive ? "activado" : "desactivado"} exitosamente')),
         );
-        break;
-      case 'delete':
-        _confirmDelete(user);
-        break;
+        _loadUsers();
+      }
+    } catch (e) {
+      debugPrint('Error toggling user: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _handleUserAction(String action, dynamic user) {
+    if (action == 'view') {
+      _showUserDetails(user);
     }
   }
 
@@ -143,15 +162,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${user['name']} ${user['surname']}'),
+        title: Text('${user['user']?['firstName'] ?? user['firstName'] ?? user['name'] ?? ''} ${user['user']?['lastName'] ?? user['lastName'] ?? user['surname'] ?? ''}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDetailRow('Email', user['email'] ?? 'N/A'),
-            _buildDetailRow('DNI', user['dni'] ?? 'N/A'),
-            _buildDetailRow('Rol', user['role'] ?? 'N/A'),
-            _buildDetailRow('Fecha de nacimiento', user['birthDate'] ?? 'N/A'),
+            _buildDetailRow('Email', user['user']?['email'] ?? user['email'] ?? 'N/A'),
+            _buildDetailRow('DNI', user['user']?['dni'] ?? user['dni'] ?? 'N/A'),
+            _buildDetailRow('Rol', user['user']?['role'] ?? user['role'] ?? 'N/A'),
+            _buildDetailRow('Fecha de nacimiento', user['user']?['birthDate'] ?? user['birthDate'] ?? 'N/A'),
           ],
         ),
         actions: [
@@ -173,25 +192,5 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
     );
   }
 
-  void _confirmDelete(dynamic user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar eliminación'),
-        content: Text('¿Estás seguro de eliminar a ${user['name']} ${user['surname']}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Función de eliminación próximamente')),
-              );
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
+
 }

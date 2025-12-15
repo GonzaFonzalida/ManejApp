@@ -226,22 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<String?> _getInstructorImageUrl(Instructor instructor) async {
-    var profileImage = instructor.user?.profileImage;
-    
-    // Workaround: si el backend no devuelve la imagen, intentar desde storage
-    if ((profileImage == null || profileImage.isEmpty) && instructor.user?.id != null) {
-      final userId = await storage.read(key: 'user_id');
-      if (userId == instructor.user!.id.toString()) {
-        profileImage = await storage.read(key: 'profile_image_url');
-      }
-    }
-    
-    if (profileImage != null && profileImage.isNotEmpty) {
-      return profileImage.startsWith('http') 
-          ? profileImage 
-          : 'http://192.168.0.3:3000$profileImage';
-    }
-    return null;
+    return instructor.user?.profileImageUrl;
   }
 
   Future<void> _searchAddress() async {

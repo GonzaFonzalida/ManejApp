@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import 'admin_users_screen.dart';
 import 'admin_reports_screen.dart';
 import 'admin_settings_screen.dart';
+import 'admin_logs_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   static const routeName = '/admin_dashboard';
@@ -21,30 +22,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    print('AdminDashboard initState called');
     _loadStats();
   }
 
   Future<void> _loadStats() async {
+    setState(() => _isLoading = true);
     try {
-      final users = await ApiService.getUsersByRole('STUDENT');
-      final instructors = await ApiService.getInstructors();
+      debugPrint('=== LOADING STATS ===');
+      
+      debugPrint('Fetching students...');
+      final students = await ApiService.getUsersByRole('STUDENT');
+      debugPrint('Students count: ${students.length}');
+      
+      debugPrint('Fetching instructors...');
+      final instructors = await ApiService.getUsersByRole('INSTRUCTOR');
+      debugPrint('Instructors count: ${instructors.length}');
+      
+      debugPrint('Fetching classes...');
       final classes = await ApiService.getDrivingClasses();
-      final payments = await ApiService.getPayments();
-
-      setState(() {
-        _stats = {
-          'totalStudents': users.length,
-          'totalInstructors': instructors.length,
-          'totalClasses': classes.length,
-          'completedClasses': classes.where((c) => c['status'] == 'completed').length,
-          'totalRevenue': payments.where((p) => p['status'] == 'paid').fold(0.0, (sum, p) => sum + (p['amount'] ?? 0)),
-          'pendingPayments': payments.where((p) => p['status'] == 'pending').length,
-        };
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading stats: $e');
-      setState(() => _isLoading = false);
+      debugPrint('Classes count: ${classes.length}');
+      
+      if (mounted) {
+        setState(() {
+          _stats = {
+            'totalStudents': students.length,
+            'totalInstructors': instructors.length,
+            'totalClasses': classes.length,
+            'completedClasses': classes.where((c) => c['status'] == 'completed').length,
+            'totalRevenue': 0,
+            'pendingPayments': 0,
+          };
+          _isLoading = false;
+        });
+        debugPrint('Stats updated: $_stats');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('=== ERROR LOADING STATS ===');
+      debugPrint('Error: $e');
+      debugPrint('StackTrace: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _stats = {
+            'totalStudents': 0,
+            'totalInstructors': 0,
+            'totalClasses': 0,
+            'completedClasses': 0,
+            'totalRevenue': 0,
+            'pendingPayments': 0,
+          };
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -64,6 +93,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
           BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Reportes'),
+          BottomNavigationBarItem(icon: Icon(Icons.article), label: 'Logs'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
         ],
         currentIndex: _selectedIndex,
@@ -78,12 +108,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0: return _buildDashboard();
       case 1: return const AdminUsersScreen();
       case 2: return const AdminReportsScreen();
-      case 3: return const AdminSettingsScreen();
+      case 3: return const AdminLogsScreen();
+      case 4: return const AdminSettingsScreen();
       default: return _buildDashboard();
     }
   }
 
   Widget _buildDashboard() {
+    print('Building dashboard with stats: $_stats');
     return RefreshIndicator(
       onRefresh: _loadStats,
       child: SingleChildScrollView(
@@ -99,12 +131,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               crossAxisCount: 2,
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
-              childAspectRatio: 1.5,
+              childAspectRatio: 1.8,
               children: [
-                _buildStatCard('Estudiantes', _stats['totalStudents'].toString(), Icons.school, Colors.blue),
-                _buildStatCard('Instructores', _stats['totalInstructors'].toString(), Icons.person, Colors.green),
-                _buildStatCard('Clases Totales', _stats['totalClasses'].toString(), Icons.class_, Colors.orange),
-                _buildStatCard('Completadas', _stats['completedClasses'].toString(), Icons.check_circle, Colors.purple),
+                _buildStatCard('Estudiantes', '${_stats['totalStudents'] ?? 0}', Icons.school, Colors.blue),
+                _buildStatCard('Instructores', '${_stats['totalInstructors'] ?? 0}', Icons.person, Colors.green),
+                _buildStatCard('Clases Totales', '${_stats['totalClasses'] ?? 0}', Icons.class_, Colors.orange),
+                _buildStatCard('Completadas', '${_stats['completedClasses'] ?? 0}', Icons.check_circle, Colors.purple),
               ],
             ),
             const SizedBox(height: 24),
@@ -119,11 +151,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildRevenueCard('Total Recaudado', '\$${_stats['totalRevenue'].toStringAsFixed(0)}', Colors.green),
+                          child: _buildRevenueCard('Total Recaudado', '\$${(_stats['totalRevenue'] ?? 0).toStringAsFixed(0)}', Colors.green),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: _buildRevenueCard('Pagos Pendientes', _stats['pendingPayments'].toString(), Colors.orange),
+                          child: _buildRevenueCard('Pagos Pendientes', (_stats['pendingPayments'] ?? 0).toString(), Colors.orange),
                         ),
                       ],
                     ),
@@ -132,47 +164,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Actividad Reciente', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 200,
-                      child: LineChart(
-                        LineChartData(
-                          gridData: const FlGridData(show: false),
-                          titlesData: const FlTitlesData(show: false),
-                          borderData: FlBorderData(show: false),
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: [
-                                const FlSpot(0, 3),
-                                const FlSpot(1, 5),
-                                const FlSpot(2, 4),
-                                const FlSpot(3, 7),
-                                const FlSpot(4, 6),
-                                const FlSpot(5, 8),
-                              ],
-                              isCurved: true,
-                              color: const Color(0xFF003087),
-                              barWidth: 3,
-                              dotData: const FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: const Color(0xFF003087).withValues(alpha: 0.1),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            const Text('Acciones Rápidas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => setState(() => _selectedIndex = 1),
+                    icon: const Icon(Icons.people),
+                    label: const Text('Gestionar Usuarios'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF003087),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.all(16),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => setState(() => _selectedIndex = 2),
+                    icon: const Icon(Icons.analytics),
+                    label: const Text('Ver Reportes'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.all(16),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -183,14 +204,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),

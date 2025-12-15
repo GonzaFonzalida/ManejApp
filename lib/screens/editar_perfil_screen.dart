@@ -61,10 +61,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         final isInstructor = profile['role'] == 'INSTRUCTOR';
         
         if (mounted) {
-          final profileImage = profile['profileImage'] as String?;
-          final fullImageUrl = profileImage != null && profileImage.isNotEmpty
-              ? (profileImage.startsWith('http') ? profileImage : 'http://192.168.0.3:3000$profileImage')
-              : null;
+          final fullImageUrl = profile['profileImageUrl'] as String?;
           final hourlyRateValue = profile['hourlyRate'];
           final hourlyRateStr = hourlyRateValue != null ? hourlyRateValue.toString() : '';
           setState(() {
@@ -104,19 +101,28 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     super.dispose();
   }
 
+  bool _isPickingImage = false;
+
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 85,
-    );
+    if (_isPickingImage) return;
+    _isPickingImage = true;
     
-    if (pickedFile != null && mounted) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
-      });
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile != null && mounted) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } finally {
+      _isPickingImage = false;
     }
   }
 
@@ -194,35 +200,13 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       }
 
       if (_selectedImage != null) {
-        try {
-          final imageUrl = await ApiService.uploadProfileImage(userId, _selectedImage!);
-          final fullImageUrl = imageUrl.startsWith('http') 
-              ? imageUrl 
-              : 'http://192.168.0.3:3000$imageUrl';
-          userData['profileImage'] = fullImageUrl;
-          
-          await storage.write(key: 'profile_image_url', value: fullImageUrl);
-          
-          if (mounted) {
-            setState(() {
-              _currentImageUrl = '$fullImageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
-              _selectedImage = null;
-            });
-          }
-        } catch (e) {
-          debugPrint('Error subiendo imagen: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error subiendo imagen: $e'), backgroundColor: Colors.orange),
-            );
-          }
+        await ApiService.uploadProfileImage(userId, _selectedImage!);
+        if (mounted) {
+          setState(() => _selectedImage = null);
         }
       }
 
-debugPrint('=== GUARDANDO USUARIO ====');
-      debugPrint('userData: $userData');
       await ApiService.updateUser(userId, userData);
-      debugPrint('Usuario actualizado');
       
       if (_isInstructor) {
         try {
@@ -244,8 +228,6 @@ debugPrint('=== GUARDANDO USUARIO ====');
           debugPrint('Error actualizando instructor: $e');
         }
       }
-
-      await _loadProfile();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

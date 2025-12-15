@@ -79,7 +79,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
               
           debugPrint('Horarios disponibles filtrados: ${_availableSlots.length}');
 
-          _instructorName = instructor['user']?['name'] ?? 'Instructor';
+          _instructorName = '${instructor['user']?['firstName'] ?? ''} ${instructor['user']?['lastName'] ?? ''}'.trim();
+          if (_instructorName.isEmpty) _instructorName = 'Instructor';
           debugPrint('Nombre instructor: $_instructorName');
         } else {
           debugPrint('ERROR: Instructor no encontrado para userId: $userId');
@@ -180,26 +181,11 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Clases Programadas',
-                            _todayClasses.length.toString(),
-                            Icons.school,
-                            Colors.blue,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Horarios Disponibles',
-                            _availableSlots.length.toString(),
-                            Icons.schedule,
-                            Colors.green,
-                          ),
-                        ),
-                      ],
+                    _buildStatCard(
+                      'Clases Programadas',
+                      _todayClasses.length.toString(),
+                      Icons.school,
+                      Colors.blue,
                     ),
                   ],
                 ),
@@ -334,12 +320,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text('${drivingClass.time} - ${drivingClass.duration} min'),
-        trailing: Text(
-          drivingClass.status.toUpperCase(),
-          style: TextStyle(
-            color: _getStatusColor(drivingClass.status),
-            fontWeight: FontWeight.bold,
-          ),
+        trailing: Icon(
+          _getStatusIcon(drivingClass.status),
+          color: _getStatusColor(drivingClass.status),
         ),
       ),
     );
