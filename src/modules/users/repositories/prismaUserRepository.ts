@@ -4,12 +4,13 @@ import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPas
 import { UserRepository } from "./userRepository"
 import { prisma } from "@config/prismaClient";
 import { error } from "console";
+import { randomUUID } from "crypto";
 
 export default class UserPrismaRepository implements UserRepository {
 
     // ... (El método register() y getAllUsers() permanecen igual, sin cambios) ...
 
-    async register({name, surname, email, dni, password, birthDate}: UserWithDates): Promise<UserWithOutPasswordAndDates | Error> {
+    async register({name, surname, email, dni, password, birthDate, emailVerificationToken}: UserWithDates & { emailVerificationToken?: string }): Promise<UserWithOutPasswordAndDates | Error> {
         // Convertimos la cadena de la fecha a un objeto Date
         const birthDateObject = new Date(birthDate);
 
@@ -21,9 +22,10 @@ export default class UserPrismaRepository implements UserRepository {
                 email: email,
                 dni: dni,
                 password: password,
-                birthDate: birthDateObject, 
+                birthDate: birthDateObject,
                 role: 'STUDENT',
-            },
+                emailVerificationToken: emailVerificationToken,
+            } as any,
             select: {
                 id: true,
                 dni: true,
@@ -164,5 +166,68 @@ export default class UserPrismaRepository implements UserRepository {
             surname: foundUser.surname,
             role: foundUser.role
         };
+    }
+
+    async verifyEmail(token: string): Promise<UserWithOutPassword | null> {
+        const user = await prisma.user.findUnique({
+            where: { emailVerificationToken: token } as any,
+        });
+
+        if (!user) {
+            return null;
+        }
+
+        // Verificar y actualizar
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerifiedAt: new Date(),
+                emailVerificationToken: null, // Limpiar token
+                isActive: true, // Activar cuenta
+            } as any,
+            select: {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+                role: true,
+                createdAt: true,
+                birthDate: true,
+                isActive: true,
+            },
+        });
+
+        return updatedUser;
+    }
+
+    async resendVerificationToken(email: string): Promise<UserWithOutPassword | null> {
+        const user = await prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (!user || (user as any).emailVerifiedAt) {
+            return null; // Ya verificado o no existe
+        }
+
+        const newToken = randomUUID();
+
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: { emailVerificationToken: newToken } as any,
+            select: {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+                role: true,
+                createdAt: true,
+                birthDate: true,
+                isActive: true,
+            },
+        });
+
+        return updatedUser;
     }
 }

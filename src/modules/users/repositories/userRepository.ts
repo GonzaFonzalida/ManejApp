@@ -11,6 +11,8 @@ export interface UserRepository {
     findByRole(rol: string): Promise<UserWithOutPassword[]>;
     findByEmail(email: string): Promise<User | undefined>;
     updateLastLoginAt(id: number): Promise<UserWithOutPassword | null>;
+    verifyEmail(token: string): Promise<UserWithOutPassword | null>;
+    resendVerificationToken(email: string): Promise<UserWithOutPassword | null>;
     updateRole(id: number, role: string): Promise<UserWithOutPassword | null>;
 }
 

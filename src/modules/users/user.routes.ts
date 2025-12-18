@@ -16,5 +16,8 @@ export default class UserRouter extends GenericRouter {
 
         router.post("/register", validate(registerSchema), this.userController.register);
         router.post("/login", validate(loginSchema), this.userController.login);
+        router.post("/verify-email", this.userController.verifyEmail);
+        router.get("/verify-email/:token", this.userController.verifyEmailGet);
+        router.post("/resend-verification", this.userController.resendVerification);
     }
 }

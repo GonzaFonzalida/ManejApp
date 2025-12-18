@@ -3,22 +3,35 @@ import { UserRepository } from "./repositories/userRepository";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@config/config";
+import EmailService from "@shared/services/EmailService";
+import { randomUUID } from "crypto";
 
 export default class UserService {
-    constructor(private userAuth: UserRepository) {}
+    constructor(private userAuth: UserRepository, private emailService: EmailService) {}
 
     async register(user: UserWithDates): Promise<UserWithOutPassword | Error> {
         try {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(user.password, salt);
+            const verificationToken = randomUUID();
+
             const result = await this.userAuth.register({
                 ...user,
                 password: hashedPassword,
-            });
+            } as any);
 
             if (result instanceof Error) {
                 return result;
             }
+
+            // Enviar email de verificación
+            try {
+                await this.emailService.sendVerificationEmail(user.email, verificationToken);
+            } catch (emailError) {
+                console.error('Error sending verification email:', emailError);
+                // No fallar el registro por error en email, pero loggear
+            }
+
             return result;
 
         } catch (error: any) {
@@ -50,6 +63,11 @@ export default class UserService {
             return new Error("Contraseña incorrecta");
         }
 
+        // Verificar si el email está verificado
+        if (!(foundUser as any).emailVerifiedAt) {
+            return new Error("Por favor verifica tu email antes de iniciar sesión");
+        }
+
         const token = jwt.sign(
             { id: foundUser.id, role: foundUser.role },
             JWT_SECRET,
@@ -57,5 +75,21 @@ export default class UserService {
         );
 
         return { token };
+    }
+
+    async verifyEmail(token: string): Promise<UserWithOutPassword | null> {
+        return await this.userAuth.verifyEmail(token);
+    }
+
+    async resendVerificationEmail(email: string): Promise<UserWithOutPassword | null> {
+        const user = await this.userAuth.resendVerificationToken(email);
+        if (user) {
+            try {
+                await this.emailService.sendVerificationEmail(email, (user as any).emailVerificationToken);
+            } catch (emailError) {
+                console.error('Error sending verification email:', emailError);
+            }
+        }
+        return user;
     }
 }

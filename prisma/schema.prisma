@@ -8,27 +8,29 @@ datasource db {
 }
 
 model User {
-  id                 Int                @id @default(autoincrement())
-  name               String
-  surname            String
-  email              String             @unique
-  password           String
-  dni                String             @unique
-  createdAt          DateTime           @default(now())
-  birthDate          DateTime
-  isActive           Boolean            @default(false)
-  role               Role               @default(STUDENT)
-  lastLoginAt        DateTime?
-  admin              Admin?
-  instructor         Instructor?
-  notificationTokens NotificationToken?
-  sessions           Session[]
-  student            Student?
-  sentMessages       Message[]
-  conversationsAsP1  Conversation[]     @relation("ConversationParticipant1")
-  conversationsAsP2  Conversation[]     @relation("ConversationParticipant2")
+   id                      Int                @id @default(autoincrement())
+   name                    String
+   surname                 String
+   email                   String             @unique
+   password                String
+   dni                     String             @unique
+   createdAt               DateTime           @default(now())
+   birthDate               DateTime
+   isActive                Boolean            @default(false)
+   role                    Role               @default(STUDENT)
+   lastLoginAt             DateTime?
+   emailVerificationToken  String?            @unique
+   emailVerifiedAt         DateTime?
+   admin                   Admin?
+   instructor              Instructor?
+   notificationTokens      NotificationToken?
+   sessions                Session[]
+   student                 Student?
+   sentMessages            Message[]
+   conversationsAsP1       Conversation[]     @relation("ConversationParticipant1")
+   conversationsAsP2       Conversation[]     @relation("ConversationParticipant2")
 
-  @@index([role])
+   @@index([role])
 }
 
 model Session {

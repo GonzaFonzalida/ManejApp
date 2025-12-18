@@ -35,10 +35,12 @@ import PrismaMessageRepository from "../../modules/messages/repositories/PrismaM
 import MessageService from "../../modules/messages/messages.services";
 import MessageController from "../../modules/messages/messages.controller";
 
+import EmailService from "@services/EmailService";
+
 const diContainer = new DiContainer();
 //Users Instnces
 diContainer.register("UserRepository", UserPrismaRepository);
-diContainer.register("userService", UserService, ["UserRepository"]);
+diContainer.register("userService", UserService, ["UserRepository", "emailService"]);
 diContainer.register("userController", UserController, ["userService"]);
 
 //Instructor Instances
@@ -98,5 +100,8 @@ diContainer.register("notificationController", NotificationController, [
 diContainer.register("PrismaMessageRepository", PrismaMessageRepository);
 diContainer.register("messageService", MessageService, ["PrismaMessageRepository"]);
 diContainer.register("messageController", MessageController, ["messageService"]);
+
+//email service
+diContainer.register("emailService", EmailService);
 
 export default diContainer;

@@ -226,4 +226,121 @@ export default class UserController {
             next(error);
         }
     };
+
+    /**
+     * @swagger
+     * /users/verify-email:
+     *   post:
+     *     summary: Verify user email
+     *     tags: [Users]
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - token
+     *             properties:
+     *               token:
+     *                 type: string
+     *     responses:
+     *       200:
+     *         description: Email verified successfully
+     *       400:
+     *         description: Invalid token
+     *       500:
+     *         description: Internal server error
+     */
+    public verifyEmail: ExpressFunction = async (req, res, next) => {
+        try {
+            const { token } = req.body;
+            const user = await this.userService.verifyEmail(token);
+
+            if (!user) {
+                return next(new CustomizedError("Token inválido", 400));
+            }
+
+            res.json({ message: "Email verificado exitosamente", user });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/verify-email/{token}:
+     *   get:
+     *     summary: Verify user email via GET (for mobile deep links)
+     *     tags: [Users]
+     *     parameters:
+     *       - in: path
+     *         name: token
+     *         required: true
+     *         schema:
+     *           type: string
+     *         description: Verification token
+     *     responses:
+     *       200:
+     *         description: Email verified successfully
+     *       400:
+     *         description: Invalid token
+     *       500:
+     *         description: Internal server error
+     */
+    public verifyEmailGet: ExpressFunction = async (req, res, next) => {
+        try {
+            const { token } = req.params;
+            const user = await this.userService.verifyEmail(token);
+
+            if (!user) {
+                return next(new CustomizedError("Token inválido", 400));
+            }
+
+            res.json({ message: "Email verificado exitosamente", user });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/resend-verification:
+     *   post:
+     *     summary: Resend verification email
+     *     tags: [Users]
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - email
+     *             properties:
+     *               email:
+     *                 type: string
+     *                 format: email
+     *     responses:
+     *       200:
+     *         description: Verification email sent
+     *       400:
+     *         description: Email already verified or not found
+     *       500:
+     *         description: Internal server error
+     */
+    public resendVerification: ExpressFunction = async (req, res, next) => {
+        try {
+            const { email } = req.body;
+            const user = await this.userService.resendVerificationEmail(email);
+
+            if (!user) {
+                return next(new CustomizedError("Email ya verificado o no encontrado", 400));
+            }
+
+            res.json({ message: "Email de verificación reenviado" });
+        } catch (error) {
+            next(error);
+        }
+    };
 }
