@@ -1,13 +1,20 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
+import ReportService from './ReportService';
+import EmailService from './EmailService';
 
 const prisma = new PrismaClient();
 
 export class SchedulerService {
   private static instance: SchedulerService;
   private jobs: Map<string, cron.ScheduledTask> = new Map();
+  private reportService: ReportService;
+  private emailService: EmailService;
 
-  private constructor() {}
+  private constructor() {
+    this.reportService = new ReportService();
+    this.emailService = new EmailService();
+  }
 
   static getInstance(): SchedulerService {
     if (!SchedulerService.instance) {
@@ -19,6 +26,7 @@ export class SchedulerService {
   start() {
     this.schedulePaymentRecovery();
     this.scheduleSystemCleanup();
+    this.scheduleSystemReports();
     console.log('✅ Scheduler iniciado');
   }
 
@@ -76,6 +84,70 @@ export class SchedulerService {
     });
 
     this.jobs.set('systemCleanup', cleanupJob);
+  }
+
+  private async scheduleSystemReports() {
+    try {
+      // Obtener configuración de reportes
+      const config = await (prisma as any).systemConfig.findFirst();
+      if (!config) {
+        // Crear configuración por defecto
+        await (prisma as any).systemConfig.create({
+          data: {
+            reportInterval: 'weekly',
+            reportEmails: JSON.stringify(['admin@manejapp.com']),
+            errorAlertsEnabled: true,
+          }
+        });
+        console.log('📊 Configuración de reportes creada por defecto');
+        return;
+      }
+
+      // Programar envío de reportes según intervalo
+      let cronExpression: string;
+      switch (config.reportInterval) {
+        case 'daily':
+          cronExpression = '0 9 * * *'; // Todos los días a las 9 AM
+          break;
+        case 'weekly':
+          cronExpression = '0 9 * * 1'; // Todos los lunes a las 9 AM
+          break;
+        case 'monthly':
+          cronExpression = '0 9 1 * *'; // Primer día del mes a las 9 AM
+          break;
+        default:
+          cronExpression = '0 9 * * 1'; // Por defecto semanal
+      }
+
+      const reportJob = cron.schedule(cronExpression, async () => {
+        try {
+          console.log('📊 Generando reporte del sistema...');
+
+          const statistics = await this.reportService.generateStatistics();
+          const recipients = JSON.parse(config.reportEmails || '[]');
+
+          if (recipients.length > 0) {
+            await this.emailService.sendSystemReport(recipients, statistics);
+
+            // Actualizar última fecha de envío
+            await (prisma as any).systemConfig.update({
+              where: { id: config.id },
+              data: { lastReportSent: new Date() }
+            });
+
+            console.log(`📧 Reporte enviado a ${recipients.length} administradores`);
+          }
+        } catch (error) {
+          console.error('Error enviando reporte:', error);
+        }
+      });
+
+      this.jobs.set('systemReports', reportJob);
+      console.log(`📅 Reportes programados: ${config.reportInterval} (${cronExpression})`);
+
+    } catch (error) {
+      console.error('Error configurando reportes:', error);
+    }
   }
 
   stop() {

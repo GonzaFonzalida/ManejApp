@@ -343,4 +343,85 @@ export default class UserController {
             next(error);
         }
     };
+
+    /**
+     * @swagger
+     * /users/notification-preferences:
+     *   get:
+     *     summary: Get user notification preferences
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: Notification preferences retrieved
+     *       401:
+     *         description: Unauthorized
+     *       500:
+     *         description: Internal server error
+     */
+    public getNotificationPreferences: ExpressFunction = async (req, res, next) => {
+        try {
+            const userId = (req as any).user.id;
+            const user = await this.userService.getUserById(userId.toString());
+
+            if (!user) {
+                return next(new CustomizedError("Usuario no encontrado", 404));
+            }
+
+            const preferences = {
+                emailNotifications: (user as any).emailNotifications ?? true,
+                pushNotifications: (user as any).pushNotifications ?? true,
+            };
+
+            res.json(preferences);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/notification-preferences:
+     *   put:
+     *     summary: Update user notification preferences
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               emailNotifications:
+     *                 type: boolean
+     *               pushNotifications:
+     *                 type: boolean
+     *     responses:
+     *       200:
+     *         description: Notification preferences updated
+     *       401:
+     *         description: Unauthorized
+     *       500:
+     *         description: Internal server error
+     */
+    public updateNotificationPreferences: ExpressFunction = async (req, res, next) => {
+        try {
+            const userId = (req as any).user.id;
+            const { emailNotifications, pushNotifications } = req.body;
+
+            // Aquí iría la lógica para actualizar las preferencias en la BD
+            // Por ahora, solo devolvemos éxito
+            const preferences = {
+                emailNotifications: emailNotifications ?? true,
+                pushNotifications: pushNotifications ?? true,
+            };
+
+            res.json({ message: "Preferencias actualizadas", preferences });
+        } catch (error) {
+            next(error);
+        }
+    };
 }

@@ -5,9 +5,11 @@ import { INotificationTokenRepository } from './repositories/NotificationTokenRe
 import { UserRepository } from '@users/repositories/userRepository';
 import { Role } from '@prisma/client';
 import { getFirebaseApp } from '@config/firebase';
+import EmailService from '@shared/services/EmailService';
 
 export class NotificationService {
   private fcm: admin.messaging.Messaging;
+  private emailService: EmailService;
 
   constructor(
     private logger: Logger,
@@ -22,31 +24,54 @@ export class NotificationService {
       // Mock FCM para desarrollo
       this.fcm = null as any;
     }
+
+    this.emailService = new EmailService();
   }
 
-  async sendToUser(userId: number, title: string, body: string): Promise<void> {
+  async sendToUser(userId: number, title: string, body: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): Promise<void> {
     try {
-      if (!this.fcm) {
-        this.logger.info(`[MOCK] Notification to user ${userId}: ${title} - ${body}`);
+      // Obtener preferencias del usuario
+      const user = await this.userRepo.findUser(userId.toString());
+      if (!user) {
+        this.logger.warn(`User ${userId} not found`);
         return;
       }
 
-      const tokenRecord = await this.notificationTokenRepo.findByUserId(userId);
-      if (!tokenRecord) {
-        this.logger.warn(`No FCM token found for user ${userId}`);
-        return;
+      const userPrefs = (user as any);
+
+      // Enviar push notification si está habilitado
+      if (userPrefs.pushNotifications !== false) {
+        if (!this.fcm) {
+          this.logger.info(`[MOCK] Push notification to user ${userId}: ${title} - ${body}`);
+        } else {
+          const tokenRecord = await this.notificationTokenRepo.findByUserId(userId);
+          if (tokenRecord) {
+            const message = {
+              token: tokenRecord.token,
+              notification: {
+                title,
+                body,
+              },
+            };
+
+            const response = await this.fcm.send(message);
+            this.logger.info(`Push notification sent to user ${userId}: ${response}`);
+          } else {
+            this.logger.warn(`No FCM token found for user ${userId}`);
+          }
+        }
       }
 
-      const message = {
-        token: tokenRecord.token,
-        notification: {
-          title,
-          body,
-        },
-      };
+      // Enviar email notification si está habilitado
+      if (userPrefs.emailNotifications !== false) {
+        try {
+          await this.emailService.sendUserNotification(user.email, title, body, type);
+          this.logger.info(`Email notification sent to user ${userId}: ${title}`);
+        } catch (emailError) {
+          this.logger.error(`Error sending email notification to user ${userId}:`, emailError instanceof Error ? emailError : new Error(String(emailError)));
+        }
+      }
 
-      const response = await this.fcm.send(message);
-      this.logger.info(`Notification sent to user ${userId}: ${response}`);
     } catch (error) {
       this.logger.error(`Error sending notification to user ${userId}:`, error instanceof Error ? error : new Error(String(error)));
       throw new CustomizedError('Failed to send notification', 500);
@@ -136,6 +161,7 @@ export class NotificationService {
     try {
       // Aquí iría la lógica para obtener la clase y enviar recordatorios
       // Se implementaría con el repositorio de DrivingClass
+      // Por ahora, mock
       this.logger.info(`Class reminder sent for class ${drivingClassId}`);
     } catch (error) {
       this.logger.error(`Error sending class reminder:`, error instanceof Error ? error : new Error(String(error)));
@@ -148,6 +174,46 @@ export class NotificationService {
       this.logger.info(`Payment confirmation sent for payment ${paymentId}`);
     } catch (error) {
       this.logger.error(`Error sending payment confirmation:`, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  async sendClassReminderToUser(userId: number, classInfo: { date: string, instructor: string, location?: string }): Promise<void> {
+    try {
+      const user = await this.userRepo.findUser(userId.toString());
+      if (!user) return;
+
+      const userPrefs = (user as any);
+
+      if (userPrefs.emailNotifications !== false) {
+        await this.emailService.sendClassReminder(user.email, classInfo);
+        this.logger.info(`Class reminder email sent to user ${userId}`);
+      }
+
+      if (userPrefs.pushNotifications !== false) {
+        await this.sendToUser(userId, 'Recordatorio de Clase', `Tu clase es el ${new Date(classInfo.date).toLocaleString()} con ${classInfo.instructor}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error sending class reminder to user ${userId}:`, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  async sendPaymentConfirmationToUser(userId: number, paymentInfo: { amount: number, classDate: string, instructor: string }): Promise<void> {
+    try {
+      const user = await this.userRepo.findUser(userId.toString());
+      if (!user) return;
+
+      const userPrefs = (user as any);
+
+      if (userPrefs.emailNotifications !== false) {
+        await this.emailService.sendPaymentConfirmation(user.email, paymentInfo);
+        this.logger.info(`Payment confirmation email sent to user ${userId}`);
+      }
+
+      if (userPrefs.pushNotifications !== false) {
+        await this.sendToUser(userId, 'Pago Confirmado', `Tu pago de $${paymentInfo.amount} ha sido confirmado`);
+      }
+    } catch (error) {
+      this.logger.error(`Error sending payment confirmation to user ${userId}:`, error instanceof Error ? error : new Error(String(error)));
     }
   }
 

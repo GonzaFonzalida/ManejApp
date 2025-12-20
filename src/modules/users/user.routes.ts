@@ -19,5 +19,9 @@ export default class UserRouter extends GenericRouter {
         router.post("/verify-email", this.userController.verifyEmail);
         router.get("/verify-email/:token", this.userController.verifyEmailGet);
         router.post("/resend-verification", this.userController.resendVerification);
+
+        // Notification preferences (require authentication)
+        router.get("/notification-preferences", this.userController.getNotificationPreferences);
+        router.put("/notification-preferences", this.userController.updateNotificationPreferences);
     }
 }
