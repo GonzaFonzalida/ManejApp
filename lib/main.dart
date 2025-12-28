@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:provider/provider.dart';
 import 'package:manejapp/screens/login_screen.dart';
 import 'package:manejapp/screens/payment_screen.dart';
 import 'package:manejapp/screens/register_screen.dart';
@@ -17,16 +18,36 @@ import 'package:manejapp/screens/student_payments_screen.dart';
 import 'package:manejapp/screens/admin_dashboard_screen.dart';
 import 'package:manejapp/screens/settings_screen.dart';
 import 'package:manejapp/screens/chat_screen.dart';
+import 'package:manejapp/screens/conversations_screen.dart';
 import 'package:manejapp/screens/onboarding_screen.dart';
 import 'package:manejapp/screens/instructor_car_screen.dart';
 import 'package:manejapp/services/notification_service.dart';
 import 'package:manejapp/services/config_service.dart';
+import 'package:manejapp/services/deep_link_service.dart';
+import 'package:manejapp/controllers/chat_controller.dart';
+import 'package:manejapp/providers/theme_provider.dart';
+import 'package:manejapp/screens/calendar_screen.dart';
+import 'package:manejapp/screens/verify_email_screen.dart';
+import 'package:manejapp/screens/email_verification_pending_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ConfigService.loadConfig();
   await NotificationService.initialize();
+  await _requestLocationPermission();
   runApp(const MyApp());
+}
+
+Future<void> _requestLocationPermission() async {
+  try {
+    final storage = FlutterSecureStorage();
+    final requested = await storage.read(key: 'location_permission_requested');
+    if (requested != 'true') {
+      await storage.write(key: 'location_permission_requested', value: 'true');
+    }
+  } catch (e) {
+    debugPrint('Error requesting location: $e');
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -43,14 +64,24 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _checkSession();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.init(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    DeepLinkService.dispose();
+    super.dispose();
   }
 
   Future<void> _checkSession() async {
     const storage = FlutterSecureStorage();
     
-    // Verificar si es la primera vez
-    final onboardingCompleted = await storage.read(key: 'onboarding_completed');
-    if (onboardingCompleted != 'true') {
+    // Verificar si es la primera vez que abre la app
+    final firstLaunch = await storage.read(key: 'first_launch_completed');
+    if (firstLaunch != 'true') {
+      await storage.write(key: 'first_launch_completed', value: 'true');
       setState(() {
         _initialRoute = OnboardingScreen.routeName;
       });
@@ -93,14 +124,19 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ManejApp',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF003087)),
-        useMaterial3: true,
-      ),
-      initialRoute: _initialRoute ?? OnboardingScreen.routeName,
-      routes: {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ChatController()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          title: 'ManejApp',
+          theme: themeProvider.lightTheme,
+          darkTheme: themeProvider.darkTheme,
+          themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+        initialRoute: _initialRoute ?? OnboardingScreen.routeName,
+        routes: {
         OnboardingScreen.routeName: (context) => const OnboardingScreen(),
         '/login': (context) => const LoginScreen(),
         RegisterScreen.routeName: (context) => const RegisterScreen(),
@@ -144,17 +180,24 @@ class _MyAppState extends State<MyApp> {
         AdminDashboardScreen.routeName: (context) => const AdminDashboardScreen(),
         // Rutas generales
         SettingsScreen.routeName: (context) => const SettingsScreen(),
+        ConversationsScreen.routeName: (context) => const ConversationsScreen(),
         ChatScreen.routeName: (context) {
           final arguments = ModalRoute.of(context)?.settings.arguments;
           if (arguments is Map<String, dynamic>) {
             return ChatScreen(
               recipientName: arguments['recipientName'] as String,
               recipientId: arguments['recipientId'] as String,
+              conversationId: arguments['conversationId'] as int?,
             );
           }
           return const LoginScreen();
         },
+        CalendarScreen.routeName: (context) => const CalendarScreen(),
+        VerifyEmailScreen.routeName: (context) => const VerifyEmailScreen(),
+        EmailVerificationPendingScreen.routeName: (context) => const EmailVerificationPendingScreen(),
       },
+        ),
+      ),
     );
   }
 }

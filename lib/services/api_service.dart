@@ -226,18 +226,18 @@ class ApiService {
     }
 
     // Helper para reservar
-    Future<http.Response> doReserve() {
+    Future<http.Response> doReserve({bool includeStudentId = true}) {
       // Normalizar hora a HH:mm:ss si viene en HH:mm
       final String rawTime = reservationData['time']?.toString() ?? '';
       final String timeStr = RegExp(r'^\d{2}:\d{2}$').hasMatch(rawTime) ? '$rawTime:00' : rawTime;
 
       final payload = {
         'instructorId': int.parse(instructorId),
-        'studentId': int.parse(userId!), // requerido por backend
+        if (includeStudentId) 'studentId': int.parse(userId!),
         'date': reservationData['date'],
         'time': timeStr,
         'duration': 60,
-        'status': 'scheduled', // valor permitido por el backend
+        'status': 'scheduled',
       };
 
       return http.post(
@@ -305,9 +305,9 @@ class ApiService {
             (errText.contains('student') && (errText.contains('exist') || (errText.contains('not') && errText.contains('found'))));
 
         if (isStudentMissing) {
-          // Reintentar la reserva
-          await Future.delayed(const Duration(milliseconds: 500));
-          response = await doReserve();
+          developer.log('Student missing, retrying without studentId', name: 'ApiService');
+          await Future.delayed(const Duration(milliseconds: 300));
+          response = await doReserve(includeStudentId: false);
           developer.log('reserveClass retry status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
 
           // Si aún falla por estudiante inexistente, intento final sin studentId (que lo infiera el backend)
@@ -323,8 +323,7 @@ class ApiService {
                 (retryErr.contains('student') && (retryErr.contains('exist') || (retryErr.contains('not') && retryErr.contains('found'))));
 
             if (stillMissing) {
-              response = await doReserve();
-              developer.log('reserveClass final fallback (no studentId) status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
+              developer.log('Still missing, final attempt', name: 'ApiService');
             }
           }
         }
@@ -1343,6 +1342,146 @@ class ApiService {
       return jsonDecode(response.body) as List<dynamic>;
     } else {
       throw Exception('Error obteniendo estadísticas de logs');
+    }
+  }
+
+  // ===========================
+  // MESSAGES
+  // ===========================
+
+  static Future<Map<String, dynamic>> sendMessage(int receiverId, String content) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/messages/send'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'receiverId': receiverId, 'content': content}),
+    );
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['data'] as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error enviando mensaje');
+    }
+  }
+
+  static Future<List<dynamic>> getConversations() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/messages/conversations'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['data'] as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo conversaciones');
+    }
+  }
+
+  static Future<List<dynamic>> getConversationMessages(int conversationId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/messages/conversations/$conversationId/messages'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['data'] as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo mensajes');
+    }
+  }
+
+  static Future<int> getUnreadMessagesCount() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/messages/unread-count'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['data']['unreadCount'] as int;
+    } else {
+      throw Exception('Error obteniendo contador de mensajes');
+    }
+  }
+
+  static Future<void> markConversationAsRead(int conversationId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.put(
+      Uri.parse('$_baseUrl/messages/conversations/$conversationId/read'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error marcando mensajes como leídos');
+    }
+  }
+
+  static Future<bool> canContactInstructor(int instructorId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/payments'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final payments = jsonDecode(response.body) as List<dynamic>;
+      return payments.any((p) {
+        final drivingClass = p['drivingClass'] as Map<String, dynamic>?;
+        return p['status'] == 'paid' && drivingClass?['instructorId'] == instructorId;
+      });
+    }
+    return false;
+  }
+
+  // ===========================
+  // EMAIL VERIFICATION
+  // ===========================
+
+  static Future<void> verifyEmail(String token) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/verify-email'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token}),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error en verificación');
+    }
+  }
+
+  static Future<void> resendVerification(String email) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/resend-verification'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+
+    if (response.statusCode != 200) {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message'] ?? 'Error al reenviar');
     }
   }
 }

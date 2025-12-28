@@ -126,10 +126,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             label: 'Mis Clases',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.payment),
-            label: 'Pagos',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Perfil',
           ),
@@ -153,8 +149,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       case 2:
         return const StudentClassesScreen();
       case 3:
-        return const StudentPaymentsScreen();
-      case 4:
         return const ProfileScreen();
       default:
         return _buildDashboard();
@@ -268,45 +262,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     else
                       ..._upcomingClasses.take(3).map((drivingClass) => 
                         _buildUpcomingClassCard(drivingClass)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Pagos recientes
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Pagos Recientes',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => setState(() => _selectedIndex = 3),
-                          child: const Text('Ver todos'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    if (_recentPayments.isEmpty)
-                      const Text(
-                        'No tienes pagos registrados',
-                        style: TextStyle(color: Colors.grey),
-                      )
-                    else
-                      ..._recentPayments.take(3).map((payment) => 
-                        _buildPaymentCard(payment)),
                   ],
                 ),
               ),

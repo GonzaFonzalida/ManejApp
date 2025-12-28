@@ -211,9 +211,18 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       }
 
       if (_selectedImage != null) {
-        await ApiService.uploadProfileImage(userId, _selectedImage!);
-        if (mounted) {
-          setState(() => _selectedImage = null);
+        try {
+          await ApiService.uploadProfileImage(userId, _selectedImage!);
+          if (mounted) {
+            setState(() => _selectedImage = null);
+          }
+        } catch (e) {
+          debugPrint('Error subiendo imagen: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Advertencia: No se pudo subir la imagen. ${e.toString().replaceAll("Exception: ", "")}')),
+            );
+          }
         }
       }
 

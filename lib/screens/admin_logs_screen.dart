@@ -29,16 +29,23 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
       final result = await ApiService.getLogs(level: _selectedLevel, limit: 100);
       if (mounted) {
         setState(() {
-          _logs = result['logs'] as List<dynamic>;
+          _logs = (result['logs'] ?? result['data'] ?? []) as List<dynamic>;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error loading logs: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _logs = [];
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('No se pudieron cargar los logs. El backend puede no tener este endpoint implementado.'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
     }
@@ -48,10 +55,13 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     try {
       final stats = await ApiService.getLogStats();
       if (mounted) {
-        setState(() => _stats = stats);
+        setState(() => _stats = stats is List ? stats : []);
       }
     } catch (e) {
       debugPrint('Error loading stats: $e');
+      if (mounted) {
+        setState(() => _stats = []);
+      }
     }
   }
 

@@ -112,6 +112,7 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
                   label: 'Número de Licencia',
                   icon: Icons.credit_card,
                   keyboardType: TextInputType.number,
+                  maxLength: 8,
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
@@ -220,10 +221,12 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
     required String label,
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
+    int? maxLength,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: const Color(0xFF003087)),

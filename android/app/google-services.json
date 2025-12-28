@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "123456789",
-    "project_id": "manejapp-demo",
-    "storage_bucket": "manejapp-demo.appspot.com"
+    "project_number": "374192638678",
+    "project_id": "manejapp-89679",
+    "storage_bucket": "manejapp-89679.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789:android:abcdef123456",
+        "mobilesdk_app_id": "1:374192638678:android:47ebf4c6a0d67c18559777",
         "android_client_info": {
-          "package_name": "com.example.manejapp"
+          "package_name": "com.manejapp.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDemoKey123456789"
+          "current_key": "AIzaSyCtyV-h-IMDJaDaAQx2ys4acRcf1lwheAM"
         }
       ],
       "services": {

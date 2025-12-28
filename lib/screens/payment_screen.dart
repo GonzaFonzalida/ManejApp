@@ -43,35 +43,46 @@ class _PaymentScreenState extends State<PaymentScreen> {
         payerEmail: widget.payerEmail,
       );
 
-      _preferenceId = (pref['preferenceId'] ?? pref['id'])?.toString();
-      _initPoint = (pref['initPoint'] ??
-              pref['sandboxInitPoint'] ??
-              pref['init_point'])
-          ?.toString();
+      if (!mounted) return;
+
+      final data = pref['data'] as Map<String, dynamic>? ?? pref;
+      _preferenceId = (data['preferenceId'] ?? data['id'])?.toString();
+      _initPoint = (data['initPoint'] ?? data['sandboxInitPoint'] ?? data['init_point'])?.toString();
 
       setState(() {
         _statusMessage = 'Preferencia creada';
       });
 
-      if (_initPoint != null) {
+      if (_initPoint != null && _initPoint!.isNotEmpty) {
         final url = Uri.parse(_initPoint!);
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-        setState(() {
-          _statusMessage = 'Checkout abierto en Mercado Pago';
-        });
+        final launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          setState(() {
+            _statusMessage = launched ? 'Checkout abierto en Mercado Pago' : 'No se pudo abrir Mercado Pago';
+          });
+        }
       } else {
-        setState(() {
-          _statusMessage = 'No recibí initPoint del backend';
-        });
+        if (mounted) {
+          setState(() {
+            _statusMessage = 'Error: No se recibió URL de pago';
+          });
+        }
       }
     } catch (e) {
-      setState(() {
-        _statusMessage = 'Error: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _statusMessage = 'Error: $e';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al crear pago: $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -107,39 +118,103 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pago con Mercado Pago'),
+        backgroundColor: const Color(0xFF003087),
+        foregroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ListTile(
-              title: const Text('Clase a pagar'),
-              subtitle: Text(
-                'Clase #${widget.drivingClassId} • \$${widget.amount}\n${widget.description}',
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Detalle del pago', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Clase:', style: TextStyle(fontWeight: FontWeight.w500)),
+                        Text('#${widget.drivingClassId}'),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Monto:', style: TextStyle(fontWeight: FontWeight.w500)),
+                        Text('\$${widget.amount}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF003087))),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(widget.description, style: TextStyle(color: Colors.grey.shade600)),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            if (_preferenceId != null)
-              SelectableText('Preference ID: $_preferenceId'),
-            if (_paymentId != null)
-              SelectableText('Payment ID: $_paymentId'),
-            const SizedBox(height: 8),
-            Text(_statusMessage),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade700),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _statusMessage,
+                      style: TextStyle(color: Colors.blue.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_preferenceId != null) ...[
+              const SizedBox(height: 12),
+              Text('ID: $_preferenceId', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            ],
             const Spacer(),
-            if (_loading) const CircularProgressIndicator(),
-            if (!_loading) ...[
-              ElevatedButton.icon(
-                onPressed: _createPreferenceAndOpen,
-                icon: const Icon(Icons.payment),
-                label: const Text('Pagar con Mercado Pago'),
+            if (_loading)
+              const CircularProgressIndicator()
+            else ...[
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _createPreferenceAndOpen,
+                  icon: const Icon(Icons.payment),
+                  label: const Text('Pagar con Mercado Pago'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF003087),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _checkStatus,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Consultar estado'),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _checkStatus,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Consultar estado'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF003087),
+                    side: const BorderSide(color: Color(0xFF003087)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
               ),
             ],
+            const SizedBox(height: 16),
           ],
         ),
       ),

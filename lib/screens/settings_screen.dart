@@ -2,8 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:provider/provider.dart';
 import '../controllers/login_controller.dart';
 import '../services/api_service.dart';
+import '../providers/theme_provider.dart';
 
 const storage = FlutterSecureStorage();
 
@@ -54,6 +56,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Apariencia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            child: Consumer<ThemeProvider>(
+              builder: (context, themeProvider, _) => SwitchListTile(
+                title: const Text('Modo Oscuro'),
+                subtitle: const Text('Cambiar entre tema claro y oscuro'),
+                value: themeProvider.isDarkMode,
+                onChanged: (_) => themeProvider.toggleTheme(),
+                secondary: Icon(
+                  themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  color: const Color(0xFF003087),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text('Notificaciones', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -133,45 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Información', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.privacy_tip, color: Color(0xFF003087)),
-                  title: const Text('Política de Privacidad'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Abriendo política de privacidad...')),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.description, color: Color(0xFF003087)),
-                  title: const Text('Términos y Condiciones'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Abriendo términos y condiciones...')),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.info, color: Color(0xFF003087)),
-                  title: const Text('Acerca de'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () => _showAboutDialog(),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 24),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -422,26 +405,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ManejApp'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Versión: 1.0.0', style: TextStyle(fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text('Sistema de gestión para escuelas de manejo'),
-            SizedBox(height: 16),
-            Text('© 2024 ManejApp. Todos los derechos reservados.'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-        ],
-      ),
-    );
-  }
+
 }

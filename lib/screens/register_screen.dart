@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Asegúra
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'choose_role_screen.dart';
+import 'email_verification_pending_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   static const routeName = '/register';
@@ -80,9 +81,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       if (userId.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registro básico exitoso, ahora elige tu rol')),
+          const SnackBar(
+            content: Text('Registro exitoso. Revisa tu email para verificar tu cuenta.'),
+            backgroundColor: Colors.green,
+          ),
         );
-        Navigator.pushNamed(context, ChooseRoleScreen.routeName, arguments: userId); 
+        Navigator.pushReplacementNamed(
+          context,
+          EmailVerificationPendingScreen.routeName,
+          arguments: _email.trim(),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error: UserId vacío')),
@@ -111,39 +119,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        const Color(0xFF003087).withAlpha(128),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.asset(
-                      'assets/logo definitivo.jpeg',
-                      width: double.infinity,
-                      height: 235,
-                      fit: BoxFit.cover,
-                    ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/logo definitivo.jpeg',
+                    height: 160,
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 const Text(
                   'ManejApp',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF003087),
-                    fontFamily: 'Roboto',
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -200,7 +193,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             fillColor: Colors.white,
                           ),
                           keyboardType: TextInputType.number,
-                          validator: (v) => v == null || v.isEmpty ? 'Ingrese su DNI' : null,
+                          maxLength: 8,
+                          validator: (v) => v == null || v.isEmpty ? 'Ingrese su DNI' : v.length != 8 ? 'DNI debe tener 8 dígitos' : null,
                           onSaved: (v) => _dni = v!,
                         ),
                         const SizedBox(height: 16),
@@ -251,24 +245,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 24),
                         _isLoading
-                            ? const CircularProgressIndicator()
-                            : ElevatedButton(
-                                onPressed: _submit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF003087),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                            ? const Center(child: CircularProgressIndicator())
+                            : SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: _submit,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF003087),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 40,
-                                    vertical: 12,
-                                  ),
-                                  minimumSize: const Size(double.infinity, 48),
-                                ),
-                                child: const Text(
-                                  'Registrarse',
-                                  style: TextStyle(fontSize: 16),
+                                  child: const Text('Registrarse', style: TextStyle(fontSize: 16)),
                                 ),
                               ),
                         const SizedBox(height: 16),

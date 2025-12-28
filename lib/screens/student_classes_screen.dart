@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../models/driving_class.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/confirmation_dialog.dart';
 
 const storage = FlutterSecureStorage();
 
@@ -20,6 +22,7 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
   List<DrivingClass> _completedClasses = [];
   List<DrivingClass> _canceledClasses = [];
   bool _isLoading = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -71,25 +74,12 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
   }
 
   Future<void> _cancelClass(DrivingClass drivingClass) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar Clase'),
-        content: const Text(
-          '¿Estás seguro de que quieres cancelar esta clase?\n\n'
-          'Nota: Las cancelaciones con menos de 24 horas de anticipación pueden tener penalizaciones.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sí, Cancelar'),
-          ),
-        ],
-      ),
+    final confirm = await ConfirmationDialog.show(
+      context,
+      title: 'Cancelar Clase',
+      message: '¿Estás seguro de que quieres cancelar esta clase?\n\nNota: Las cancelaciones con menos de 24 horas de anticipación pueden tener penalizaciones.',
+      confirmText: 'Sí, Cancelar',
+      cancelText: 'No',
     );
 
     if (confirm == true) {
@@ -147,7 +137,7 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
   Widget build(BuildContext context) {
     return Scaffold(
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ListSkeletonLoader()
           : Column(
               children: [
                 const Padding(
@@ -160,6 +150,19 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
                     ),
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Buscar por instructor...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                    ),
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TabBar(
                   controller: _tabController,
                   labelColor: const Color(0xFF003087),
@@ -193,11 +196,17 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
   }
 
   Widget _buildClassesList(List<DrivingClass> classes) {
-    if (classes.isEmpty) {
-      return const Center(
+    final filtered = classes.where((c) {
+      if (_searchQuery.isEmpty) return true;
+      final instructorName = '${c.instructor?['user']?['name'] ?? ''} ${c.instructor?['user']?['surname'] ?? ''}'.toLowerCase();
+      return instructorName.contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return Center(
         child: Text(
-          'No hay clases en esta categoría',
-          style: TextStyle(
+          _searchQuery.isEmpty ? 'No hay clases en esta categoría' : 'No se encontraron resultados',
+          style: const TextStyle(
             fontSize: 16,
             color: Colors.grey,
           ),
@@ -207,9 +216,9 @@ class _StudentClassesScreenState extends State<StudentClassesScreen> with Single
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: classes.length,
+      itemCount: filtered.length,
       itemBuilder: (context, index) {
-        final drivingClass = classes[index];
+        final drivingClass = filtered[index];
         return _buildClassCard(drivingClass);
       },
     );

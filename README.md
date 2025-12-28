@@ -1,260 +1,229 @@
-# 🚗 ManejApp - Sistema de Gestión para Escuelas de Manejo
+# ManejApp - Aplicación de Autoescuela
 
-<div align="center">
+ManejApp es una aplicación móvil desarrollada en Flutter para gestionar clases de manejo, conectando estudiantes con instructores profesionales.
 
-![ManejApp](https://img.shields.io/badge/ManejApp-v1.0.0-blue)
-![Flutter](https://img.shields.io/badge/Flutter-3.8.1-02569B?logo=flutter)
-![Firebase](https://img.shields.io/badge/Firebase-Enabled-orange?logo=firebase)
-![License](https://img.shields.io/badge/License-Proprietary-red)
+## 🚀 Características
 
-**La solución completa para gestionar tu escuela de manejo** 🎓
-
-[Características](#-características) • [Instalación](#-instalación) • [Uso](#-uso) • [Documentación](#-documentación)
-
-</div>
-
----
-
-## 📋 Descripción
-
-ManejApp es una aplicación móvil completa desarrollada en Flutter que permite a escuelas de manejo gestionar estudiantes, instructores, clases y pagos de manera eficiente. Con integración de MercadoPago para pagos seguros y Firebase para notificaciones en tiempo real.
-
-## ✨ Características
-
-### 🎯 Funcionalidades Principales
-
-#### Para Estudiantes
-- 📱 Dashboard personalizado con estadísticas
-- 🔍 Búsqueda y reserva de clases con instructores
-- 📅 Gestión de horarios y clases
+### Para Estudiantes
+- 📅 Reserva de clases con instructores disponibles
+- 💳 Pagos seguros integrados con MercadoPago
+- 💬 Chat en tiempo real con instructores
+- 📊 Seguimiento de progreso y clases completadas
 - ⭐ Sistema de calificaciones y feedback
-- 💳 Pagos seguros con MercadoPago
-- 💬 Chat directo con instructores
-- 👤 Perfil editable
+- 📍 Visualización de ubicación de instructores en mapa
+- 🔔 Notificaciones push y locales
 
-#### Para Instructores
-- 📊 Dashboard con métricas del día
-- 🕐 Gestión de horarios disponibles
-- ✅ Completar clases con notas
-- 👥 Ver estudiantes asignados
-- 💬 Chat con estudiantes
-- 💼 Perfil profesional editable
-- 💰 Configuración de tarifas
+### Para Instructores
+- 📋 Gestión de clases programadas
+- 🚗 Registro de vehículos
+- 💰 Visualización de ingresos
+- 📝 Notas y feedback para estudiantes
+- 📊 Dashboard con estadísticas
 
-#### Para Administradores
-- 📈 Dashboard con estadísticas generales
-- 👥 Gestión completa de usuarios
-- 📊 Reportes con gráficos interactivos
-- 💵 Análisis de ingresos
-- ⚙️ Configuración del sistema
+### Para Administradores
+- 👥 Gestión de usuarios (estudiantes e instructores)
+- 📈 Estadísticas generales del sistema
+- 🔧 Configuración de la plataforma
 
-### 🔔 Notificaciones Push
-- Nueva clase reservada
-- Recordatorio de clase (1 hora antes)
-- Clase completada
-- Pago confirmado
-- Nuevos mensajes de chat
+## 📱 Capturas de Pantalla
 
-### 💳 Sistema de Pagos
-- Integración completa con MercadoPago
-- Pagos seguros y encriptados
-- Webhooks para actualización automática
-- Historial de transacciones
-- Múltiples métodos de pago
+[Agregar capturas aquí]
 
-### 💬 Sistema de Chat
-- Mensajería en tiempo real
-- Interfaz moderna
-- Historial de conversaciones
-- Notificaciones de mensajes
+## 🛠️ Tecnologías Utilizadas
 
-## 🛠️ Tecnologías
-
-- **Frontend**: Flutter 3.8.1
-- **Backend**: Node.js + Express + TypeScript
-- **Base de Datos**: PostgreSQL con Prisma ORM
+- **Framework**: Flutter 3.8+
+- **Lenguaje**: Dart
+- **Estado**: Provider
+- **Almacenamiento**: SharedPreferences, FlutterSecureStorage
+- **Mapas**: Google Maps / Flutter Map
 - **Notificaciones**: Firebase Cloud Messaging
 - **Pagos**: MercadoPago API
-- **Mapas**: Google Maps / OpenStreetMap
-- **Almacenamiento**: Flutter Secure Storage
+- **Backend**: API REST (Node.js/Express)
 
-## 📦 Instalación
+## 📦 Dependencias Principales
 
-### Requisitos Previos
-```bash
-- Flutter SDK 3.8.1+
-- Android Studio / VS Code
-- Cuenta de Firebase
-- Cuenta de MercadoPago
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  http: ^1.1.0
+  shared_preferences: ^2.5.3
+  flutter_secure_storage: ^9.0.0
+  google_maps_flutter: ^2.9.0
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
+  table_calendar: ^3.1.2
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
 ```
 
-### Pasos de Instalación
+## 🚀 Instalación
 
-1. **Clonar el repositorio**
+### Prerrequisitos
+- Flutter SDK (3.8 o superior)
+- Android Studio / Xcode
+- Cuenta de Firebase (para notificaciones)
+- Cuenta de MercadoPago (para pagos)
+
+### Pasos
+
+1. Clona el repositorio:
 ```bash
 git clone https://github.com/tu-usuario/manejapp.git
 cd manejapp
 ```
 
-2. **Instalar dependencias**
+2. Instala las dependencias:
 ```bash
 flutter pub get
 ```
 
-3. **Configurar Firebase**
-- Crear proyecto en Firebase Console
-- Descargar `google-services.json`
-- Colocar en `android/app/`
+3. Configura Firebase:
+   - Descarga `google-services.json` (Android) y `GoogleService-Info.plist` (iOS)
+   - Colócalos en las carpetas correspondientes
 
-4. **Configurar Backend**
-- Actualizar URL en `lib/services/api_service.dart`
-- Configurar variables de entorno
+4. Configura el archivo de configuración:
+```bash
+cp lib/services/config_example.json lib/services/config.json
+```
 
-5. **Ejecutar la app**
+Edita `config.json` con tus credenciales:
+```json
+{
+  "apiBaseUrl": "https://tu-api.com/api/v1",
+  "mercadoPagoPublicKey": "TU_PUBLIC_KEY"
+}
+```
+
+5. Ejecuta la aplicación:
 ```bash
 flutter run
 ```
 
-Para más detalles, ver [SETUP.md](SETUP.md)
-
-## 🚀 Uso
-
-### Primera Vez
-1. Abre la app y completa el onboarding
-2. Regístrate como estudiante o instructor
-3. Completa tu perfil
-4. ¡Comienza a usar ManejApp!
-
-### Como Estudiante
-1. Busca instructores disponibles
-2. Reserva una clase
-3. Realiza el pago
-4. Asiste a tu clase
-5. Califica tu experiencia
-
-### Como Instructor
-1. Configura tus horarios disponibles
-2. Espera reservas de estudiantes
-3. Imparte tus clases
-4. Completa las clases con notas
-5. Recibe tus pagos
-
-### Como Administrador
-1. Accede al panel administrativo
-2. Gestiona usuarios y clases
-3. Revisa reportes y estadísticas
-4. Configura el sistema
-
-## 📱 Capturas de Pantalla
-
-```
-[Aquí irían las capturas de pantalla]
-```
-
-## 🏗️ Arquitectura
+## 🏗️ Estructura del Proyecto
 
 ```
 lib/
-├── controllers/      # Lógica de negocio
-├── models/          # Modelos de datos
-├── screens/         # Pantallas UI
-│   ├── admin/      # Pantallas admin
-│   ├── instructor/ # Pantallas instructor
-│   └── student/    # Pantallas estudiante
-├── services/        # Servicios (API, Firebase, etc)
-├── widgets/         # Widgets reutilizables
-└── main.dart       # Punto de entrada
+├── controllers/        # Lógica de negocio y estado
+├── models/            # Modelos de datos
+├── providers/         # Providers (tema, etc.)
+├── screens/           # Pantallas de la app
+├── services/          # Servicios (API, notificaciones)
+├── utils/             # Utilidades (validadores, caché)
+├── widgets/           # Widgets reutilizables
+└── main.dart          # Punto de entrada
 ```
 
-## 📚 Documentación
+## 🔧 Configuración del Backend
 
-- [Guía de Instalación](SETUP.md)
-- [Changelog](CHANGELOG.md)
-- [API Documentation](docs/API_INTEGRATION.md)
-- [Autenticación](docs/AUTHENTICATION.md)
-- [Sistema de Pagos](docs/PAYMENT_INTEGRATION.md)
-- [Sistema de Horarios](docs/SCHEDULE_SYSTEM.md)
+La app requiere un backend REST con los siguientes endpoints:
+
+### Autenticación
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/logout`
+
+### Usuarios
+- `GET /api/v1/users/:id`
+- `PUT /api/v1/users/:id`
+
+### Clases
+- `GET /api/v1/driving-classes`
+- `POST /api/v1/driving-classes`
+- `PUT /api/v1/driving-classes/:id`
+- `DELETE /api/v1/driving-classes/:id`
+
+### Mensajería
+- `POST /api/v1/messages/send`
+- `GET /api/v1/messages/conversations`
+- `GET /api/v1/messages/conversations/:id/messages`
+
+### Pagos
+- `POST /api/v1/payments`
+- `GET /api/v1/payments`
+
+Ver documentación completa del backend en `/docs/API.md`
+
+## 🎨 Temas y Personalización
+
+La app soporta modo claro y oscuro. Para cambiar el tema:
+1. Ve a Configuración
+2. Activa "Modo Oscuro"
+
+Los colores principales se definen en `lib/utils/constants.dart`:
+```dart
+static const primaryColor = Color(0xFF003087);
+```
 
 ## 🧪 Testing
 
+Ejecutar tests:
 ```bash
-# Ejecutar tests
 flutter test
-
-# Ejecutar tests con coverage
-flutter test --coverage
 ```
 
-## 🔒 Seguridad
+## 📱 Generación de APK/IPA
 
-- Autenticación JWT con refresh tokens
-- Almacenamiento seguro de credenciales
-- Encriptación de datos sensibles
-- Validación de inputs
-- Protección contra XSS y SQL Injection
-- HTTPS obligatorio
+### Android (APK)
+```bash
+flutter build apk --release
+```
 
-## 🤝 Contribuir
+### Android (App Bundle)
+```bash
+flutter build appbundle --release
+```
 
-Las contribuciones son bienvenidas. Por favor:
+### iOS
+```bash
+flutter build ios --release
+```
 
-1. Fork el proyecto
-2. Crea una rama (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+## 🔐 Seguridad
 
-## 📝 Roadmap
+- Las credenciales se almacenan en FlutterSecureStorage
+- Tokens JWT para autenticación
+- Comunicación HTTPS con el backend
+- Validación de inputs en formularios
 
-- [x] Sistema de autenticación
-- [x] Gestión de clases
-- [x] Sistema de pagos
-- [x] Notificaciones push
-- [x] Chat en tiempo real
-- [x] Panel administrativo
-- [ ] Modo oscuro
-- [ ] Soporte multiidioma
-- [ ] App iOS
-- [ ] Web app
+## 🐛 Problemas Conocidos
 
-## 🐛 Reportar Bugs
-
-Si encuentras un bug, por favor abre un issue con:
-- Descripción del problema
-- Pasos para reproducir
-- Comportamiento esperado
-- Screenshots (si aplica)
-- Versión de la app
+1. **Imagen de perfil**: El endpoint de subida de imagen puede no estar implementado en el backend
+2. **Notificaciones push**: Requiere configuración completa de FCM en el backend
+3. **Student no encontrado**: Si un usuario con rol student no tiene registro en la tabla Student, las reservas pueden fallar
 
 ## 📄 Licencia
 
-© 2024 ManejApp. Todos los derechos reservados.
+Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más detalles.
 
-## 👥 Equipo
+## 👥 Contribuidores
 
-- **Desarrollo**: Tu Nombre
-- **Diseño**: Tu Nombre
-- **Backend**: Tu Nombre
+- [Tu Nombre] - Desarrollo inicial
 
-## 📞 Contacto
+## 📞 Soporte
 
-- Email: soporte@manejapp.com
-- Website: https://manejapp.com
-- Twitter: [@manejapp](https://twitter.com/manejapp)
+Para reportar bugs o solicitar features, abre un issue en GitHub.
 
-## 🙏 Agradecimientos
+## 🔄 Changelog
 
-- Flutter Team
-- Firebase
-- MercadoPago
-- Comunidad Open Source
+### v1.0.0 (2024)
+- ✅ Sistema de autenticación completo
+- ✅ Reserva de clases
+- ✅ Integración con MercadoPago
+- ✅ Chat en tiempo real
+- ✅ Notificaciones locales
+- ✅ Modo oscuro
+- ✅ Calendario de clases
+- ✅ Sistema de búsqueda y filtros
+- ✅ Skeleton loaders
+- ✅ Caché offline
 
----
+## 🚀 Roadmap
 
-<div align="center">
-
-**Hecho con ❤️ en Argentina**
-
-[⬆ Volver arriba](#-manejapp---sistema-de-gestión-para-escuelas-de-manejo)
-
-</div>
+- [ ] Videollamadas con instructores
+- [ ] Sistema de exámenes teóricos
+- [ ] Gamificación y logros
+- [ ] Integración con redes sociales
+- [ ] Soporte multiidioma

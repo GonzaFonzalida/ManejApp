@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'admin_users_screen.dart';
-import 'admin_reports_screen.dart';
-import 'admin_settings_screen.dart';
 import 'admin_logs_screen.dart';
+import '../controllers/login_controller.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   static const routeName = '/admin_dashboard';
@@ -87,13 +86,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       body: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
-          BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Reportes'),
           BottomNavigationBarItem(icon: Icon(Icons.article), label: 'Logs'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: const Color(0xFF003087),
@@ -106,9 +102,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     switch (_selectedIndex) {
       case 0: return _buildDashboard();
       case 1: return const AdminUsersScreen();
-      case 2: return const AdminReportsScreen();
-      case 3: return const AdminLogsScreen();
-      case 4: return const AdminSettingsScreen();
+      case 2: return const AdminLogsScreen();
       default: return _buildDashboard();
     }
   }
@@ -165,35 +159,52 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(height: 24),
             const Text('Acciones Rápidas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => setState(() => _selectedIndex = 1),
-                    icon: const Icon(Icons.people),
-                    label: const Text('Gestionar Usuarios'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF003087),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.all(16),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => setState(() => _selectedIndex = 2),
-                    icon: const Icon(Icons.analytics),
-                    label: const Text('Ver Reportes'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.all(16),
-                    ),
-                  ),
-                ),
-              ],
+            ElevatedButton.icon(
+              onPressed: () => setState(() => _selectedIndex = 1),
+              icon: const Icon(Icons.people),
+              label: const Text('Gestionar Usuarios'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF003087),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(16),
+                minimumSize: const Size(double.infinity, 50),
+              ),
             ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Cerrar Sesión'),
+                    content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Cerrar Sesión'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true && mounted) {
+                  final loginController = LoginController();
+                  await loginController.logout(context);
+                }
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Cerrar Sesión'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(16),
+                minimumSize: const Size(double.infinity, 50),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

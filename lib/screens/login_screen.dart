@@ -36,20 +36,21 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                Image.asset(
-                  'assets/logo definitivo.jpeg',
-                  width: double.infinity,
-                  height: 235,
-                  fit: BoxFit.cover,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/logo definitivo.jpeg',
+                    height: 160,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 const Text(
                   'ManejApp',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF003087),
-                    fontFamily: 'Roboto',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -121,24 +122,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 10),
                         controller.isLoading
-                            ? const CircularProgressIndicator()
-                            : ElevatedButton(
-                                onPressed: () => controller.submit(
-                                  context,
-                                  () => setState(() {}),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF003087),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                            ? const Center(child: CircularProgressIndicator())
+                            : SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: () => controller.submit(
+                                    context,
+                                    () => setState(() {}),
                                   ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF003087),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
-                                  minimumSize: const Size(double.infinity, 48),
+                                  child: const Text('Ingresar', style: TextStyle(fontSize: 16)),
                                 ),
-                                child: const Text('Ingresar'),
                               ),
                         const SizedBox(height: 16),
                         TextButton(

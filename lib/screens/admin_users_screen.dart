@@ -132,21 +132,44 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> with SingleTickerPr
   }
 
   Future<void> _toggleUserStatus(dynamic user, bool isActive) async {
+    final userId = (user['user']?['id'] ?? user['userId'] ?? user['id']).toString();
+    
+    setState(() {
+      if (user['user'] != null) {
+        user['user']['isActive'] = isActive;
+      } else {
+        user['isActive'] = isActive;
+      }
+    });
+    
     try {
-      final userId = (user['user']?['id'] ?? user['userId'] ?? user['id']).toString();
       debugPrint('Toggling user $userId to ${isActive ? "active" : "inactive"}');
       await ApiService.manageUser(userId, isActive: isActive);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Usuario ${isActive ? "activado" : "desactivado"} exitosamente')),
+          SnackBar(
+            content: Text('Usuario ${isActive ? "activado" : "desactivado"} exitosamente'),
+            backgroundColor: Colors.green,
+          ),
         );
-        _loadUsers();
       }
     } catch (e) {
       debugPrint('Error toggling user: $e');
+      
+      setState(() {
+        if (user['user'] != null) {
+          user['user']['isActive'] = !isActive;
+        } else {
+          user['isActive'] = !isActive;
+        }
+      });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('Error: ${e.toString().replaceAll("Exception: ", "")}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

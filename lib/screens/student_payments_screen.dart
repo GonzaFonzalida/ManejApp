@@ -49,7 +49,8 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
             .toList();
 
         // Obtener pagos relacionados con las clases del estudiante
-        final payments = await ApiService.getPayments();
+        final paymentsResponse = await ApiService.getPayments();
+        final payments = paymentsResponse is List ? paymentsResponse : (paymentsResponse as Map<String, dynamic>)['data'] as List? ?? [];
         _allPayments = payments
             .where((p) => studentClasses.any((c) => c.id == p['drivingClassId']))
             .map((p) => Payment.fromJson(p))

@@ -50,7 +50,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _completeOnboarding() async {
-    await storage.write(key: 'onboarding_completed', value: 'true');
+    await storage.write(key: 'first_launch_completed', value: 'true');
     if (mounted) {
       Navigator.pushReplacementNamed(context, LoginScreen.routeName);
     }
