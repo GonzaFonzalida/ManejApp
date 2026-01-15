@@ -10,11 +10,13 @@ export interface UserRepository {
     findUser(value: string | number):  Promise<UserWithOutPassword | undefined>;
     findByRole(rol: string): Promise<UserWithOutPassword[]>;
     findByEmail(email: string): Promise<User | undefined>;
+    updateUser(id: number, updateData: Partial<UserWithDates>): Promise<UserWithOutPassword | null>;
     updateLastLoginAt(id: number): Promise<UserWithOutPassword | null>;
     verifyEmail(token: string): Promise<UserWithOutPassword | null>;
     resendVerificationToken(email: string): Promise<UserWithOutPassword | null>;
     updateRole(id: number, role: string): Promise<UserWithOutPassword | null>;
     updateProfileImage(id: number, imagePath: string | null): Promise<UserWithOutPassword | null>;
+    saveFCMToken(userId: number, fcmToken: string): Promise<void>;
 }
 
 // model User {

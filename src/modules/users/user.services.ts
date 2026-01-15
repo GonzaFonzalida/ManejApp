@@ -45,6 +45,16 @@ export default class UserService {
         return await this.userAuth.findUser(value);
     }
 
+    async updateUser(userId: number, updateData: Partial<UserWithDates>): Promise<UserWithOutPassword | null> {
+        // Si se está actualizando la contraseña, hashearla
+        if (updateData.password) {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(updateData.password, salt);
+        }
+
+        return await this.userAuth.updateUser(userId, updateData);
+    }
+
     async findByRole(role: string): Promise<UserWithOutPassword[]> {
         return await this.userAuth.findByRole(role);
     }
@@ -123,5 +133,9 @@ export default class UserService {
     async getProfileImagePath(userId: number): Promise<string | null> {
         const user = await this.userAuth.findUser(userId);
         return user ? (user as any).profileImage : null;
+    }
+
+    async saveFCMToken(userId: number, fcmToken: string): Promise<void> {
+        await this.userAuth.saveFCMToken(userId, fcmToken);
     }
 }

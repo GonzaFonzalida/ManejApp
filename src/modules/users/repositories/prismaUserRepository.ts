@@ -3,6 +3,7 @@
 import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPasswordAndDates } from "../user.types";
 import { UserRepository } from "./userRepository"
 import { prisma } from "@config/prismaClient";
+import { PrismaClient } from "@prisma/client";
 import { error } from "console";
 import { randomUUID } from "crypto";
 
@@ -14,30 +15,46 @@ export default class UserPrismaRepository implements UserRepository {
         // Convertimos la cadena de la fecha a un objeto Date
         const birthDateObject = new Date(birthDate);
 
-        // Pasamos un objeto 'data' limpio y explícito para evitar conflictos.
-        return await prisma.user.create({
-            data: {
-                name: name,
-                surname: surname,
-                email: email,
-                dni: dni,
-                password: password,
-                birthDate: birthDateObject,
-                role: 'STUDENT',
-                emailVerificationToken: emailVerificationToken,
-            } as any,
-            select: {
-                id: true,
-                dni: true,
-                email: true,
-                name: true,
-                surname: true,
-                birthDate: true,
-                isActive: true,
-                createdAt: true,
-                role: true,
+        // Crear usuario y Student en una transacción
+        const result = await prisma.$transaction(async (tx: PrismaClient) => {
+            // Crear usuario
+            const user = await tx.user.create({
+                data: {
+                    name: name,
+                    surname: surname,
+                    email: email,
+                    dni: dni,
+                    password: password,
+                    birthDate: birthDateObject,
+                    role: 'STUDENT',
+                    emailVerificationToken: emailVerificationToken,
+                } as any,
+                select: {
+                    id: true,
+                    dni: true,
+                    email: true,
+                    name: true,
+                    surname: true,
+                    birthDate: true,
+                    isActive: true,
+                    createdAt: true,
+                    role: true,
+                }
+            });
+
+            // Auto-crear registro Student si el rol es STUDENT
+            if (user.role === 'STUDENT') {
+                await tx.student.create({
+                    data: {
+                        userId: user.id
+                    }
+                });
             }
+
+            return user;
         });
+
+        return result;
     }
 
     async findByEmail(email: string): Promise<User | undefined> {
@@ -100,6 +117,32 @@ export default class UserPrismaRepository implements UserRepository {
         // Omitimos la contraseña antes de devolver
         const { password, ...userWithoutPassword } = user;
         return userWithoutPassword;
+    }
+
+    async updateUser(userId: number, updateData: Partial<UserWithDates>): Promise<UserWithOutPassword | null> {
+        // Convertir birthDate si está presente
+        const dataToUpdate: any = { ...updateData };
+        if (updateData.birthDate) {
+            dataToUpdate.birthDate = new Date(updateData.birthDate);
+        }
+
+        const user = await prisma.user.update({
+            where: { id: userId },
+            data: dataToUpdate,
+            select: {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+                role: true,
+                createdAt: true,
+                birthDate: true,
+                isActive: true,
+            },
+        });
+
+        return user;
     }
 
     async findUser(value: string | number): Promise<UserWithOutPassword | undefined> {
@@ -250,5 +293,17 @@ export default class UserPrismaRepository implements UserRepository {
         });
 
         return user;
+    }
+
+    async saveFCMToken(userId: number, fcmToken: string): Promise<void> {
+        // Usar upsert para crear o actualizar el token
+        await prisma.notificationToken.upsert({
+            where: { userId },
+            update: { token: fcmToken },
+            create: {
+                userId,
+                token: fcmToken
+            }
+        });
     }
 }

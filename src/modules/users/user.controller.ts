@@ -183,6 +183,78 @@ export default class UserController {
 
     /**
      * @swagger
+     * /users/{id}:
+     *   put:
+     *     summary: Update user information
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: integer
+     *         description: User ID
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               name:
+     *                 type: string
+     *               surname:
+     *                 type: string
+     *               email:
+     *                 type: string
+     *                 format: email
+     *               dni:
+     *                 type: string
+     *               birthDate:
+     *                 type: string
+     *     responses:
+     *       200:
+     *         description: User updated successfully
+     *       401:
+     *         description: Unauthorized
+     *       403:
+     *         description: Cannot update other user's information
+     *       404:
+     *         description: User not found
+     *       500:
+     *         description: Internal server error
+     */
+    public updateUser: ExpressFunction = async (req, res, next) => {
+        try {
+            const userId = parseInt(req.params.id);
+            const currentUserId = (req as any).user.id;
+            const updateData = req.body;
+
+            // Verificar que el usuario solo pueda actualizar su propia información
+            if (userId !== currentUserId) {
+                return next(new CustomizedError('No puedes actualizar la información de otro usuario', 403));
+            }
+
+            const updatedUser = await this.userService.updateUser(userId, updateData);
+
+            if (!updatedUser) {
+                return next(new CustomizedError('Usuario no encontrado', 404));
+            }
+
+            res.json({
+                success: true,
+                message: 'Usuario actualizado exitosamente',
+                data: updatedUser
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
      * /users/login:
      *   post:
      *     summary: User login
@@ -430,12 +502,19 @@ export default class UserController {
 
     /**
      * @swagger
-     * /users/profile-image:
+     * /users/{id}/upload-profile-image:
      *   post:
-     *     summary: Upload profile image
+     *     summary: Upload profile image for specific user
      *     tags: [Users]
      *     security:
      *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: integer
+     *         description: User ID
      *     requestBody:
      *       required: true
      *       content:
@@ -443,42 +522,67 @@ export default class UserController {
      *           schema:
      *             type: object
      *             properties:
-     *               profileImage:
+     *               image:
      *                 type: string
      *                 format: binary
-     *                 description: Profile image file (max 5MB, jpeg/png/gif/webp)
+     *                 description: Profile image file (max 5MB, jpeg/png/gif)
      *     responses:
      *       200:
      *         description: Profile image uploaded successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 message:
+     *                   type: string
+     *                   example: "Imagen de perfil actualizada exitosamente"
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     imageUrl:
+     *                       type: string
+     *                       example: "/api/v1/users/123/profile-image"
      *       400:
      *         description: Invalid file or upload error
      *       401:
      *         description: Unauthorized
+     *       403:
+     *         description: Cannot update other user's profile
      *       500:
      *         description: Internal server error
      */
     public uploadProfileImage: ExpressFunction = async (req: any, res: any, next: any) => {
         try {
-            const userId = req.user.id;
+            const userId = parseInt(req.params.id);
+            const currentUserId = req.user.id;
             const file = req.file;
+
+            // Verificar que el usuario solo pueda subir su propia imagen
+            if (userId !== currentUserId) {
+                return next(new CustomizedError('No puedes actualizar la imagen de otro usuario', 403));
+            }
 
             if (!file) {
                 return next(new CustomizedError('No se encontró ningún archivo', 400));
             }
 
             // Update user profile image
-            const user = await this.userService.updateProfileImage(userId, file.filename);
+            const user = await this.userService.updateProfileImage(userId, file.path);
 
             if (!user) {
-                // Clean up uploaded file
-                await FileService.deleteFile(file.filename);
                 return next(new CustomizedError('Usuario no encontrado', 404));
             }
 
             res.json({
+                success: true,
                 message: 'Imagen de perfil actualizada exitosamente',
-                user: user,
-                imageUrl: `/api/v1/users/profile-image/${file.filename}`
+                data: {
+                    imageUrl: `/api/v1/users/${userId}/profile-image`
+                }
             });
         } catch (error) {
             next(error);
@@ -487,29 +591,55 @@ export default class UserController {
 
     /**
      * @swagger
-     * /users/profile-image:
+     * /users/{id}/profile-image:
      *   delete:
-     *     summary: Delete profile image
+     *     summary: Delete profile image for specific user
      *     tags: [Users]
      *     security:
      *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: integer
+     *         description: User ID
      *     responses:
      *       200:
      *         description: Profile image deleted successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 message:
+     *                   type: string
+     *                   example: "Imagen de perfil eliminada exitosamente"
      *       401:
      *         description: Unauthorized
+     *       403:
+     *         description: Cannot delete other user's profile image
      *       500:
      *         description: Internal server error
      */
     public deleteProfileImage: ExpressFunction = async (req, res, next) => {
         try {
-            const userId = (req as any).user.id;
+            const userId = parseInt(req.params.id);
+            const currentUserId = (req as any).user.id;
+
+            // Verificar que el usuario solo pueda eliminar su propia imagen
+            if (userId !== currentUserId) {
+                return next(new CustomizedError('No puedes eliminar la imagen de otro usuario', 403));
+            }
 
             const user = await this.userService.deleteProfileImage(userId);
 
             res.json({
-                message: 'Imagen de perfil eliminada exitosamente',
-                user: user
+                success: true,
+                message: 'Imagen de perfil eliminada exitosamente'
             });
         } catch (error) {
             next(error);
@@ -518,17 +648,17 @@ export default class UserController {
 
     /**
      * @swagger
-     * /users/profile-image/{filename}:
+     * /users/{id}/profile-image:
      *   get:
-     *     summary: Get profile image
+     *     summary: Get profile image for specific user
      *     tags: [Users]
      *     parameters:
      *       - in: path
-     *         name: filename
+     *         name: id
      *         required: true
      *         schema:
-     *           type: string
-     *         description: Profile image filename
+     *           type: integer
+     *         description: User ID
      *     responses:
      *       200:
      *         description: Profile image file
@@ -544,44 +674,105 @@ export default class UserController {
      */
     public getProfileImage: ExpressFunction = async (req, res, next) => {
         try {
-            const { filename } = req.params;
+            const userId = parseInt(req.params.id);
 
-            // Validate filename format (security)
-            if (!filename || !filename.startsWith('profile-')) {
-                return next(new CustomizedError('Nombre de archivo inválido', 400));
-            }
+            const imagePath = await this.userService.getProfileImagePath(userId);
 
-            const filePath = FileService.getFullFilePath(filename);
-
-            // Check if file exists
-            if (!FileService.fileExists(filename)) {
+            if (!imagePath) {
                 return next(new CustomizedError('Imagen no encontrada', 404));
             }
 
-            // Get file stats for content type
-            const stats = await FileService.getFileStats(filename);
+            // Check if file exists
+            if (!FileService.fileExists(imagePath)) {
+                return next(new CustomizedError('Imagen no encontrada', 404));
+            }
+
+            const filePath = FileService.getFullFilePath(imagePath);
+            const stats = await FileService.getFileStats(imagePath);
+            
             if (!stats) {
                 return next(new CustomizedError('Error al acceder al archivo', 500));
             }
 
             // Set appropriate headers
-            const ext = path.extname(filename).toLowerCase();
+            const ext = path.extname(imagePath).toLowerCase();
             const contentType = {
                 '.jpg': 'image/jpeg',
                 '.jpeg': 'image/jpeg',
                 '.png': 'image/png',
-                '.gif': 'image/gif',
-                '.webp': 'image/webp'
+                '.gif': 'image/gif'
             }[ext] || 'application/octet-stream';
 
             res.setHeader('Content-Type', contentType);
             res.setHeader('Content-Length', stats.size);
-            res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
 
             // Stream the file
             const fileStream = require('fs').createReadStream(filePath);
             fileStream.pipe(res);
 
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/fcm-token:
+     *   post:
+     *     summary: Save FCM token for push notifications
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - fcmToken
+     *             properties:
+     *               fcmToken:
+     *                 type: string
+     *                 description: Firebase Cloud Messaging token
+     *     responses:
+     *       200:
+     *         description: FCM token saved successfully
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 message:
+     *                   type: string
+     *                   example: "Token FCM guardado exitosamente"
+     *       400:
+     *         description: Invalid token
+     *       401:
+     *         description: Unauthorized
+     *       500:
+     *         description: Internal server error
+     */
+    public saveFCMToken: ExpressFunction = async (req, res, next) => {
+        try {
+            const userId = (req as any).user.id;
+            const { fcmToken } = req.body;
+
+            if (!fcmToken) {
+                return next(new CustomizedError('Token FCM es requerido', 400));
+            }
+
+            // Guardar o actualizar el token FCM
+            await this.userService.saveFCMToken(userId, fcmToken);
+
+            res.json({
+                success: true,
+                message: 'Token FCM guardado exitosamente'
+            });
         } catch (error) {
             next(error);
         }
