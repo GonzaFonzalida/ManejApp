@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@config/config";
 import EmailService from "@shared/services/EmailService";
+import FileService from "@shared/services/FileService";
 import { randomUUID } from "crypto";
 
 export default class UserService {
@@ -92,5 +93,35 @@ export default class UserService {
             }
         }
         return user;
+    }
+
+    async updateProfileImage(userId: number, imagePath: string): Promise<UserWithOutPassword | null> {
+        // Get current user to check if there's an existing image
+        const currentUser = await this.userAuth.findUser(userId);
+        if (currentUser && (currentUser as any).profileImage) {
+            // Delete old profile image
+            await FileService.deleteFile((currentUser as any).profileImage);
+        }
+
+        // Update user with new image path
+        return await this.userAuth.updateProfileImage(userId, imagePath);
+    }
+
+    async deleteProfileImage(userId: number): Promise<UserWithOutPassword | null> {
+        // Get current user
+        const user = await this.userAuth.findUser(userId);
+        if (user && (user as any).profileImage) {
+            // Delete the image file
+            await FileService.deleteFile((user as any).profileImage);
+
+            // Remove image path from database
+            return await this.userAuth.updateProfileImage(userId, null);
+        }
+        return user as UserWithOutPassword;
+    }
+
+    async getProfileImagePath(userId: number): Promise<string | null> {
+        const user = await this.userAuth.findUser(userId);
+        return user ? (user as any).profileImage : null;
     }
 }

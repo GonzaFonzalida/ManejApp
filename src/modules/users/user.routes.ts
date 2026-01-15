@@ -3,6 +3,8 @@ import GenericRouter from "@shared/classes/GenericRouter";
 import {registerSchema, loginSchema, getUserByRoleSchema} from "./user.schema" ;
 import { validate } from "./user.middleware";
 import { validateParams } from "@shared/middlewares/zod/validateParams";
+import { uploadSingleImage, validateUploadedFile } from "@shared/middlewares/fileUpload";
+import { authenticate } from "@auth/auth.middlewares";
 
 export default class UserRouter extends GenericRouter {
     constructor(private readonly userController: UserController) {
@@ -23,5 +25,15 @@ export default class UserRouter extends GenericRouter {
         // Notification preferences (require authentication)
         router.get("/notification-preferences", this.userController.getNotificationPreferences);
         router.put("/notification-preferences", this.userController.updateNotificationPreferences);
+
+        // Profile image management (require authentication)
+        router.post("/profile-image",
+            authenticate,
+            uploadSingleImage,
+            validateUploadedFile,
+            this.userController.uploadProfileImage
+        );
+        router.delete("/profile-image", authenticate, this.userController.deleteProfileImage);
+        router.get("/profile-image/:filename", this.userController.getProfileImage);
     }
 }

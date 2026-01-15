@@ -231,4 +231,24 @@ export default class UserPrismaRepository implements UserRepository {
 
         return updatedUser;
     }
+
+    async updateProfileImage(id: number, imagePath: string | null): Promise<UserWithOutPassword | null> {
+        const user = await prisma.user.update({
+            where: { id },
+            data: { profileImage: imagePath } as any,
+            select: {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+                role: true,
+                createdAt: true,
+                birthDate: true,
+                isActive: true,
+            },
+        });
+
+        return user;
+    }
 }

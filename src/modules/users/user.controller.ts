@@ -4,6 +4,9 @@ import UserService from "./user.services";
 import { UserWithOutPassword, User, UserWithOutId, UserWithDates } from "./user.types";
 import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import CustomizedError from "@classes/CustomizedError";
+import { uploadSingleImage, validateUploadedFile } from "@shared/middlewares/fileUpload";
+import FileService from "@shared/services/FileService";
+import path from "path";
 
 export default class UserController {
     constructor(private userService: UserService) { }
@@ -420,6 +423,165 @@ export default class UserController {
             };
 
             res.json({ message: "Preferencias actualizadas", preferences });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/profile-image:
+     *   post:
+     *     summary: Upload profile image
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         multipart/form-data:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               profileImage:
+     *                 type: string
+     *                 format: binary
+     *                 description: Profile image file (max 5MB, jpeg/png/gif/webp)
+     *     responses:
+     *       200:
+     *         description: Profile image uploaded successfully
+     *       400:
+     *         description: Invalid file or upload error
+     *       401:
+     *         description: Unauthorized
+     *       500:
+     *         description: Internal server error
+     */
+    public uploadProfileImage: ExpressFunction = async (req: any, res: any, next: any) => {
+        try {
+            const userId = req.user.id;
+            const file = req.file;
+
+            if (!file) {
+                return next(new CustomizedError('No se encontró ningún archivo', 400));
+            }
+
+            // Update user profile image
+            const user = await this.userService.updateProfileImage(userId, file.filename);
+
+            if (!user) {
+                // Clean up uploaded file
+                await FileService.deleteFile(file.filename);
+                return next(new CustomizedError('Usuario no encontrado', 404));
+            }
+
+            res.json({
+                message: 'Imagen de perfil actualizada exitosamente',
+                user: user,
+                imageUrl: `/api/v1/users/profile-image/${file.filename}`
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/profile-image:
+     *   delete:
+     *     summary: Delete profile image
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: Profile image deleted successfully
+     *       401:
+     *         description: Unauthorized
+     *       500:
+     *         description: Internal server error
+     */
+    public deleteProfileImage: ExpressFunction = async (req, res, next) => {
+        try {
+            const userId = (req as any).user.id;
+
+            const user = await this.userService.deleteProfileImage(userId);
+
+            res.json({
+                message: 'Imagen de perfil eliminada exitosamente',
+                user: user
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/profile-image/{filename}:
+     *   get:
+     *     summary: Get profile image
+     *     tags: [Users]
+     *     parameters:
+     *       - in: path
+     *         name: filename
+     *         required: true
+     *         schema:
+     *           type: string
+     *         description: Profile image filename
+     *     responses:
+     *       200:
+     *         description: Profile image file
+     *         content:
+     *           image/*:
+     *             schema:
+     *               type: string
+     *               format: binary
+     *       404:
+     *         description: Image not found
+     *       500:
+     *         description: Internal server error
+     */
+    public getProfileImage: ExpressFunction = async (req, res, next) => {
+        try {
+            const { filename } = req.params;
+
+            // Validate filename format (security)
+            if (!filename || !filename.startsWith('profile-')) {
+                return next(new CustomizedError('Nombre de archivo inválido', 400));
+            }
+
+            const filePath = FileService.getFullFilePath(filename);
+
+            // Check if file exists
+            if (!FileService.fileExists(filename)) {
+                return next(new CustomizedError('Imagen no encontrada', 404));
+            }
+
+            // Get file stats for content type
+            const stats = await FileService.getFileStats(filename);
+            if (!stats) {
+                return next(new CustomizedError('Error al acceder al archivo', 500));
+            }
+
+            // Set appropriate headers
+            const ext = path.extname(filename).toLowerCase();
+            const contentType = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp'
+            }[ext] || 'application/octet-stream';
+
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Content-Length', stats.size);
+            res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+            // Stream the file
+            const fileStream = require('fs').createReadStream(filePath);
+            fileStream.pipe(res);
+
         } catch (error) {
             next(error);
         }
