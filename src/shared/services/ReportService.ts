@@ -204,19 +204,29 @@ export default class ReportService {
 
     // Obtener errores recientes (últimas 24 horas)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentErrors = await prisma.logEntry.findMany({
-      where: {
-        level: 'error',
-        timestamp: { gte: yesterday }
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 10,
-    });
+    const recentErrors = await prisma.$queryRaw<
+      Array<{
+        id: number;
+        timestamp: Date;
+        level: string;
+        message: string;
+        context: any;
+        error: any;
+        metadata: any;
+        created_at: Date;
+      }>
+    >`
+      SELECT id, timestamp, level, message, context, error, metadata, created_at
+      FROM logs
+      WHERE level = 'error' AND timestamp >= ${yesterday}
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `;
 
     return {
       uptime: uptimeString,
       errorCount: recentErrors.length,
-      recentErrors: recentErrors.map(error => ({
+      recentErrors: recentErrors.map((error: any) => ({
         timestamp: error.timestamp,
         message: error.message,
         context: error.context,

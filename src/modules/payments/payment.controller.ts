@@ -1,10 +1,14 @@
 import { Request, Response } from "express";
 import PaymentService from "./payment.services";
+import CommissionEnhancedService from "./commission-enhanced.service";
 import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import CustomizedError from "@shared/classes/CustomizedError";
 
 export default class PaymentController {
-  constructor(private paymentService: PaymentService) {}
+  constructor(
+    private paymentService: PaymentService,
+    private commissionService: CommissionEnhancedService
+  ) {}
 
   /**
    * @swagger
@@ -307,7 +311,8 @@ export default class PaymentController {
    */
   createPaymentWithMercadoPago: ExpressFunction = async (req, res, next) => {
     try {
-      const payment = await this.paymentService.createPaymentWithMercadoPago(req.body);
+      const userId = (req as any).user?.id;
+      const payment = await this.commissionService.createPaymentWithCommission(req.body, userId);
       res.status(201).json(payment);
     } catch (err) {
       next(err);

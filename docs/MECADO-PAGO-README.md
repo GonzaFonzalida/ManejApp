@@ -69,9 +69,15 @@ APP_URL_PUBLIC="https://tu-url-publica"  # Solo para desarrollo
 
 ### Pagos
 
-- `POST /payments/mercadopago` - Crear pago con Mercado Pago
+- `POST /payments/mercadopago` - **Crear pago con Mercado Pago (con comisiones automáticas)**
 - `POST /payments/mercadopago/preference` - Crear preferencia de Mercado Pago
 - `GET /payments/:id` - Obtener pago por ID
+
+### Sistema de Comisiones *(Activo desde enero 2026)*
+
+- `POST /payments/with-commission` - Crear pago con comisión (legacy)
+- `GET /payments/commission-report` - Reporte de comisiones de la app
+- `GET /payments/instructor/:id/earnings` - Ganancias por instructor
 
 ## Solución de Problemas
 

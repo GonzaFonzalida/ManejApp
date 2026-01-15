@@ -216,7 +216,7 @@ Cada instructor debe:
 
 ### **Implementación Inmediata**
 1. ✅ **Sistema creado** y configurado
-2. ⚠️ **Aplicar migración** de BD (cuando esté disponible)
+2. ✅ **Migración de BD aplicada** (SystemConfig agregado)
 3. ⚠️ **Configurar MP Marketplace**
 4. ⚠️ **Onboarding de instructores**
 
@@ -228,6 +228,40 @@ Cada instructor debe:
 
 ---
 
+## 🔄 **Actualización Importante - Enero 2026**
+
+### **✅ Sistema de Comisiones Activado**
+
+**Fecha**: 15 de enero de 2026
+
+**Cambios implementados**:
+- ✅ **Integración completa** en flujo de pagos principal
+- ✅ **PaymentController actualizado** para usar `CommissionEnhancedService`
+- ✅ **Contenedor DI configurado** con servicios de comisión
+- ✅ **Tabla SystemConfig creada** para configuración de reportes
+- ✅ **Compilación exitosa** sin errores
+
+### **Flujo de Pago Actual**:
+```
+Estudiante paga → Mercado Pago → Split automático:
+├── App: 20% → Cuenta ManejApp
+└── Instructor: 80% → Cuenta del instructor
+```
+
+### **Endpoints Activos**:
+- `POST /api/v1/payments/mercadopago` - **Ahora usa comisiones**
+- `POST /api/v1/payments/with-commission` - Sistema legacy
+- `GET /api/v1/payments/commission-report` - Reportes
+- `GET /api/v1/payments/instructor/:id/earnings` - Ganancias
+
+### **Requisitos para Funcionamiento**:
+- Instructor debe tener `mpCollectorId` configurado
+- Instructor debe estar validado (`isValid: true`)
+- Configurar `APP_COMMISSION_PERCENTAGE` en variables de entorno
+
+---
+
 *Sistema implementado: Enero 2024*
+*Activación completa: Enero 2026*
 *Comisión configurada: 20% para la app, 80% para instructores*
-*Estado: ✅ Listo para configuración MP Marketplace*
+*Estado: ✅ **Activo y Funcionando***

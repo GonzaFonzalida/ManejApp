@@ -3,7 +3,7 @@ node_modules
 /node_modules
 # Keep environment variables out of version control
 .env
-/logs/app.log
+/logs
 /dist
 /node_modules
 /src/generated/prisma

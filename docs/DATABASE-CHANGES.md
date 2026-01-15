@@ -4,7 +4,28 @@
 
 ### ✅ **Nuevas Tablas Creadas**
 
-#### **1. `payment_recovery_logs`**
+#### **1. `system_config`** - *Enero 2026*
+```sql
+CREATE TABLE system_config (
+    id SERIAL PRIMARY KEY,
+    report_interval VARCHAR(20) DEFAULT 'weekly',
+    report_emails TEXT DEFAULT '',
+    error_alerts_enabled BOOLEAN DEFAULT true,
+    last_report_sent TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Propósito**: Configuración del sistema para reportes automáticos, alertas de error y otros parámetros globales.
+
+**Campos**:
+- `report_interval` - Frecuencia de reportes ('daily', 'weekly', 'monthly')
+- `report_emails` - Lista de emails para reportes (JSON)
+- `error_alerts_enabled` - Habilitar alertas de error
+- `last_report_sent` - Timestamp del último reporte enviado
+
+#### **2. `payment_recovery_logs`**
 ```sql
 CREATE TABLE payment_recovery_logs (
     id SERIAL PRIMARY KEY,
@@ -129,6 +150,16 @@ model BlacklistedToken {
   @@index([jti])
   @@index([expiresAt])
   @@map("blacklisted_tokens")
+}
+
+model SystemConfig {
+  id                  Int      @id @default(autoincrement())
+  reportInterval      String   @default("weekly") @map("report_interval")
+  reportEmails        String   @default("") @map("report_emails")
+  errorAlertsEnabled  Boolean  @default(true) @map("error_alerts_enabled")
+  lastReportSent      DateTime? @map("last_report_sent")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 }
 ```
 
@@ -265,6 +296,22 @@ Para cambios en base de datos:
 
 ---
 
+## 📋 **Resumen de Cambios Recientes - Enero 2026**
+
+### **✅ Tabla SystemConfig Agregada**
+- **Fecha**: 15 de enero de 2026
+- **Propósito**: Soporte para configuración de reportes automáticos y alertas del sistema
+- **Migración**: Aplicada vía `prisma db push --accept-data-loss`
+- **Estado**: ✅ Tabla creada y funcional
+
+### **✅ Sistema de Comisiones Activado**
+- **Integración**: PaymentController actualizado para usar `CommissionEnhancedService`
+- **Flujo**: Todos los pagos Mercado Pago ahora incluyen split automático
+- **Campos**: `appCommission`, `instructorAmount`, `commissionRate` en tabla Payment
+
+---
+
 *Cambios aplicados: Enero 2024*
-*Versión de BD: 2.0.0 - Payment Recovery System*
+*Actualización SystemConfig: Enero 2026*
+*Versión de BD: 2.1.0 - Commission System Active*
 *Estado: ✅ Completado y Verificado*

@@ -21,6 +21,8 @@ import PrismaPaymentRepository from "@payments/repositories/PrismaPaymentReposit
 import PaymentService from "@payments/payment.services";
 import PaymentController from "@payments/payment.controller";
 import MercadoPagoService from "@payments/mercadopago.service";
+import CommissionPaymentService from "@payments/commission-payment.service";
+import CommissionEnhancedService from "@payments/commission-enhanced.service";
 
 import { PrismaScheduleSlotRepository } from "@schedule/repositories/PrismaScheduleSlotRepository";
 import { ScheduleService } from "@schedule/schedule.service";
@@ -35,7 +37,7 @@ import PrismaMessageRepository from "../../modules/messages/repositories/PrismaM
 import MessageService from "../../modules/messages/messages.services";
 import MessageController from "../../modules/messages/messages.controller";
 
-import EmailService from "@services/EmailService";
+import EmailService from "@shared/services/EmailService";
 
 const diContainer = new DiContainer();
 //Users Instnces
@@ -70,8 +72,10 @@ diContainer.register("DrivingClassController", DrivingClassController, ["Driving
 //payment instances
 diContainer.register("PrismaPaymentRepository", PrismaPaymentRepository);
 diContainer.register("MercadoPagoService", MercadoPagoService);
+diContainer.register("CommissionPaymentService", CommissionPaymentService);
+diContainer.register("CommissionEnhancedService", CommissionEnhancedService, ["PrismaPaymentRepository", "CommissionPaymentService"]);
 diContainer.register("paymentService", PaymentService, ["PrismaPaymentRepository", "MercadoPagoService"]);
-diContainer.register("paymentController", PaymentController, ["paymentService"]);
+diContainer.register("paymentController", PaymentController, ["paymentService", "CommissionEnhancedService"]);
 
 //schedule instances
 diContainer.register("PrismaScheduleSlotRepository", PrismaScheduleSlotRepository);
