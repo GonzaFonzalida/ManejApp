@@ -225,6 +225,7 @@ export default class UserPrismaRepository implements UserRepository {
                 createdAt: true,
                 birthDate: true,
                 isActive: true,
+                emailVerificationToken: true,
             },
         });
 

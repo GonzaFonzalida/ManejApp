@@ -25,13 +25,48 @@ export default class EmailService {
       to: email,
       subject: 'Verifica tu cuenta en ManejApp',
       html: `
-        <h1>¡Bienvenido a ManejApp!</h1>
-        <p>Para completar tu registro, por favor verifica tu email haciendo clic en el siguiente enlace:</p>
-        <a href="${verificationUrl}">Verificar Email</a>
-        <p>Si no puedes hacer clic en el enlace, copia y pega esta URL en tu app:</p>
-        <p>${verificationUrl}</p>
-        <p>Este enlace expirará en 24 horas.</p>
-        <p>Si no solicitaste esta verificación, ignora este email.</p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Verifica tu cuenta en ManejApp</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+            .header { text-align: center; margin-bottom: 30px; }
+            .button { display: inline-block; padding: 15px 30px; background-color: #1976d2; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; margin: 20px 0; }
+            .button:hover { background-color: #1565c0; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+            .url { background: #f9f9f9; padding: 10px; border-radius: 5px; font-family: monospace; word-break: break-all; margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>¡Bienvenido a ManejApp!</h1>
+              <p>Para completar tu registro, verifica tu email</p>
+            </div>
+
+            <p>Hola,</p>
+            <p>Gracias por registrarte en ManejApp. Para activar tu cuenta y comenzar a usar nuestros servicios, por favor verifica tu dirección de email.</p>
+
+            <div style="text-align: center;">
+              <a href="${verificationUrl}" class="button">Verificar mi Email</a>
+            </div>
+
+            <p>Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
+            <div class="url">${verificationUrl}</div>
+
+            <p><strong>Este enlace expirará en 24 horas.</strong></p>
+            <p>Si no solicitaste esta verificación, puedes ignorar este email de forma segura.</p>
+
+            <div class="footer">
+              <p>¿Necesitas ayuda? Contáctanos en <a href="mailto:soporte@manejapp.com">soporte@manejapp.com</a></p>
+              <p>ManejApp - Tu plataforma de clases de conducción</p>
+            </div>
+          </div>
+        </body>
+        </html>
       `,
     };
 

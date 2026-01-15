@@ -18,6 +18,7 @@ export default class UserService {
             const result = await this.userAuth.register({
                 ...user,
                 password: hashedPassword,
+                emailVerificationToken: verificationToken,
             } as any);
 
             if (result instanceof Error) {
