@@ -3,7 +3,6 @@
 import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPasswordAndDates } from "../user.types";
 import { UserRepository } from "./userRepository"
 import { prisma } from "@config/prismaClient";
-import { PrismaClient } from "@prisma/client";
 import { error } from "console";
 import { randomUUID } from "crypto";
 
@@ -16,7 +15,7 @@ export default class UserPrismaRepository implements UserRepository {
         const birthDateObject = new Date(birthDate);
 
         // Crear usuario y Student en una transacción
-        const result = await prisma.$transaction(async (tx: PrismaClient) => {
+        const result = await prisma.$transaction(async (tx) => {
             // Crear usuario
             const user = await tx.user.create({
                 data: {
