@@ -1,9 +1,23 @@
-.gitignore
-node_modules
+# Dependencies
+node_modules/
 /node_modules
-# Keep environment variables out of version control
+
+# Environment variables
 .env
+
+# Logs
+logs/
 /logs
+*.log
+
+# Build output
+dist/
 /dist
-/node_modules
-/src/generated/prisma
+
+# File uploads
+uploads/
+/uploads
+
+# Generated files
+src/generated/
+/src/generated
