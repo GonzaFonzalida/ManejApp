@@ -15,10 +15,11 @@ export default class EmailService {
   }
 
   async sendVerificationEmail(email: string, token: string): Promise<void> {
-    // Para app móvil, usar deep link o esquema personalizado
-    const verificationUrl = process.env.IS_MOBILE_APP === 'true'
-      ? `${process.env.MOBILE_APP_SCHEME || 'manejapp'}://verify-email?token=${token}`
-      : `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    // URL para la app móvil (botón principal)
+    const appVerificationUrl = `${process.env.MOBILE_APP_SCHEME || 'manejapp'}://verify-email?token=${token}`;
+
+    // URL alternativa para web (fallback)
+    const webVerificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -51,11 +52,11 @@ export default class EmailService {
             <p>Gracias por registrarte en ManejApp. Para activar tu cuenta y comenzar a usar nuestros servicios, por favor verifica tu dirección de email.</p>
 
             <div style="text-align: center;">
-              <a href="${verificationUrl}" class="button">Verificar mi Email</a>
+              <a href="${appVerificationUrl}" class="button">Verificar mi Email</a>
             </div>
 
-            <p>Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
-            <div class="url">${verificationUrl}</div>
+            <p>Si el botón no funciona o no tienes la app instalada, puedes copiar y pegar el siguiente enlace en tu navegador web:</p>
+            <div class="url">${webVerificationUrl}</div>
 
             <p><strong>Este enlace expirará en 24 horas.</strong></p>
             <p>Si no solicitaste esta verificación, puedes ignorar este email de forma segura.</p>
