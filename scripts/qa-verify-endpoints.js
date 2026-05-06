@@ -1,10 +1,10 @@
 /**
  * QA: Verificación de endpoints usados por RoleRouter y ApiService (Flutter).
- * Uso: QA_EMAIL=... QA_PASSWORD=... [BASE_URL=http://localhost:3099] node scripts/qa-verify-endpoints.js
+ * Uso: QA_EMAIL=... QA_PASSWORD=... [BASE_URL=https://manejapp-1.onrender.com] node scripts/qa-verify-endpoints.js
  * Evidencia: imprime status + body resumido por endpoint; fallos indican fix en backend o ApiService.
  */
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3099';
+const BASE_URL = process.env.BASE_URL || 'https://manejapp-1.onrender.com';
 const API = `${BASE_URL}/api/v1`;
 const QA_EMAIL = process.env.QA_EMAIL || 'fig@gmail.com';
 const QA_PASSWORD = process.env.QA_PASSWORD || '02320648767Si.';

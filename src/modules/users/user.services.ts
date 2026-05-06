@@ -48,14 +48,14 @@ export default class UserService {
                 }
                 console.log('[DEV] Email verificado automáticamente. Usuario logueado.');
             } else {
-                try {
-                    await this.emailService.sendVerificationEmail(user.email, verificationToken);
-                } catch (emailError) {
+                // No bloquear la respuesta HTTP: SMTP lento (p. ej. Render) provoca timeout en el cliente
+                // aunque el usuario ya esté creado en DB.
+                void this.emailService.sendVerificationEmail(user.email, verificationToken).catch((emailError) => {
                     console.error('Error enviando email de verificación:', emailError);
                     console.log('\n--- PARA VERIFICAR MANUALMENTE (copiá y abrí en el navegador): ---');
                     console.log(verificationUrl);
                     console.log('----------------------------------------------------------------\n');
-                }
+                });
             }
 
             return { user: result, accessToken };

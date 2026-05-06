@@ -77,6 +77,10 @@ export default class UserController {
         const response: Record<string, any> = { token: newUser };
         if (accessToken) {
             response.accessToken = accessToken;
+        } else {
+            response.requiresEmailVerification = true;
+            response.message =
+                "Registro exitoso. Revisá tu correo (y spam) para verificar la cuenta antes de iniciar sesión.";
         }
 
         res.status(201).json(response);

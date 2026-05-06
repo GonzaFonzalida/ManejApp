@@ -180,11 +180,23 @@ export default class AuthService {
   : Promise<Error | { accessToken: string; refreshToken: string; user: UserWithOutPassword; session: { id: string; createdAt: Date; expiresAt: Date } }> {
 
     const user = await this.users.findByEmail(email);
-    if (!user) return new CustomizedError("Email no encontrado", 401);
+    if (!user) {
+      return new CustomizedError("Email no encontrado", 401, { code: "EMAIL_NOT_FOUND" });
+    }
+    const emailVerifiedAt = (user as { emailVerifiedAt?: Date | null }).emailVerifiedAt;
+    if (!emailVerifiedAt) {
+      return new CustomizedError(
+        "Revisá tu correo y tocá el enlace de verificación antes de iniciar sesión.",
+        401,
+        { code: "PENDING_EMAIL_VERIFICATION" },
+      );
+    }
     const blocked = await this.isAccountBlocked(user.id);
     if (blocked) return blocked;
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return new CustomizedError("Contraseña Incorrecta", 401);
+    if (!ok) {
+      return new CustomizedError("Contraseña Incorrecta", 401, { code: "INVALID_CREDENTIALS" });
+    }
 
     const accessToken = signAccessToken({ id: user.id, role: user.role });
     const refreshToken = signRefreshToken({ id: user.id, role: user.role });
@@ -321,7 +333,7 @@ export default class AuthService {
       select: { accountDeletedAt: true, isActive: true },
     });
     if (!row || row.accountDeletedAt != null || !row.isActive) {
-      return new CustomizedError("Cuenta no disponible", 401);
+      return new CustomizedError("Cuenta no disponible", 401, { code: "ACCOUNT_UNAVAILABLE" });
     }
     return null;
   }
