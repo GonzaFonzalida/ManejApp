@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+Apply in addition: arquitectura-repo, comandos-y-entorno, auth-admin-middleware, zonas-criticas-y-validacion (in .cursor/rules).
+
+Always inspect the full flow before changing code:
+frontend page/component -> API client -> route/server action -> auth/middleware -> database.
+
+For bugs in dashboard/admin/auth:
+check shared auth/session/role logic before editing individual pages.
+
+Before saying a flow works end-to-end, verify:
+1. creation/submission
+2. persistence in database
+3. API response
+4. UI rendering
+5. role/permission behavior
+6. status transitions
+7. final visible result

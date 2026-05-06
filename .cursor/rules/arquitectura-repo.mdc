@@ -1,0 +1,13 @@
+---
+alwaysApply: true
+---
+
+# Arquitectura del repo ManejApp
+
+- **Este repositorio contiene solo el backend.** No hay frontend en este repo. El cliente de la API es una app Flutter en un repositorio separado (ManejApp-frontend).
+- **No es monorepo:** un único `package.json` en la raíz. No hay turbo, pnpm-workspace, nx ni workspaces.
+- **Stack backend:** Node.js, Express 5, TypeScript, Prisma. Entrada: `src/index.ts` → `src/app.ts`. Rutas API bajo el prefijo `/api/v1/*`.
+- **Inyección de dependencias:** `src/shared/DiContainer/container.ts` registra repositorios, servicios y controladores. No instanciar controladores directamente; usan el container.
+- **Alias de TypeScript:** definidos en `tsconfig.json` (`@config/*`, `@shared/*`, `@auth/*`, `@users/*`, etc.). Resolución en runtime con `tsconfig-paths/register` (dev) o `tsconfig-paths-bootstrap.js` (start).
+- **Módulos principales:** auth, users, instructors, admin, payments, schedule, notifications, messages, drivingClass, cars, permissions. Cada uno suele tener routes, controller, services, schemas y/o repositories.
+- Al trabajar en este repo, no asumir que se puede modificar o ejecutar el frontend; la URL base de la API la expone el backend en `GET /api/v1/config`.

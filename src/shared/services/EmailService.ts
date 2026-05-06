@@ -18,8 +18,9 @@ export default class EmailService {
     // URL para la app móvil (botón principal)
     const appVerificationUrl = `${process.env.MOBILE_APP_SCHEME || 'manejapp'}://verify-email?token=${token}`;
 
-    // URL alternativa para web (fallback)
-    const webVerificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    // URL para verificar: endpoint del backend (abrir en navegador verifica la cuenta)
+    const backendUrl = process.env.APP_URL || 'http://localhost:3099';
+    const webVerificationUrl = `${backendUrl}/api/v1/users/verify-email/${token}`;
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -74,8 +75,8 @@ export default class EmailService {
     await this.transporter.sendMail(mailOptions);
   }
 
-  async sendPasswordResetEmail(email: string, token: string): Promise<void> {
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  async sendPasswordResetEmail(email: string, token: string, resetUrl?: string): Promise<void> {
+    const url = resetUrl ?? `${process.env.APP_URL || 'http://localhost:3099'}/api/v1/users/reset-password?token=${token}`;
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -84,9 +85,9 @@ export default class EmailService {
       html: `
         <h1>Restablecer Contraseña</h1>
         <p>Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
-        <a href="${resetUrl}">Restablecer Contraseña</a>
+        <a href="${url}">Restablecer Contraseña</a>
         <p>Si no puedes hacer clic en el enlace, copia y pega esta URL en tu navegador:</p>
-        <p>${resetUrl}</p>
+        <p>${url}</p>
         <p>Este enlace expirará en 1 hora.</p>
         <p>Si no solicitaste este restablecimiento, ignora este email.</p>
       `,

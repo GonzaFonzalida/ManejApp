@@ -9,4 +9,8 @@ export interface ScheduleSlotRepository {
   delete(id: string): Promise<void>;
   bookSlot(id: string, drivingClassId: number): Promise<ScheduleSlot>;
   cancelBooking(id: string): Promise<ScheduleSlot>;
+  /** Atomically hold slot if AVAILABLE or HELD with expired heldUntil. Returns number of rows updated (0 or 1). */
+  tryHoldSlot(slotId: string, heldUntil: Date): Promise<number>;
+  /** Slots with status HELD and heldUntil < now. */
+  findExpiredHeldSlots(): Promise<ScheduleSlot[]>;
 }

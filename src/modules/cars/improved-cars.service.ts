@@ -3,6 +3,7 @@ import { CarDTO, CarWithId } from './cars.types';
 import CustomizedError from '@shared/classes/CustomizedError';
 import { AuditService, AuditAction } from '@shared/services/AuditService';
 import { prisma } from '@config/prismaClient';
+import { BookingStatus } from '@shared/utils/bookingStatus';
 
 export interface CarFilters {
   instructorId?: number;
@@ -64,7 +65,7 @@ export default class ImprovedCarService {
 
   async getCarById(id: number): Promise<CarWithId> {
     const car = await this.carRepo.findById(id);
-    
+
     if (!car) {
       throw new CustomizedError('Auto no encontrado', 404);
     }
@@ -143,7 +144,7 @@ export default class ImprovedCarService {
               some: { id }
             }
           },
-          status: 'scheduled'
+          status: BookingStatus.CONFIRMED
         }
       });
 

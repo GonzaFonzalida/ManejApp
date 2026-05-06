@@ -1,4 +1,5 @@
 import { prisma } from "@config/prismaClient";
+import { BookingStatus } from "@shared/utils/bookingStatus";
 
 export interface AppStatistics {
   users: {
@@ -145,9 +146,9 @@ export default class ReportService {
       todayClasses,
     ] = await Promise.all([
       prisma.drivingClass.count(),
-      prisma.drivingClass.count({ where: { status: 'scheduled' } }),
-      prisma.drivingClass.count({ where: { status: 'completed' } }),
-      prisma.drivingClass.count({ where: { status: 'cancelled' } }),
+      prisma.drivingClass.count({ where: { status: BookingStatus.CONFIRMED } }),
+      prisma.drivingClass.count({ where: { status: BookingStatus.COMPLETED } }),
+      prisma.drivingClass.count({ where: { status: BookingStatus.CANCELLED } }),
       prisma.drivingClass.count({
         where: {
           date: {

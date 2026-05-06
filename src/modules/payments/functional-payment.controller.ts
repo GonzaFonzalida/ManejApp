@@ -4,7 +4,7 @@ import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import { ResponseFormatter } from "@shared/utils/responseFormatter";
 
 export default class FunctionalPaymentController {
-  constructor(private paymentService: PaymentService) {}
+  constructor(private paymentService: PaymentService) { }
 
   createPayment: ExpressFunction = async (req, res, next) => {
     try {
@@ -76,6 +76,24 @@ export default class FunctionalPaymentController {
     }
   };
 
+  /** M6: Create preference by bookingId. Auth required, STUDENT only. Returns { preferenceId, initPoint }. */
+  createPreferenceForBooking: ExpressFunction = async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+      if (!userId || !userRole) {
+        return ResponseFormatter.error(res, 'No autorizado', 401);
+      }
+      // Accept both bookingId and drivingClassId for backward compatibility
+      const { bookingId, drivingClassId } = req.body;
+      const classId = bookingId || drivingClassId;
+      const result = await this.paymentService.createPreferenceForBooking(classId, userId, userRole);
+      return ResponseFormatter.created(res, result, 'Preferencia creada');
+    } catch (err) {
+      next(err);
+    }
+  };
+
   createPaymentWithMercadoPago: ExpressFunction = async (req, res, next) => {
     try {
       const payment = await this.paymentService.createPaymentWithMercadoPago(req.body);
@@ -85,12 +103,12 @@ export default class FunctionalPaymentController {
     }
   };
 
-  handleMercadoPagoWebhook: ExpressFunction = async (req, res, next) => {
+  handleMercadoPagoWebhook: ExpressFunction = async (req, res) => {
     try {
       await this.paymentService.handleMercadoPagoWebhook(req.body);
-      return ResponseFormatter.success(res, null, 'Webhook procesado exitosamente');
     } catch (err) {
-      next(err);
+      console.error('MercadoPago webhook error:', err);
     }
+    return res.status(200).json({ ok: true });
   };
 }

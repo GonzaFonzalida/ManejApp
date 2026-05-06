@@ -171,4 +171,18 @@ export class PermissionController {
 
     res.json(permission);
   };
+
+  delete: ExpressFunction = async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) throw new CustomizedError("El id es inválido", 400);
+
+      const deleted = await this.service.deletePermission(id);
+      if (!deleted) throw new CustomizedError("Permiso no encontrado o no se pudo eliminar", 404);
+
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  };
 }

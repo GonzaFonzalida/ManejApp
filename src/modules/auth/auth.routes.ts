@@ -2,13 +2,15 @@ import { Router } from "express";
 import { authenticate } from "./auth.middlewares";
 import AuthController from "./auth.controller";
 import { validate } from "@shared/middlewares/zod/validateBody";
-import { loginSchema } from "./auth.schemas";
+import { loginSchema, googleLoginSchema, appleLoginSchema } from "./auth.schemas";
 import { authRateLimit } from "@middlewares/security";
 
 export default function buildAuthRouter(controller: AuthController) {
   const router = Router();
 
   router.post("/login", authRateLimit, validate(loginSchema), controller.login);
+  router.post("/google", authRateLimit, validate(googleLoginSchema), controller.googleLogin);
+  router.post("/apple", authRateLimit, validate(appleLoginSchema), controller.appleLogin);
   router.post("/refresh", authRateLimit, controller.refresh); // usa cookie httpOnly
   router.post("/logout", controller.logout);
 

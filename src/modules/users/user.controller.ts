@@ -66,16 +66,20 @@ export default class UserController {
      */
     public register: ExpressFunction = async (req, res, next) => {
 
-            const user: UserWithDates = req.body;
-            const newUser = await this.userService.register(user);
-            // Si el registro es exitoso, devolvemos el token
-            if (newUser.name == "PrismaClientKnownRequestError"){
-                return next(new CustomizedError("El usuario que intenta registrar ya existe", 409))
-            }
+        console.log('[DEBUG] Received registration request body:', JSON.stringify(req.body, null, 2));
+        const user: UserWithDates = req.body;
+        const result = await this.userService.register(user);
+        if (result instanceof Error || (result as any).name === "PrismaClientKnownRequestError") {
+            return next(new CustomizedError("El usuario que intenta registrar ya existe", 409));
+        }
 
-            res.status(201).json({
-                token: newUser,
-            });
+        const { user: newUser, accessToken } = result as { user: any; accessToken?: string };
+        const response: Record<string, any> = { token: newUser };
+        if (accessToken) {
+            response.accessToken = accessToken;
+        }
+
+        res.status(201).json(response);
 
     };
 
@@ -98,10 +102,10 @@ export default class UserController {
      *         description: Internal server error
      */
     public getAll: ExpressFunction = async (req, res, next) => {
-        try{
+        try {
             const users = await this.userService.getAllUsers();
             return res.json(users);
-        } catch (e){
+        } catch (e) {
             // Pasamos cualquier error al siguiente middleware de error
             next(e);
         }
@@ -134,12 +138,12 @@ export default class UserController {
      *         description: Internal server error
      */
     public getByRol: ExpressFunction = async (req, res, next) => {
-        try{
+        try {
             const role = req.params.role
 
             const users = await this.userService.findByRole(role.toUpperCase());
             return res.json(users);
-        } catch (e){
+        } catch (e) {
 
             next(e);
         }
@@ -166,13 +170,27 @@ export default class UserController {
      *       500:
      *         description: Internal server error
      */
-    public gerUserById : ExpressFunction = async (req, res, next) =>{
-         try {
+    public getVerificationStatus: ExpressFunction = async (req, res, next) => {
+        try {
+            const { userId } = req.params;
+            const user = await this.userService.getUserById(userId);
+            if (!user) {
+                return next(new CustomizedError("Usuario no encontrado", 404));
+            }
+            const verified = !!(user as any).emailVerifiedAt;
+            return res.json({ verified });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public gerUserById: ExpressFunction = async (req, res, next) => {
+        try {
             const value = req.params.value;
             const user = await this.userService.getUserById(value);
 
             if (!user) {
-                next( new CustomizedError("Usuario No Encontrado", 404));
+                next(new CustomizedError("Usuario No Encontrado", 404));
             }
 
             return res.json(user);
@@ -226,6 +244,42 @@ export default class UserController {
      *       500:
      *         description: Internal server error
      */
+    public patchStudentProfile: ExpressFunction = async (req, res, next) => {
+        try {
+            const currentUserId = (req as any).user.id as number;
+            const { experienceLevel } = req.body as { experienceLevel: number };
+
+            const updated = await this.userService.updateStudentExperienceLevel(currentUserId, experienceLevel);
+            if (!updated) {
+                return next(new CustomizedError('Perfil de estudiante no encontrado', 404));
+            }
+
+            res.json({
+                success: true,
+                message: 'Perfil actualizado',
+                data: { experienceLevel: updated.experienceLevel },
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public deleteMyAccount: ExpressFunction = async (req, res, next) => {
+        try {
+            const currentUserId = (req as any).user.id as number;
+            const result = await this.userService.deleteMyAccount(currentUserId, req.body as {
+                confirmPhrase: string;
+                password?: string;
+            });
+            if (result instanceof CustomizedError) {
+                return next(result);
+            }
+            res.status(200).json({ ok: true });
+        } catch (error) {
+            next(error);
+        }
+    };
+
     public updateUser: ExpressFunction = async (req, res, next) => {
         try {
             const userId = parseInt(req.params.id);
@@ -419,6 +473,29 @@ export default class UserController {
         }
     };
 
+    public forgotPassword: ExpressFunction = async (req, res, next) => {
+        try {
+            const { email } = req.body;
+            const result = await this.userService.forgotPassword(email);
+            res.json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public resetPassword: ExpressFunction = async (req, res, next) => {
+        try {
+            const { token, newPassword } = req.body;
+            const result = await this.userService.resetPassword(token, newPassword);
+            if (!result.ok) {
+                return res.status(400).json(result);
+            }
+            res.json(result);
+        } catch (error) {
+            next(error);
+        }
+    };
+
     /**
      * @swagger
      * /users/notification-preferences:
@@ -438,16 +515,11 @@ export default class UserController {
     public getNotificationPreferences: ExpressFunction = async (req, res, next) => {
         try {
             const userId = (req as any).user.id;
-            const user = await this.userService.getUserById(userId.toString());
+            const preferences = await this.userService.getNotificationPreferences(userId);
 
-            if (!user) {
+            if (!preferences) {
                 return next(new CustomizedError("Usuario no encontrado", 404));
             }
-
-            const preferences = {
-                emailNotifications: (user as any).emailNotifications ?? true,
-                pushNotifications: (user as any).pushNotifications ?? true,
-            };
 
             res.json(preferences);
         } catch (error) {
@@ -485,14 +557,21 @@ export default class UserController {
     public updateNotificationPreferences: ExpressFunction = async (req, res, next) => {
         try {
             const userId = (req as any).user.id;
-            const { emailNotifications, pushNotifications } = req.body;
-
-            // Aquí iría la lógica para actualizar las preferencias en la BD
-            // Por ahora, solo devolvemos éxito
-            const preferences = {
-                emailNotifications: emailNotifications ?? true,
-                pushNotifications: pushNotifications ?? true,
+            const { emailNotifications, pushNotifications } = req.body as {
+                emailNotifications?: boolean;
+                pushNotifications?: boolean;
             };
+
+            const patch: { emailNotifications?: boolean; pushNotifications?: boolean } = {};
+            if (typeof emailNotifications === "boolean") patch.emailNotifications = emailNotifications;
+            if (typeof pushNotifications === "boolean") patch.pushNotifications = pushNotifications;
+
+            if (Object.keys(patch).length === 0) {
+                return next(new CustomizedError("Enviá al menos emailNotifications o pushNotifications (boolean)", 400));
+            }
+
+            await this.userService.updateNotificationPreferences(userId, patch);
+            const preferences = await this.userService.getNotificationPreferences(userId);
 
             res.json({ message: "Preferencias actualizadas", preferences });
         } catch (error) {
@@ -571,7 +650,8 @@ export default class UserController {
             }
 
             // Update user profile image
-            const user = await this.userService.updateProfileImage(userId, file.path);
+            // We save only the filename, not the full path, because FileService constructs the path relative to uploadDir
+            const user = await this.userService.updateProfileImage(userId, file.filename);
 
             if (!user) {
                 return next(new CustomizedError('Usuario no encontrado', 404));
@@ -580,6 +660,97 @@ export default class UserController {
             res.json({
                 success: true,
                 message: 'Imagen de perfil actualizada exitosamente',
+                data: {
+                    imageUrl: `/api/v1/users/${userId}/profile-image`
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    /**
+     * @swagger
+     * /users/{id}/upload-profile-image-base64:
+     *   post:
+     *     summary: Upload profile image via Base64 JSON
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: path
+     *         name: id
+     *         required: true
+     *         schema:
+     *           type: integer
+     *         description: User ID
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               image:
+     *                 type: string
+     *                 description: Base64 encoded image string
+     *               mimeType:
+     *                 type: string
+     *                 description: Mime type (image/jpeg, image/png)
+     *     responses:
+     *       200:
+     *         description: Profile image uploaded successfully
+     */
+    public uploadProfileImageBase64: ExpressFunction = async (req: any, res: any, next: any) => {
+        try {
+            const userId = parseInt(req.params.id);
+            const currentUserId = req.user.id;
+            const { image, mimeType } = req.body;
+
+            if (userId !== currentUserId) {
+                return next(new CustomizedError('No puedes actualizar la imagen de otro usuario', 403));
+            }
+
+            if (!image) {
+                return next(new CustomizedError('No se encontró imagen en base64', 400));
+            }
+
+            // Convertir base64 a buffer
+            const matches = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            let buffer: Buffer;
+
+            if (matches && matches.length === 3) {
+                buffer = Buffer.from(matches[2], 'base64');
+            } else {
+                buffer = Buffer.from(image, 'base64');
+            }
+
+            // Definir extension
+            let ext = '.jpg';
+            if (mimeType) {
+                if (mimeType.includes('png')) ext = '.png';
+                else if (mimeType.includes('webp')) ext = '.webp';
+                else if (mimeType.includes('gif')) ext = '.gif';
+            }
+
+            const uploadDir = path.join(process.cwd(), 'uploads', 'profiles');
+            if (!require('fs').existsSync(uploadDir)) {
+                require('fs').mkdirSync(uploadDir, { recursive: true });
+            }
+
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const filename = `profile-${userId}-${uniqueSuffix}${ext}`;
+            const filepath = path.join(uploadDir, filename);
+
+            require('fs').writeFileSync(filepath, buffer);
+
+            // Save ONLY the filename to the database, not the absolute path
+            // FileService will reconstruct the full path using its internal uploadDir
+            const user = await this.userService.updateProfileImage(userId, filename);
+
+            res.json({
+                success: true,
+                message: 'Imagen de perfil actualizada exitosamente (Base64)',
                 data: {
                     imageUrl: `/api/v1/users/${userId}/profile-image`
                 }
@@ -689,7 +860,7 @@ export default class UserController {
 
             const filePath = FileService.getFullFilePath(imagePath);
             const stats = await FileService.getFileStats(imagePath);
-            
+
             if (!stats) {
                 return next(new CustomizedError('Error al acceder al archivo', 500));
             }
@@ -773,6 +944,16 @@ export default class UserController {
                 success: true,
                 message: 'Token FCM guardado exitosamente'
             });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public deleteFCMToken: ExpressFunction = async (req, res, next) => {
+        try {
+            const userId = (req as any).user.id;
+            await this.userService.deleteFCMToken(userId);
+            res.json({ success: true, message: 'Token de notificaciones eliminado' });
         } catch (error) {
             next(error);
         }

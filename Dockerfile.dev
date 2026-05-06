@@ -26,11 +26,11 @@ RUN npx prisma generate
 RUN mkdir -p logs
 
 # Exponer puerto
-EXPOSE 3000
+EXPOSE 3099
 
 # Variables de entorno
 ENV NODE_ENV=development
-ENV PORT=3000
+ENV PORT=3099
 
 # Comando de inicio usando ts-node
 CMD ["npx", "ts-node", "-r", "tsconfig-paths/register", "src/index.ts"]

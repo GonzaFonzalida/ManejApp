@@ -6,7 +6,8 @@ import { MERCADOPAGO_ACCESS_TOKEN, getMercadoPagoUrl } from '@config/config';
 export interface CreatePreferenceData {
   amount: number;
   description: string;
-  externalReference: string;
+  drivingClassId: number; // ID of the driving class for this payment
+  externalReference?: string; // Optional, will be generated if not provided
 }
 
 export interface MercadoPagoPreference {
@@ -26,7 +27,11 @@ export default class MercadoPagoService {
 
   async createPreference(data: CreatePreferenceData): Promise<MercadoPagoPreference> {
     try {
-      const preference = {
+      // Generate external reference if not provided
+      const externalReference = data.externalReference || `class-${data.drivingClassId}-${Date.now()}`;
+
+      const baseUrl = getMercadoPagoUrl();
+      const preference: any = {
         items: [
           {
             id: 'item-1',
@@ -36,26 +41,37 @@ export default class MercadoPagoService {
             currency_id: 'ARS', // Argentine Peso, change as needed
           },
         ],
-        external_reference: data.externalReference,
+        external_reference: externalReference,
         back_urls: {
-          success: `${getMercadoPagoUrl()}/payments/success`,
-          failure: `${getMercadoPagoUrl()}/payments/failure`,
-          pending: `${getMercadoPagoUrl()}/payments/pending`,
+          success: `${baseUrl}/payments/success`,
+          failure: `${baseUrl}/payments/failure`,
+          pending: `${baseUrl}/payments/pending`,
         },
-        auto_return: 'approved',
-        notification_url: `${getMercadoPagoUrl()}/payments/webhook`,
+        notification_url: `${baseUrl}/api/v1/payments/mercadopago/webhook`,
       };
+
+      // Only add auto_return if we have a public URL (production or ngrok)
+      if (baseUrl.startsWith('https://') || baseUrl.includes('ngrok')) {
+        preference.auto_return = 'approved';
+      }
 
       const preferenceClient = new Preference(this.client);
       const result = await preferenceClient.create({ body: preference });
+
+      console.log('MercadoPago preference created successfully:');
+      console.log('Result:', JSON.stringify(result, null, 2));
+
       return {
         id: result.id!,
         init_point: result.init_point!,
         sandbox_init_point: result.sandbox_init_point!,
       };
     } catch (error: any) {
-      console.error('Error creating Mercado Pago preference:', error);
-      throw new CustomizedError('Error al crear la preferencia de pago', 500);
+      console.error('Error creating Mercado Pago preference:');
+      console.error('Error message:', error.message);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('Data received:', JSON.stringify(data, null, 2));
+      throw new CustomizedError(`Error al crear la preferencia de pago: ${error.message}`, 500);
     }
   }
 

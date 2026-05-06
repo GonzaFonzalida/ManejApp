@@ -4,12 +4,13 @@ import CommissionPaymentService from './commission-payment.service';
 import CustomizedError from '@shared/classes/CustomizedError';
 import { AuditService, AuditAction } from '@shared/services/AuditService';
 import { prisma } from '@config/prismaClient';
+import { InstructorPayoutStatus } from './payment-commission.policy';
 
 export default class CommissionEnhancedService {
   constructor(
     private paymentRepo: PaymentRepository,
     private commissionService: CommissionPaymentService
-  ) {}
+  ) { }
 
   async createPaymentWithCommission(data: CreatePaymentData, userId?: number): Promise<Payment> {
     return await prisma.$transaction(async (tx) => {
@@ -29,18 +30,21 @@ export default class CommissionEnhancedService {
 
       const instructor = drivingClass.instructor;
 
-      // Calculate commission
-      const { appCommission, instructorAmount } = this.commissionService.calculateCommission(data.amount);
+      // Calculate commission based on the instructor's specific rate in the DB (default 20%)
+      const { appCommission, instructorAmount } = this.commissionService.calculateCommission(data.amount, instructor.commissionRate);
 
       // Create payment with commission data
       const paymentData = {
         ...data,
         appCommission,
         instructorAmount,
-        commissionRate: Number(process.env.APP_COMMISSION_PERCENTAGE) || 20
+        commissionRate: instructor.commissionRate
       };
 
-      const payment = await this.paymentRepo.createPayment(paymentData);
+      const payment = await this.paymentRepo.createPayment({
+        ...paymentData,
+        instructorPayoutStatus: InstructorPayoutStatus.NOT_APPLICABLE,
+      });
 
       // If Mercado Pago payment, create preference with commission
       if (data.paymentMethod === 'mercadopago') {
@@ -53,7 +57,8 @@ export default class CommissionEnhancedService {
             amount: data.amount,
             description: `Clase de conducción #${data.drivingClassId}`,
             externalReference: payment.id.toString(),
-            instructorCollectorId: instructor.mpCollectorId
+            instructorCollectorId: instructor.mpCollectorId,
+            overrideCommissionRate: instructor.commissionRate
           });
 
           // Update payment with MP data
@@ -115,8 +120,8 @@ export default class CommissionEnhancedService {
     const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
     const totalAppCommission = payments.reduce((sum, p) => sum + (p.appCommission || 0), 0);
     const totalInstructorAmount = payments.reduce((sum, p) => sum + (p.instructorAmount || 0), 0);
-    const averageCommissionRate = totalPayments > 0 
-      ? payments.reduce((sum, p) => sum + (p.commissionRate || 0), 0) / totalPayments 
+    const averageCommissionRate = totalPayments > 0
+      ? payments.reduce((sum, p) => sum + (p.commissionRate || 0), 0) / totalPayments
       : 0;
 
     return {
@@ -154,7 +159,7 @@ export default class CommissionEnhancedService {
     const totalEarnings = payments.reduce((sum, p) => sum + (p.instructorAmount || 0), 0);
     const totalClasses = payments.length;
     const averagePerClass = totalClasses > 0 ? totalEarnings / totalClasses : 0;
-    const commissionRate = payments.length > 0 ? (100 - (payments[0].commissionRate || 20)) : 80;
+    const commissionRate = payments.length > 0 ? (payments[0].commissionRate || 20) : 20;
 
     return {
       totalEarnings,

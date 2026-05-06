@@ -6,7 +6,9 @@ export const validate =
     (req, res, next) => {
         const result = schema.safeParse(req.body);
         if (!result.success) {
-            return res.status(400).json({ error: result.error });
+            const firstIssue = result.error.issues[0];
+            const message = firstIssue ? `${firstIssue.path.join('.')}: ${firstIssue.message}` : 'Datos inválidos';
+            return res.status(400).json({ message });
         }
         req.body = result.data;
         next();

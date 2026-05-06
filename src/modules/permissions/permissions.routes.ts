@@ -15,6 +15,6 @@ permissionsRouter.post("/", validate(createPermissionSchema), controller.create)
 permissionsRouter.get("/", controller.getAll);
 permissionsRouter.get("/:id", controller.getById);
 permissionsRouter.put("/:id", validate(updatePermissionSchema), controller.update); 
-permissionsRouter.delete("/:id", controller.getById); // falta delete
+permissionsRouter.delete("/:id", controller.delete);
 
 export default permissionsRouter;

@@ -23,6 +23,7 @@ const errorHandler = (err, req, res, next) => {
         });
         return res.status(err.statusCode).json({
             message: err.message,
+            ...(err.payload ?? {}),
             host: req.host,
             url: req.originalUrl,
             method: req.method,
@@ -43,6 +44,10 @@ const errorHandler = (err, req, res, next) => {
         host: req.host,
         url: req.originalUrl,
         method: req.method,
+    });
+    return res.status(500).json({
+        message: err.message || 'Internal server error',
+        statusCode: 500,
     });
 };
 exports.default = errorHandler;

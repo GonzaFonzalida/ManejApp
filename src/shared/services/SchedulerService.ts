@@ -1,9 +1,21 @@
 import cron from 'node-cron';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, SlotStatus, BookingStatus } from '@prisma/client';
 import ReportService from './ReportService';
 import EmailService from './EmailService';
+import diContainer from '../DiContainer/container';
+import { NotificationService } from '../../modules/notifications/service';
 
 const prisma = new PrismaClient();
+
+function reminderWhenLine(d: Date): string {
+  return d.toLocaleString('es-AR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export class SchedulerService {
   private static instance: SchedulerService;
@@ -25,9 +37,110 @@ export class SchedulerService {
 
   start() {
     this.schedulePaymentRecovery();
+    this.scheduleHoldExpiryCleanup();
     this.scheduleSystemCleanup();
     this.scheduleSystemReports();
+    this.scheduleClassReminders();
     console.log('✅ Scheduler iniciado');
+  }
+
+  /** Cada 15 min: push ~1h antes de clase confirmada (una vez por reserva). */
+  private scheduleClassReminders() {
+    const job = cron.schedule('*/15 * * * *', async () => {
+      try {
+        const notificationService = diContainer.resolve<NotificationService>('notificationService');
+        const now = Date.now();
+        const from = new Date(now + 50 * 60 * 1000);
+        const to = new Date(now + 70 * 60 * 1000);
+        const classes = await prisma.drivingClass.findMany({
+          where: {
+            status: BookingStatus.CONFIRMED,
+            classReminderSentAt: null,
+            date: { gte: from, lte: to },
+          },
+          select: {
+            id: true,
+            date: true,
+            studentId: true,
+            instructorId: true,
+          },
+        });
+        for (const c of classes) {
+          const when = reminderWhenLine(c.date);
+          const stu = await prisma.student.findUnique({
+            where: { id: c.studentId },
+            select: { userId: true },
+          });
+          const instr = await prisma.instructor.findUnique({
+            where: { id: c.instructorId },
+            select: { userId: true },
+          });
+          if (stu) {
+            void notificationService.sendPushToUser(
+              stu.userId,
+              'Tu clase arranca pronto',
+              `En menos de una hora (${when}). Revisá la reserva por si cambió algo.`,
+              { type: 'student_booking', bookingId: String(c.id), role: 'STUDENT' },
+            );
+          }
+          if (instr) {
+            void notificationService.sendPushToUser(
+              instr.userId,
+              'Próxima clase',
+              `Tenés una clase en camino (${when}).`,
+              { type: 'instructor_booking', bookingId: String(c.id), role: 'INSTRUCTOR' },
+            );
+          }
+          await prisma.drivingClass.update({
+            where: { id: c.id },
+            data: { classReminderSentAt: new Date() },
+          });
+        }
+        if (classes.length > 0) {
+          console.log(`⏰ Recordatorios de clase: ${classes.length}`);
+        }
+      } catch (error) {
+        console.error('Error en recordatorios de clase:', error);
+      }
+    });
+    this.jobs.set('classReminders', job);
+  }
+
+  /** Cada 2 min: libera slots HELD vencidos y cancela booking PENDING_PAYMENT. Idempotente. */
+  private scheduleHoldExpiryCleanup() {
+    const holdCleanupJob = cron.schedule('*/2 * * * *', async () => {
+      try {
+        const now = new Date();
+        const expired = await prisma.scheduleSlot.findMany({
+          where: { status: SlotStatus.HELD, heldUntil: { lt: now } },
+          select: { id: true, drivingClassId: true },
+        });
+        for (const s of expired) {
+          await prisma.$transaction(async (tx) => {
+            if (s.drivingClassId) {
+              await tx.drivingClass.updateMany({
+                where: { id: s.drivingClassId, status: BookingStatus.PENDING_PAYMENT },
+                data: { status: BookingStatus.CANCELLED },
+              });
+              await tx.payment.updateMany({
+                where: { drivingClassId: s.drivingClassId, status: 'pending' },
+                data: { status: 'cancelled' },
+              });
+            }
+            await tx.scheduleSlot.update({
+              where: { id: s.id },
+              data: { status: SlotStatus.AVAILABLE, heldUntil: null, drivingClassId: null },
+            });
+          });
+        }
+        if (expired.length > 0) {
+          console.log(`🕐 Hold expiry: ${expired.length} slot(s) liberados`);
+        }
+      } catch (error) {
+        console.error('Error en hold expiry cleanup:', error);
+      }
+    });
+    this.jobs.set('holdExpiryCleanup', holdCleanupJob);
   }
 
   private schedulePaymentRecovery() {

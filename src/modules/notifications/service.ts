@@ -28,6 +28,62 @@ export class NotificationService {
     this.emailService = new EmailService();
   }
 
+  /**
+   * Solo push FCM (sin email). Para eventos de producto: respeta `pushNotifications` del usuario.
+   * `data` se envía en el payload para deep linking en la app (valores string).
+   */
+  async sendPushToUser(
+    userId: number,
+    title: string,
+    body: string,
+    data?: Record<string, string>
+  ): Promise<void> {
+    try {
+      const user = await this.userRepo.findUser(userId.toString());
+      if (!user) {
+        this.logger.warn(`sendPushToUser: user ${userId} not found`);
+        return;
+      }
+      const userPrefs = user as any;
+      if (userPrefs.pushNotifications === false) {
+        return;
+      }
+      if (!this.fcm) {
+        this.logger.info(`[MOCK] Push only → user ${userId}: ${title} — ${body} data=${JSON.stringify(data ?? {})}`);
+        return;
+      }
+      const tokenRecord = await this.notificationTokenRepo.findByUserId(userId);
+      if (!tokenRecord) {
+        this.logger.warn(`sendPushToUser: no FCM token for user ${userId}`);
+        return;
+      }
+      const dataPayload: Record<string, string> = {};
+      if (data) {
+        for (const [k, v] of Object.entries(data)) {
+          dataPayload[k] = v != null ? String(v) : '';
+        }
+      }
+      const message: admin.messaging.Message = {
+        token: tokenRecord.token,
+        notification: { title, body },
+        android: { priority: 'high' },
+        apns: {
+          payload: { aps: { sound: 'default' } },
+        },
+      };
+      if (Object.keys(dataPayload).length > 0) {
+        message.data = dataPayload;
+      }
+      const response = await this.fcm.send(message);
+      this.logger.info(`sendPushToUser ok user=${userId} ${response}`);
+    } catch (error) {
+      this.logger.error(
+        `sendPushToUser failed user=${userId}:`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
   async sendToUser(userId: number, title: string, body: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): Promise<void> {
     try {
       // Obtener preferencias del usuario

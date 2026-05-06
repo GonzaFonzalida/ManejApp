@@ -1,5 +1,5 @@
 import { ScheduleSlotRepository } from "./ScheduleSlotRepository";
-import { ScheduleSlot } from "@prisma/client";
+import { ScheduleSlot, SlotStatus } from "@prisma/client";
 import { prisma } from "@config/prismaClient";
 
 export class PrismaScheduleSlotRepository implements ScheduleSlotRepository {
@@ -21,11 +21,11 @@ export class PrismaScheduleSlotRepository implements ScheduleSlotRepository {
   async findAvailableByInstructor(instructorId: number, startDate?: Date, endDate?: Date): Promise<ScheduleSlot[]> {
     const where: {
       instructorId: number;
-      isBooked: boolean;
+      status: SlotStatus;
       startTime?: { gte?: Date; lte?: Date };
     } = {
       instructorId,
-      isBooked: false,
+      status: SlotStatus.AVAILABLE,
     };
     if (startDate && endDate) {
       where.startTime = { gte: startDate, lte: endDate };
@@ -51,14 +51,36 @@ export class PrismaScheduleSlotRepository implements ScheduleSlotRepository {
   async bookSlot(id: string, drivingClassId: number): Promise<ScheduleSlot> {
     return prisma.scheduleSlot.update({
       where: { id },
-      data: { isBooked: true, drivingClassId },
+      data: { status: SlotStatus.BOOKED, drivingClassId, heldUntil: null },
     });
   }
 
   async cancelBooking(id: string): Promise<ScheduleSlot> {
     return prisma.scheduleSlot.update({
       where: { id },
-      data: { isBooked: false, drivingClassId: null },
+      data: { status: SlotStatus.AVAILABLE, drivingClassId: null, heldUntil: null },
+    });
+  }
+
+  async tryHoldSlot(slotId: string, heldUntil: Date): Promise<number> {
+    const now = new Date();
+    const result = await prisma.scheduleSlot.updateMany({
+      where: {
+        id: slotId,
+        OR: [
+          { status: SlotStatus.AVAILABLE },
+          { status: SlotStatus.HELD, heldUntil: { lt: now } },
+        ],
+      },
+      data: { status: SlotStatus.HELD, heldUntil },
+    });
+    return result.count;
+  }
+
+  async findExpiredHeldSlots(): Promise<ScheduleSlot[]> {
+    const now = new Date();
+    return prisma.scheduleSlot.findMany({
+      where: { status: SlotStatus.HELD, heldUntil: { lt: now } },
     });
   }
 }

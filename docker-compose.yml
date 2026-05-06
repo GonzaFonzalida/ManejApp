@@ -22,7 +22,7 @@ services:
     container_name: manejapp-backend
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 3099
       DATABASE_URL: postgresql://postgres:password@postgres:5432/manejapp
       JWT_SECRET: your-super-secret-jwt-key-minimum-32-characters-long
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-minimum-32-characters-long
@@ -34,7 +34,7 @@ services:
       ENABLE_FILE_LOGS: true
       ENABLE_DATABASE_LOGS: true
     ports:
-      - "3000:3000"
+      - "3099:3099"
     depends_on:
       - postgres
     volumes:

@@ -49,11 +49,11 @@ RUN chmod +x start.sh && chown nextjs:nodejs start.sh
 USER nextjs
 
 # Exponer puerto
-EXPOSE 3000
+EXPOSE 3099
 
 # Variables de entorno por defecto
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3099
 
 # Comando de inicio
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

@@ -1,14 +1,22 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@config/config";
+import { prisma } from "@config/prismaClient";
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "No autorizado" });
   const token = auth.split(" ")[1];
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { id: number; role: string };
+    const row = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { accountDeletedAt: true, isActive: true },
+    });
+    if (!row || row.accountDeletedAt != null || !row.isActive) {
+      return res.status(401).json({ error: "No autorizado" });
+    }
     (req as any).user = payload;
     next();
   } catch {

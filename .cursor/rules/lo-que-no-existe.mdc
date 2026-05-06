@@ -1,0 +1,17 @@
+---
+alwaysApply: true
+---
+
+# Lo que NO existe en este repo (no inventar)
+
+- **Script `test`:** No está en package.json. Los tests se corren con `npx jest` (Jest sí está configurado en jest.config.js y hay carpeta tests/).
+- **Script `lint`:** No existe. No hay ESLint ni Prettier configurados en el proyecto.
+- **Script `typecheck`:** No existe. La compilación TypeScript (y por tanto el chequeo de tipos) se hace con `pnpm run build`.
+- **Comando `prisma db seed`:** No está configurado. No hay entrada "prisma.seed" en package.json. Existen scripts manuales en `scripts/` (p. ej. seed-test-data.ts) pero no un seed oficial de Prisma.
+- **Frontend en este repo:** El frontend es Flutter y vive en otro repositorio (ManejApp-frontend). No asumir que hay código React/Next/Vite aquí.
+
+## Sí existe (para no confundir)
+
+- **`pnpm run kill:ports`:** libera 3000 y 3099 antes de levantar el API.
+
+Regla: no sugerir ni ejecutar `pnpm run test`, `pnpm run lint`, `pnpm run typecheck` ni `npx prisma db seed` como si existieran. Si el usuario pide validar, usar los comandos que sí existen (build, npx jest) y documentar lo que falta.

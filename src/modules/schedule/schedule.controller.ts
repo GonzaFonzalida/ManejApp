@@ -44,8 +44,12 @@ export class ScheduleController {
    */
   createSlot: ExpressFunction = async (req, res, next) => {
     try {
-      const { instructorId, startTime, endTime } = req.body;
-      const slot = await this.scheduleService.createSlot(instructorId, new Date(startTime), new Date(endTime));
+      const userId = req.user?.id;
+      if (!userId) throw new CustomizedError("Usuario no autenticado", 401);
+      const instructor = await this.scheduleService.getInstructorIdByUserId(userId);
+      if (!instructor) throw new CustomizedError("Instructor no encontrado", 403);
+      const { startTime, endTime } = req.body;
+      const slot = await this.scheduleService.createSlot(instructor.id, new Date(startTime), new Date(endTime));
       res.status(201).json(slot);
     } catch (err) {
       next(err);
@@ -134,6 +138,19 @@ export class ScheduleController {
     }
   };
 
+  previewReservation: ExpressFunction = async (req, res, next) => {
+    try {
+      const { slotId } = req.params;
+      const userId = req.user?.id;
+      if (!userId) throw new CustomizedError("Usuario no autenticado", 401);
+
+      const result = await this.scheduleService.getReservationPreview(slotId, userId);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   /**
    * @swagger
    * /schedule/reserve/{slotId}:
@@ -160,10 +177,10 @@ export class ScheduleController {
   reserveSlot: ExpressFunction = async (req, res, next) => {
     try {
       const { slotId } = req.params;
-      const studentId = req.user?.id;
-      if (!studentId) throw new CustomizedError("Usuario no autenticado", 401);
+      const userId = req.user?.id;
+      if (!userId) throw new CustomizedError("Usuario no autenticado", 401);
 
-      const result = await this.scheduleService.reserveSlot(slotId, studentId);
+      const result = await this.scheduleService.reserveSlot(slotId, userId);
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -200,8 +217,8 @@ export class ScheduleController {
       const userRole = req.user?.role;
       if (!userId || !userRole) throw new CustomizedError("Usuario no autenticado", 401);
 
-      const slot = await this.scheduleService.cancelReservation(slotId, userId, userRole);
-      res.json(slot);
+      const result = await this.scheduleService.cancelReservation(slotId, userId, userRole);
+      res.json(result);
     } catch (err) {
       next(err);
     }
@@ -233,10 +250,10 @@ export class ScheduleController {
   deleteSlot: ExpressFunction = async (req, res, next) => {
     try {
       const { slotId } = req.params;
-      const instructorId = req.user?.id;
-      if (!instructorId) throw new CustomizedError("Usuario no autenticado", 401);
+      const userId = req.user?.id;
+      if (!userId) throw new CustomizedError("Usuario no autenticado", 401);
 
-      await this.scheduleService.deleteSlot(slotId, instructorId);
+      await this.scheduleService.deleteSlot(slotId, userId);
       res.status(204).send();
     } catch (err) {
       next(err);

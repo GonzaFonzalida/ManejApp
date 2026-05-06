@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+
+# Zonas críticas y validación
+
+## Archivos y carpetas que requieren cuidado
+- `src/config/config.ts` — validación de env con Zod; cambios pueden romper arranque.
+- `src/app.ts` — montaje de rutas y middlewares globales; orden y rutas centralizados aquí.
+- `prisma/schema.prisma` — modelo de datos; cambios afectan migraciones y cliente.
+- `src/shared/DiContainer/container.ts` — registro de dependencias; nuevas rutas/controllers deben estar registrados.
+- `src/shared/middlewares/auth.ts` — auth compartido (admin y otros).
+- `src/modules/admin/` — panel admin; todas las rutas exigen ADMIN.
+- `src/modules/auth/` — login, refresh, logout, sesiones.
+
+## Validación antes de dar por resuelto
+- No declarar algo "fixed" o "resuelto" sin verificación real (ejecutar flujo, tests o comprobación manual según el caso).
+- Verificar según el flujo: creación/envío, persistencia en DB, respuesta de la API, comportamiento de roles/permisos, transiciones de estado, resultado final visible.
+
+## Cambios mínimos y flujo
+- Hacer cambios mínimos y dirigidos; no refactorizar código no relacionado con el bug o la tarea.
+- Antes de tocar código, inspeccionar el flujo completo: llamada (o página) → API/ruta → auth/middleware → base de datos (y en su caso respuesta → UI).

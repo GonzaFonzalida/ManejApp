@@ -1,49 +1,125 @@
 import { Request, Response } from "express";
-import  InstructorService from "./instructor.services";
+import InstructorService from "./instructor.services";
 import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import CustomizedError from "@shared/classes/CustomizedError";
 
 export default class InstructorController {
-  constructor(private instructorService: InstructorService) {}
+  constructor(private instructorService: InstructorService) { }
 
   /**
-   * @swagger
-   * /instructors/register:
-   *   post:
-   *     summary: Register a new instructor
-   *     tags: [Instructors]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - userId
-   *               - licenseNumber
-   *               - experienceYears
-   *             properties:
-   *               userId:
-   *                 type: integer
-   *                 minimum: 1
-   *               licenseNumber:
-   *                 type: string
-   *                 minLength: 5
-   *                 maxLength: 20
-   *               experienceYears:
-   *                 type: integer
-   *                 minimum: 0
-   *                 maximum: 50
-   *               carId:
-   *                 type: integer
-   *                 minimum: 1
-   *     responses:
-   *       201:
-   *         description: Instructor registered successfully
-   *       500:
-   *         description: Internal server error
+   * GET /instructors/me — full profile for authenticated instructor.
+   * Auth required, role INSTRUCTOR only (enforced in routes).
    */
-  register: ExpressFunction = async (req, res, next)=> {
+  getMe: ExpressFunction = async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return next(new CustomizedError("No autenticado", 401));
+      const profile = await this.instructorService.getProfileForMeResponse(userId);
+      if (!profile) return next(new CustomizedError("Perfil de instructor no encontrado", 404));
+      return res.json(profile);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * PUT /instructors/me — update own instructor profile.
+   * Auth required, role INSTRUCTOR only.
+   */
+  updateMe: ExpressFunction = async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return next(new CustomizedError("No autenticado", 401));
+      const updated = await this.instructorService.updateProfileByUserId(userId, req.body);
+      if (!updated) return next(new CustomizedError("Perfil de instructor no encontrado", 404));
+      const full = await this.instructorService.getProfileForMeResponse(userId);
+      return res.json(full ?? updated);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * PATCH /instructors/me/listed — set isListed (body: { isListed: boolean }).
+   * Auth required, role INSTRUCTOR only.
+   */
+  patchListed: ExpressFunction = async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return next(new CustomizedError("No autenticado", 401));
+      const result = await this.instructorService.setListed(userId, req.body.isListed);
+      if (!result) return next(new CustomizedError("Perfil de instructor no encontrado", 404));
+      return res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * POST /instructors/me/documents
+   * Upload an instructor document (base64)
+   * Auth required, role INSTRUCTOR only.
+   */
+  uploadDocument: ExpressFunction = async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return next(new CustomizedError("No autenticado", 401));
+
+      const { documentType, image, mimeType } = req.body;
+      const profile = await this.instructorService.getProfileByUserId(userId);
+      if (!profile) return next(new CustomizedError("Perfil de instructor no encontrado", 404));
+
+      const fileUrl = await this.instructorService.uploadDocumentBase64(
+        profile.id,
+        documentType,
+        image,
+        mimeType
+      );
+
+      return res.json({
+        success: true,
+        message: "Documento subido correctamente",
+        data: {
+          documentType,
+          url: fileUrl
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * GET /instructors/nearby — listed instructors near (lat,lng) within radiusKm, sorted by distance.
+   * Public; query validated by nearbyQuerySchema (lat, lng required; radiusKm, limit optional).
+   */
+  getNearby: ExpressFunction = async (req, res, next) => {
+    try {
+      const query = (req as any).validatedQuery as { lat: number; lng: number; radiusKm: number; limit: number };
+      const list = await this.instructorService.getNearby(query);
+      return res.json(list);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * GET /instructors/:id — public profile (safe fields only).
+   * Returns 404 if instructor not found or isListed=false.
+   */
+  getPublicProfile: ExpressFunction = async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id < 1) return next(new CustomizedError("ID de instructor inválido", 422));
+      const profile = await this.instructorService.getPublicProfile(id);
+      if (!profile) return next(new CustomizedError("Instructor no encontrado o no disponible", 404));
+      return res.json(profile);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  register: ExpressFunction = async (req, res, next) => {
     try {
       const instructor = await this.instructorService.registerInstructor(req.body);
       res.status(201).json(instructor);
@@ -51,122 +127,51 @@ export default class InstructorController {
       next(err);
     }
   };
+
   /**
-   * @swagger
-   * /instructors/{id}:
-   *   put:
-   *     summary: Update instructor profile by ID
-   *     tags: [Instructors]
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: Instructor ID
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               licenseNumber:
-   *                 type: string
-   *                 minLength: 5
-   *                 maxLength: 20
-   *               experienceYears:
-   *                 type: integer
-   *                 minimum: 0
-   *                 maximum: 50
-   *               available:
-   *                 type: boolean
-   *               isValid:
-   *                 type: boolean
-   *               carId:
-   *                 type: integer
-   *                 minimum: 1
-   *     responses:
-   *       200:
-   *         description: Instructor updated successfully
-   *       404:
-   *         description: Instructor not found
-   *       500:
-   *         description: Internal server error
+   * PUT /instructors/:id — update by id; only allowed for own profile (auth required, id must match authenticated instructor).
    */
   updateProfile: ExpressFunction = async (req, res, next) => {
     try {
       const instructorId = Number(req.params.id);
-
-      const updatedInstructor = await this.instructorService.updateInstructor(
-        instructorId,
-        req.body
-      );
-
+      const userId = (req as any).user?.id;
+      if (!Number.isInteger(instructorId) || instructorId < 1) {
+        return next(new CustomizedError("ID de instructor inválido", 422));
+      }
+      if (!userId) {
+        return next(new CustomizedError("No autenticado", 401));
+      }
+      const instructor = await this.instructorService.getProfileByUserId(userId);
+      if (!instructor || (instructor as any).id !== instructorId) {
+        return next(new CustomizedError("No autorizado a editar este perfil", 403));
+      }
+      const updatedInstructor = await this.instructorService.updateInstructor(instructorId, req.body);
       if (!updatedInstructor) {
         return next(new CustomizedError("Instructor no encontrado", 404));
       }
-
-      return res.json(updatedInstructor);
+      const full = await this.instructorService.getInstructorProfile(instructorId);
+      return res.json(full ?? updatedInstructor);
     } catch (err) {
       next(err);
     }
   };
 
   /**
-   * @swagger
-   * /instructors/{id}:
-   *   get:
-   *     summary: Get instructor profile by ID
-   *     tags: [Instructors]
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *         description: Instructor ID
-   *     responses:
-   *       200:
-   *         description: Instructor profile retrieved successfully
-   *       404:
-   *         description: Instructor not found
-   *       500:
-   *         description: Internal server error
+   * GET /instructors/:id — legacy handler; now delegates to public profile (same contract: 404 if not listed).
    */
   getProfile: ExpressFunction = async (req, res, next) => {
-    try {
-      const instructor = await this.instructorService.getInstructorProfile(Number(req.params.id));
-      if (!instructor) {
-        return next(new CustomizedError("Instructor no encontrado, ingrese un perfil válido", 404));
-      }
-      res.json(instructor);
-    } catch (err) {
-      next(err);
-    }
+    return this.getPublicProfile(req, res, next);
   };
 
-  /**
-   * @swagger
-   * /instructors:
-   *   get:
-   *     summary: Get all instructors
-   *     tags: [Instructors]
-   *     responses:
-   *       200:
-   *         description: Instructors retrieved successfully
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: array
-   *               items:
-   *                 type: object
-   *       500:
-   *         description: Internal server error
-   */
   list: ExpressFunction = async (req, res, next) => {
     try {
-      const instructors = await this.instructorService.listInstructors();
+      const { minPrice, maxPrice, transmission, hasAvailability } = req.query;
+      const filter: any = {};
+      if (minPrice != null) filter.minPrice = Number(minPrice);
+      if (maxPrice != null) filter.maxPrice = Number(maxPrice);
+      if (transmission === "MANUAL" || transmission === "AUTOMATIC") filter.transmission = transmission;
+      if (hasAvailability === "true" || hasAvailability === "1") filter.hasAvailability = true;
+      const instructors = await this.instructorService.listInstructors(Object.keys(filter).length > 0 ? filter : undefined);
       res.json(instructors);
     } catch (err) {
       next(err);

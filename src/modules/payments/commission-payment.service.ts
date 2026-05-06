@@ -1,12 +1,14 @@
 import { MercadoPagoConfig, Preference } from 'mercadopago';
-import { MERCADOPAGO_ACCESS_TOKEN, getMercadoPagoUrl } from '@config/config';
+import { MERCADOPAGO_ACCESS_TOKEN, getMercadoPagoUrl, APP_COMMISSION_PERCENTAGE } from '@config/config';
 import CustomizedError from '@shared/classes/CustomizedError';
+import { splitGrossByAppCommissionPercent } from './payment-commission.policy';
 
 export interface CommissionPreferenceData {
   amount: number;
   description: string;
   externalReference: string;
   instructorCollectorId: string; // ID del instructor en MP
+  overrideCommissionRate?: number; // Permite forzar el % leyendo DB en el checkout
 }
 
 export default class CommissionPaymentService {
@@ -18,20 +20,22 @@ export default class CommissionPaymentService {
     this.client = new MercadoPagoConfig({
       accessToken: MERCADOPAGO_ACCESS_TOKEN,
     });
-    this.appCommissionPercentage = Number(process.env.APP_COMMISSION_PERCENTAGE) || 20;
+    this.appCommissionPercentage = APP_COMMISSION_PERCENTAGE;
     this.appCollectorId = process.env.APP_COLLECTOR_ID || '';
   }
 
-  calculateCommission(amount: number): { appCommission: number; instructorAmount: number } {
-    const appCommission = Math.round(amount * (this.appCommissionPercentage / 100));
-    const instructorAmount = amount - appCommission;
-    
-    return { appCommission, instructorAmount };
+  calculateCommission(amount: number, overridePercentage?: number): { appCommission: number; instructorAmount: number } {
+    const split = splitGrossByAppCommissionPercent(
+      amount,
+      overridePercentage !== undefined ? overridePercentage : this.appCommissionPercentage
+    );
+    return { appCommission: split.appCommission, instructorAmount: split.instructorAmount };
   }
 
   async createPreferenceWithCommission(data: CommissionPreferenceData) {
     try {
-      const { appCommission, instructorAmount } = this.calculateCommission(data.amount);
+      const activePercentage = data.overrideCommissionRate !== undefined ? data.overrideCommissionRate : this.appCommissionPercentage;
+      const { appCommission, instructorAmount } = this.calculateCommission(data.amount, data.overrideCommissionRate);
 
       const preference = {
         items: [
@@ -51,13 +55,13 @@ export default class CommissionPaymentService {
         },
         auto_return: 'approved',
         notification_url: `${getMercadoPagoUrl()}/api/v1/payments/mercadopago/webhook`,
-        
+
         // MARKETPLACE CONFIGURATION - Split payments
         marketplace: 'MARKETPLACE',
         marketplace_fee: appCommission, // Comisión de la app
-        
+
         // Configuración del split
-        additional_info: `Clase de conducción - Comisión app: ${this.appCommissionPercentage}% - Monto total: ${data.amount}`,
+        additional_info: `Clase de conducción - Comisión app: ${activePercentage}% - Monto total: ${data.amount}`,
 
         // Split de pagos
         disbursements: [
@@ -71,7 +75,7 @@ export default class CommissionPaymentService {
 
       const preferenceClient = new Preference(this.client);
       const result = await preferenceClient.create({ body: preference });
-      
+
       return {
         id: result.id!,
         init_point: result.init_point!,
@@ -80,7 +84,7 @@ export default class CommissionPaymentService {
           total_amount: data.amount,
           app_commission: appCommission,
           instructor_amount: instructorAmount,
-          commission_percentage: this.appCommissionPercentage
+          commission_percentage: activePercentage
         }
       };
     } catch (error: any) {

@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildApp = void 0;
 const express_1 = __importDefault(require("express"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const cors_1 = __importDefault(require("cors"));
@@ -14,6 +15,7 @@ const notFoundMiddleware_1 = __importDefault(require("./shared/middlewares/notFo
 const requestLogger_1 = require("./shared/logging/middleware/requestLogger");
 const LoggerConfig_1 = require("./shared/logging/LoggerConfig");
 const security_1 = require("./shared/middlewares/security");
+const config_1 = require("./config/config");
 const validation_1 = require("./shared/middlewares/validation");
 const healthCheck_1 = require("./shared/middlewares/healthCheck");
 const advancedValidation_1 = require("./shared/middlewares/advancedValidation");
@@ -46,6 +48,30 @@ const buildApp = () => {
     const notificationRouter = new routes_2.NotificationRoutes(notificationController).getRouter();
     const messageController = container_1.default.resolve("messageController");
     const app = (0, express_1.default)();
+    /** Respuesta JSON pública para Flutter / clientes (GET /api/v1/config). */
+    const sendPublicConfig = (_req, res) => {
+        res.json({
+            baseUrl: config_1.APP_URL.replace(/\/$/, ''),
+            googleClientId: config_1.GOOGLE_CLIENT_ID || undefined,
+        });
+    };
+    /** Todas las rutas versionadas bajo un solo prefijo (fuente de verdad: /api/v1/*). */
+    const apiV1 = express_1.default.Router();
+    apiV1.get('/config', sendPublicConfig);
+    apiV1.use('/users', userRouter);
+    apiV1.use('/instructors', instructorRouter);
+    apiV1.use('/permissions', permissions_routes_1.default);
+    apiV1.use('/cars', improved_cars_routes_1.default);
+    apiV1.use('/auth', authRouter);
+    apiV1.use('/classes', drivingClassRouter);
+    // Webhook primero; commission antes que functional para que /commission-report no caiga en GET /:id
+    apiV1.use('/payments', functional_payment_routes_1.webhookRouter);
+    apiV1.use('/payments', commission_routes_1.default);
+    apiV1.use('/payments', functional_payment_routes_1.functionalPaymentRoutes);
+    apiV1.use('/schedule', scheduleRouter);
+    apiV1.use('/notifications', notificationRouter);
+    apiV1.use('/messages', messages_routes_1.default);
+    apiV1.use('/admin', admin_routes_1.default);
     // Trust proxy for production (behind reverse proxy/load balancer)
     // Set to 1 to trust the first proxy (common for single proxy setups)
     app.set('trust proxy', 1);
@@ -60,7 +86,7 @@ const buildApp = () => {
             },
             servers: [
                 {
-                    url: 'http://localhost:3000/api/v1',
+                    url: `${config_1.APP_URL.replace(/\/$/, '')}/api/v1`,
                     description: 'Development server v1',
                 },
                 {
@@ -110,26 +136,32 @@ const buildApp = () => {
     // Logging middlewares
     app.use(requestLogger_1.requestLoggerMiddleware);
     app.use((0, requestLogger_1.performanceLoggerMiddleware)(2000)); // Log requests slower than 2 seconds
+    app.use((0, cookie_parser_1.default)());
     app.use(express_1.default.json({ limit: '10mb' }));
     app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
     // Health check endpoint (before rate limiting)
     app.get('/health', healthCheck_1.healthCheck);
     // Swagger UI
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
-    // API v1 routes
-    app.use("/api/v1/users", userRouter);
-    app.use("/api/v1/instructors", instructorRouter);
-    app.use("/api/v1/permissions", permissions_routes_1.default);
-    app.use("/api/v1/cars", improved_cars_routes_1.default);
-    app.use("/api/v1/auth", authRouter);
-    app.use("/api/v1/classes", drivingClassRouter);
-    app.use("/api/v1/payments", functional_payment_routes_1.functionalPaymentRoutes);
-    app.use("/api/v1/payments", functional_payment_routes_1.webhookRouter);
-    app.use("/api/v1/payments", commission_routes_1.default);
-    app.use("/api/v1/schedule", scheduleRouter);
-    app.use("/api/v1/notifications", notificationRouter);
-    app.use("/api/v1/messages", messages_routes_1.default);
-    app.use("/api/v1/admin", admin_routes_1.default);
+    // API v1 — prefijo único
+    app.use('/api/v1', apiV1);
+    /**
+     * Compatibilidad legacy (deprecated): mismos routers montados sin /api/v1.
+     * Preferir siempre /api/v1/*. Mantener solo mientras existan clientes antiguos.
+     */
+    app.use('/users', userRouter);
+    app.use('/instructors', instructorRouter);
+    app.use('/permissions', permissions_routes_1.default);
+    app.use('/cars', improved_cars_routes_1.default);
+    app.use('/auth', authRouter);
+    app.use('/classes', drivingClassRouter);
+    app.use('/payments', functional_payment_routes_1.webhookRouter);
+    app.use('/payments', commission_routes_1.default);
+    app.use('/payments', functional_payment_routes_1.functionalPaymentRoutes);
+    app.use('/schedule', scheduleRouter);
+    app.use('/notifications', notificationRouter);
+    app.use('/messages', messages_routes_1.default);
+    app.use('/admin', admin_routes_1.default);
     // Iniciar tareas programadas
     SchedulerService_1.default.start();
     app.use(notFoundMiddleware_1.default);
@@ -140,7 +172,24 @@ const buildApp = () => {
         module: 'app',
         function: 'buildApp',
     }, {
+        apiV1Base: '/api/v1',
         routes: [
+            '/api/v1/config',
+            '/api/v1/users',
+            '/api/v1/instructors',
+            '/api/v1/permissions',
+            '/api/v1/cars',
+            '/api/v1/auth',
+            '/api/v1/classes',
+            '/api/v1/payments',
+            '/api/v1/schedule',
+            '/api/v1/notifications',
+            '/api/v1/messages',
+            '/api/v1/admin',
+            '/health',
+            '/api-docs',
+        ],
+        legacyRoutesDeprecated: [
             '/users',
             '/instructors',
             '/permissions',
@@ -150,8 +199,9 @@ const buildApp = () => {
             '/payments',
             '/schedule',
             '/notifications',
-            '/messages'
-        ]
+            '/messages',
+            '/admin',
+        ],
     });
     return app;
 };

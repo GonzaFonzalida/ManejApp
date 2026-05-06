@@ -40,6 +40,16 @@ export const createMercadoPagoPreferenceSchema = z.object({
     .max(255, { message: "La descripción no puede exceder 255 caracteres" }),
 });
 
+/** M6: Create preference by booking (DrivingClass) id. Only STUDENT owner. */
+export const createPreferenceByBookingSchema = z.object({
+  bookingId: z.number().int().positive().optional(),
+  drivingClassId: z.number().int().positive().optional(),
+  amount: z.number().positive().optional(), // Optional, will be calculated from booking
+  description: z.string().min(1).max(255).optional(), // Optional, will be generated
+}).refine(data => data.bookingId || data.drivingClassId, {
+  message: "Either bookingId or drivingClassId must be provided",
+});
+
 export const mercadoPagoWebhookSchema = z.object({
   id: z.string(),
   type: z.string(),

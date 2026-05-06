@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+
+# Auth, admin y middlewares
+
+## Dos capas de auth (no confundir)
+1. **Auth compartido** — `src/shared/middlewares/auth.ts`
+   - `authenticateToken`: verifica JWT, consulta DB, comprueba `isActive`. Añade `req.user` con `id`, `email`, `role`.
+   - `requireRole(roles: string[])`: comprueba que `req.user.role` esté en la lista.
+   - **Usado en:** `src/modules/admin/admin.routes.ts` (todas las rutas admin).
+
+2. **Auth del módulo auth** — `src/modules/auth/auth.middlewares.ts`
+   - `authenticate`: solo verifica JWT (sin consulta a DB).
+   - `requireRole(...roles)`: comprueba rol.
+   - **Usado en:** rutas de auth como `/me`, `/sessions`, `/revoke/:sessionId`, `/revoke-all`.
+
+## Admin
+- Rutas admin: `src/modules/admin/admin.routes.ts`. Todas llevan `authenticateToken` + `requireRole(['ADMIN'])`.
+- Roles en Prisma: enum `Role` en `prisma/schema.prisma` — `STUDENT`, `INSTRUCTOR`, `ADMIN`.
+
+## Para bugs de dashboard / admin / auth
+- Revisar primero la lógica compartida de auth, sesión y roles (`src/shared/middlewares/auth.ts`, módulo auth) antes de tocar rutas o controladores individuales.
+- Identificar qué middleware usa cada ruta (shared vs auth module) para no duplicar o mezclar comportamientos.

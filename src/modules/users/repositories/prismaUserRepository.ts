@@ -1,16 +1,16 @@
 // C:\Users\thiag\Desktop\Back\ManejApp\src\users\repository\UserPrismaRepository.ts
 
 import { UserWithDates, UserWithOutId, UserWithOutPassword, User, UserWithOutPasswordAndDates } from "../user.types";
-import { UserRepository } from "./userRepository"
+import { UserRepository } from "./userRepository";
 import { prisma } from "@config/prismaClient";
-import { error } from "console";
 import { randomUUID } from "crypto";
+import bcrypt from "bcryptjs";
 
 export default class UserPrismaRepository implements UserRepository {
 
     // ... (El método register() y getAllUsers() permanecen igual, sin cambios) ...
 
-    async register({name, surname, email, dni, password, birthDate, emailVerificationToken}: UserWithDates & { emailVerificationToken?: string }): Promise<UserWithOutPasswordAndDates | Error> {
+    async register({ name, surname, email, dni, password, birthDate, emailVerificationToken, phoneNumber, location }: UserWithDates & { emailVerificationToken?: string; phoneNumber?: string; location?: string }): Promise<UserWithOutPasswordAndDates | Error> {
         // Convertimos la cadena de la fecha a un objeto Date
         const birthDateObject = new Date(birthDate);
 
@@ -21,12 +21,14 @@ export default class UserPrismaRepository implements UserRepository {
                 data: {
                     name: name,
                     surname: surname,
-                    email: email,
+                    email: email.trim().toLowerCase(),
                     dni: dni,
                     password: password,
                     birthDate: birthDateObject,
                     role: 'STUDENT',
                     emailVerificationToken: emailVerificationToken,
+                    phoneNumber: phoneNumber,
+                    location: location,
                 } as any,
                 select: {
                     id: true,
@@ -57,9 +59,18 @@ export default class UserPrismaRepository implements UserRepository {
     }
 
     async findByEmail(email: string): Promise<User | undefined> {
-        return await prisma.user.findUnique({
-            where : {email}
-        }) ?? undefined;
+        const trimmed = email.trim();
+        const lower = trimmed.toLowerCase();
+        let row = await prisma.user.findUnique({
+            where: { email: lower },
+        });
+        if (row) return row;
+        if (lower !== trimmed) {
+            row = await prisma.user.findUnique({
+                where: { email: trimmed },
+            });
+        }
+        return row ?? undefined;
     }
 
     async getAllUsers(): Promise<UserWithOutPassword[]> {
@@ -71,35 +82,39 @@ export default class UserPrismaRepository implements UserRepository {
                 name: true,
                 surname: true,
                 role: true,
+                phoneNumber: true,
+                location: true,
             }
         });
     }
 
-   async findByRole(rol: string): Promise<UserWithOutPassword[]> {
-    return await prisma.user.findMany({
-        where: {
-        role: rol as any, 
-        },
-        select: {
-        id: true,
-        dni: true,
-        email: true,
-        name: true,
-        surname: true,
-        role: true,
-        createdAt: true,
-        birthDate: true,
-        isActive: true,
-        },
-    });
+    async findByRole(rol: string): Promise<UserWithOutPassword[]> {
+        return await prisma.user.findMany({
+            where: {
+                role: rol as any,
+            },
+            select: {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+                role: true,
+                createdAt: true,
+                birthDate: true,
+                isActive: true,
+                phoneNumber: true,
+                location: true,
+            },
+        });
     }
 
     async updateLastLoginAt(userId: number): Promise<UserWithOutPassword | null> {
         const user = await prisma.user.update({
-        where: { id: userId },
-        data: {
-            lastLoginAt: new Date(), // se actualiza con la fecha actual
-        },
+            where: { id: userId },
+            data: {
+                lastLoginAt: new Date(), // se actualiza con la fecha actual
+            },
         });
 
         // Omitimos la contraseña antes de devolver
@@ -138,6 +153,8 @@ export default class UserPrismaRepository implements UserRepository {
                 createdAt: true,
                 birthDate: true,
                 isActive: true,
+                phoneNumber: true,
+                location: true,
             },
         });
 
@@ -145,33 +162,40 @@ export default class UserPrismaRepository implements UserRepository {
     }
 
     async findUser(value: string | number): Promise<UserWithOutPassword | undefined> {
-  let whereClause;
+        let whereClause;
 
-  if (typeof value === "number" || /^\d+$/.test(value)) {
-    // Si es número o string numérico, buscar por ID
-    whereClause = { id: typeof value === "number" ? value : parseInt(value, 10) };
-  } else {
-    // Si es string no numérico, buscar por DNI o email
-    whereClause = { OR: [{ dni: value }, { email: value }] };
-  }
+        if (typeof value === "number" || /^\d+$/.test(value)) {
+            // Si es número o string numérico, buscar por ID
+            whereClause = { id: typeof value === "number" ? value : parseInt(value, 10) };
+        } else {
+            // Si es string no numérico, buscar por DNI o email
+            whereClause = { OR: [{ dni: value }, { email: value }] };
+        }
 
-  const foundUser = await prisma.user.findFirst({
-    where: whereClause,
-    select: {
-      id: true,
-      dni: true,
-      email: true,
-      name: true,
-      surname: true,
-      role: true,
-      createdAt: true,
-      birthDate: true,
-      isActive: true,
-    },
-  });
+        const foundUser = await prisma.user.findFirst({
+            where: whereClause,
+            select: {
+                id: true,
+                dni: true,
+                email: true,
+                name: true,
+                surname: true,
+                role: true,
+                createdAt: true,
+                birthDate: true,
+                isActive: true,
+                emailVerifiedAt: true,
+                phoneNumber: true,
+                location: true,
+                profileImage: true,
+                student: {
+                    select: { experienceLevel: true },
+                },
+            },
+        });
 
-  return foundUser ?? undefined;
-}
+        return foundUser ?? undefined;
+    }
 
 
     async login(user: UserWithOutId): Promise<UserWithOutPassword | undefined> {
@@ -182,7 +206,7 @@ export default class UserPrismaRepository implements UserRepository {
                     { dni: user.dni }
                 ],
                 AND: {
-                password: user.password
+                    password: user.password
                 }
             }
         });
@@ -295,14 +319,148 @@ export default class UserPrismaRepository implements UserRepository {
     }
 
     async saveFCMToken(userId: number, fcmToken: string): Promise<void> {
-        // Usar upsert para crear o actualizar el token
         await prisma.notificationToken.upsert({
             where: { userId },
             update: { token: fcmToken },
-            create: {
-                userId,
-                token: fcmToken
-            }
+            create: { userId, token: fcmToken },
+        });
+    }
+
+    async deleteFCMToken(userId: number): Promise<void> {
+        await prisma.notificationToken.deleteMany({ where: { userId } });
+    }
+
+    async getNotificationPreferences(userId: number): Promise<{ emailNotifications: boolean; pushNotifications: boolean } | null> {
+        const row = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { emailNotifications: true, pushNotifications: true },
+        });
+        if (!row) return null;
+        return {
+            emailNotifications: row.emailNotifications ?? true,
+            pushNotifications: row.pushNotifications ?? true,
+        };
+    }
+
+    async updateNotificationPreferences(
+        userId: number,
+        prefs: { emailNotifications?: boolean; pushNotifications?: boolean }
+    ): Promise<void> {
+        await prisma.user.update({
+            where: { id: userId },
+            data: prefs as any,
+        });
+    }
+
+    async createPasswordResetToken(email: string, token: string, expiresAt: Date): Promise<UserWithOutPassword | null> {
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) return null;
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                passwordResetToken: token,
+                passwordResetExpiresAt: expiresAt,
+            } as any,
+        });
+        const { password, ...rest } = user;
+        return rest as UserWithOutPassword;
+    }
+
+    async findUserByPasswordResetToken(token: string): Promise<{ id: number } | null> {
+        const user = await prisma.user.findFirst({
+            where: {
+                passwordResetToken: token,
+                passwordResetExpiresAt: { gte: new Date() },
+            },
+            select: { id: true },
+        });
+        return user;
+    }
+
+    async clearPasswordResetToken(userId: number): Promise<void> {
+        await prisma.user.update({
+            where: { id: userId },
+            data: { passwordResetToken: null, passwordResetExpiresAt: null } as any,
+        });
+    }
+
+    async findByGoogleId(googleId: string): Promise<User | undefined> {
+        const user = await prisma.user.findFirst({
+            where: { googleId },
+        });
+        return user ?? undefined;
+    }
+
+    async createGoogleUser(data: { email: string; name: string; surname: string; googleId: string; profileImage?: string }): Promise<User> {
+        const randomPassword = randomUUID();
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+        const birthDate = new Date("2000-01-01");
+        const dni = `G-${data.googleId}`;
+
+        const user = await prisma.$transaction(async (tx) => {
+            const created = await tx.user.create({
+                data: {
+                    name: data.name,
+                    surname: data.surname,
+                    email: data.email.trim().toLowerCase(),
+                    dni,
+                    password: hashedPassword,
+                    birthDate,
+                    role: "STUDENT",
+                    googleId: data.googleId,
+                    isActive: true,
+                    emailVerifiedAt: new Date(),
+                    profileImage: data.profileImage,
+                } as any,
+            });
+            await tx.student.create({ data: { userId: created.id } });
+            return created;
+        });
+        return user;
+    }
+
+    async findByAppleSub(appleSub: string): Promise<User | undefined> {
+        const user = await prisma.user.findFirst({
+            where: { appleSub },
+        });
+        return user ?? undefined;
+    }
+
+    async createAppleUser(data: { email: string; name: string; surname: string; appleSub: string }): Promise<User> {
+        const randomPassword = randomUUID();
+        const hashedPassword = await bcrypt.hash(randomPassword, 10);
+        const birthDate = new Date("2000-01-01");
+        const dni = `A-${data.appleSub}`;
+
+        const user = await prisma.$transaction(async (tx) => {
+            const created = await tx.user.create({
+                data: {
+                    name: data.name,
+                    surname: data.surname,
+                    email: data.email.trim().toLowerCase(),
+                    dni,
+                    password: hashedPassword,
+                    birthDate,
+                    role: "STUDENT",
+                    appleSub: data.appleSub,
+                    isActive: true,
+                    emailVerifiedAt: new Date(),
+                } as any,
+            });
+            await tx.student.create({ data: { userId: created.id } });
+            return created;
+        });
+        return user;
+    }
+
+    async updateStudentExperienceLevel(userId: number, experienceLevel: number): Promise<{ experienceLevel: number } | null> {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+        if (!user || user.role !== "STUDENT") return null;
+        return prisma.student.upsert({
+            where: { userId },
+            create: { userId, experienceLevel },
+            update: { experienceLevel },
+            select: { experienceLevel: true },
         });
     }
 }

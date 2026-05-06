@@ -8,32 +8,39 @@ datasource db {
 }
 
 model User {
-    id                      Int                @id @default(autoincrement())
-    name                    String
-    surname                 String
-    email                   String             @unique
-    password                String
-    dni                     String             @unique
-    createdAt               DateTime           @default(now())
-    birthDate               DateTime
-    isActive                Boolean            @default(false)
-    role                    Role               @default(STUDENT)
-    lastLoginAt             DateTime?
-    emailVerificationToken  String?            @unique
-    emailVerifiedAt         DateTime?
-    emailNotifications      Boolean            @default(true)
-    pushNotifications       Boolean            @default(true)
-    profileImage            String?            @map("profile_image") // Path to profile image file
-    admin                   Admin?
-    instructor              Instructor?
-    notificationTokens      NotificationToken?
-    sessions                Session[]
-    student                 Student?
-    sentMessages            Message[]
-    conversationsAsP1       Conversation[]     @relation("ConversationParticipant1")
-    conversationsAsP2       Conversation[]     @relation("ConversationParticipant2")
+  id                     Int                @id @default(autoincrement())
+  name                   String
+  surname                String
+  email                  String             @unique
+  password               String
+  dni                    String             @unique
+  createdAt              DateTime           @default(now())
+  birthDate              DateTime
+  isActive               Boolean            @default(false)
+  role                   Role               @default(STUDENT)
+  lastLoginAt            DateTime?
+  emailVerificationToken String?            @unique
+  emailVerifiedAt        DateTime?
+  emailNotifications     Boolean            @default(true)
+  pushNotifications      Boolean            @default(true)
+  profileImage           String?            @map("profile_image") // Path to profile image file
+  phoneNumber            String?            @map("phone_number") // User phone number (optional for backwards compatibility)
+  location               String? // Dirección/ubicación para instructores (geocoding en frontend)
+  passwordResetToken     String?            @unique @map("password_reset_token")
+  passwordResetExpiresAt DateTime?          @map("password_reset_expires_at")
+  googleId               String?            @unique @map("google_id")
+  appleSub               String?            @unique @map("apple_sub")
+  accountDeletedAt       DateTime?          @map("account_deleted_at")
+  admin                  Admin?
+  instructor             Instructor?
+  notificationTokens     NotificationToken?
+  sessions               Session[]
+  student                Student?
+  sentMessages           Message[]
+  conversationsAsP1      Conversation[]     @relation("ConversationParticipant1")
+  conversationsAsP2      Conversation[]     @relation("ConversationParticipant2")
 
-    @@index([role])
+  @@index([role])
 }
 
 model Session {
@@ -52,10 +59,11 @@ model Session {
 }
 
 model Student {
-  id             Int            @id @default(autoincrement())
-  userId         Int            @unique
-  drivingClasses DrivingClass[]
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               Int            @id @default(autoincrement())
+  userId           Int            @unique
+  experienceLevel  Int            @default(1)
+  drivingClasses   DrivingClass[]
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Car {
@@ -75,23 +83,67 @@ model Car {
   @@index([isActive])
 }
 
+enum InstructorDocumentReviewStatus {
+  MISSING
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model InstructorDocumentReview {
+  id               Int                            @id @default(autoincrement())
+  instructorId     Int
+  documentType     String
+  status           InstructorDocumentReviewStatus @default(MISSING)
+  rejectionReason  String?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+  instructor       Instructor                     @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, documentType])
+  @@index([instructorId])
+}
+
 model Instructor {
-  id              Int                    @id @default(autoincrement())
-  userId          Int                    @unique
-  licenseNumber   String
+  id              Int     @id @default(autoincrement())
+  userId          Int     @unique
+  /// Opcional: la licencia se valida con documento `licenciaImg` + revisión admin.
+  licenseNumber   String?
   experienceYears Int
-  available       Boolean                @default(true)
-  isValid         Boolean                @default(false)
-  mpCollectorId   String?                @map("mp_collector_id") // Mercado Pago Collector ID
-  mpAccessToken   String?                @map("mp_access_token") // MP Access Token del instructor
-  commissionRate  Float                  @default(80) @map("commission_rate") // % que recibe (80%)
-  cars            Car[]
-  drivingClasses  DrivingClass[]
-  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permissions     InstructorPermission[]
-  scheduleSlots   ScheduleSlot[]
+  available       Boolean @default(true)
+  isValid         Boolean @default(false)
+  mpCollectorId   String? @map("mp_collector_id") // Mercado Pago Collector ID
+  mpAccessToken   String? @map("mp_access_token") // MP Access Token del instructor
+  commissionRate  Float   @default(20) @map("commission_rate") // % que recibe la app (20%)
+  hourlyRate      Float?  @map("hourly_rate") // Precio por hora en pesos (ej. 45000)
+  // MVP Document fields (for Admin Approval)
+  dobleComandoImg String? @map("doble_comando_img") // OBLIGATORIO
+  seguroImg       String? @map("seguro_img") // OBLIGATORIO
+  vtvImg          String? @map("vtv_img") // OBLIGATORIO
+  reincidenciaImg String? @map("reincidencia_img") // OBLIGATORIO
+  licenciaImg     String? @map("licencia_img") // OBLIGATORIO
+
+  // MVP profile fields
+  bio            String?
+  categories     Json? // e.g. ["category1", "category2"]
+  photos         Json? // e.g. ["url1", "url2"]
+  isListed       Boolean                @default(false) @map("is_listed")
+  /// Si true, no se recalcula isValid automáticamente (revocación manual del admin).
+  validitySuspendedByAdmin Boolean      @default(false) @map("validity_suspended_by_admin")
+  lat            Float?
+  lng            Float?
+  geohash        String?
+  addressText    String?                @map("address_text")
+  cars           Car[]
+  drivingClasses DrivingClass[]
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions       InstructorPermission[]
+  scheduleSlots     ScheduleSlot[]
+  documentReviews   InstructorDocumentReview[]
 
   @@index([mpCollectorId])
+  @@index([isListed])
+  @@index([lat, lng])
 }
 
 model Admin {
@@ -122,12 +174,16 @@ model DrivingClass {
   id           Int           @id @default(autoincrement())
   date         DateTime      @default(now())
   duration     Int
-  status       String        @default("scheduled")
+  status       BookingStatus @default(PENDING_PAYMENT)
   notes        String?
   studentId    Int
   instructorId Int
+  amount       Float?
+  currency     String?       @default("ARS")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  /// Push de recordatorio ~1h antes (evita duplicados).
+  classReminderSentAt DateTime? @map("class_reminder_sent_at")
   instructor   Instructor    @relation(fields: [instructorId], references: [id])
   student      Student       @relation(fields: [studentId], references: [id])
   payments     Payment[]
@@ -139,19 +195,27 @@ model Payment {
   amount            Float
   status            String       @default("pending")
   paymentMethod     String
+  provider          String?      @default("mercadopago")
   drivingClassId    Int
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   externalReference String?
   paymentId         String?
   preferenceId      String?
-  idempotencyKey    String?      @unique @map("idempotency_key") @db.VarChar(255)
+  idempotencyKey    String?      @unique @map("idempotency_key")
   lastRecoveryAt    DateTime?    @map("last_recovery_at")
   recoveryAttempts  Int          @default(0) @map("recovery_attempts")
+  rawPayload        Json?        @map("raw_payload") // optional webhook payload
   // Commission fields
   appCommission     Float?       @map("app_commission") // Comisión de la app
   instructorAmount  Float?       @map("instructor_amount") // Monto para instructor
   commissionRate    Float?       @map("commission_rate") // % de comisión aplicado
+  /// Monto reportado por MP en GET payment (conciliación vs amount pedido).
+  mpTransactionAmount Float?     @map("mp_transaction_amount")
+  /// Fase 1 — cuenta única: pendiente de liquidación manual al instructor.
+  instructorPayoutStatus   String    @default("not_applicable") @map("instructor_payout_status")
+  /// Cuando la clase permite marcar elegible para payout (fase 2).
+  instructorPayoutEligibleAt DateTime? @map("instructor_payout_eligible_at")
   drivingClass      DrivingClass @relation(fields: [drivingClassId], references: [id])
 
   @@index([idempotencyKey])
@@ -164,7 +228,8 @@ model ScheduleSlot {
   instructorId   Int
   startTime      DateTime
   endTime        DateTime
-  isBooked       Boolean       @default(false)
+  status         SlotStatus    @default(AVAILABLE)
+  heldUntil      DateTime?     @map("held_until")
   drivingClassId Int?          @unique
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -173,6 +238,7 @@ model ScheduleSlot {
 
   @@index([instructorId])
   @@index([startTime, endTime])
+  @@index([status])
 }
 
 model NotificationToken {
@@ -189,8 +255,8 @@ model NotificationToken {
 model PaymentRecoveryLog {
   id        Int      @id @default(autoincrement())
   paymentId Int      @map("payment_id")
-  step      String   @db.VarChar(100)
-  status    String   @db.VarChar(20)
+  step      String
+  status    String
   data      String?  @default("{}")
   error     String?
   timestamp DateTime @default(now())
@@ -203,7 +269,7 @@ model PaymentRecoveryLog {
 
 model BlacklistedToken {
   id        Int      @id @default(autoincrement())
-  jti       String   @unique @db.VarChar(255)
+  jti       String   @unique
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -213,43 +279,43 @@ model BlacklistedToken {
 }
 
 model Conversation {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   participant1Id Int
   participant2Id Int
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   messages       Message[]
-  participant1   User     @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
-  participant2   User     @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  participant1   User      @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2   User      @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
 
+  @@unique([participant1Id, participant2Id])
   @@index([participant1Id])
   @@index([participant2Id])
-  @@unique([participant1Id, participant2Id])
 }
 
 model Message {
-   id             Int          @id @default(autoincrement())
-   conversationId Int
-   senderId       Int
-   content        String
-   sentAt         DateTime     @default(now())
-   readAt         DateTime?
-   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  content        String
+  sentAt         DateTime     @default(now())
+  readAt         DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-   @@index([conversationId])
-   @@index([senderId])
-   @@index([sentAt])
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([sentAt])
 }
 
 model SystemConfig {
-   id                  Int      @id @default(autoincrement())
-   reportInterval      String   @default("weekly") // daily, weekly, monthly
-   reportEmails        String   @default("") // JSON array of emails
-   errorAlertsEnabled  Boolean  @default(true)
-   lastReportSent      DateTime?
-   createdAt           DateTime @default(now())
-   updatedAt           DateTime @updatedAt
+  id                 Int       @id @default(autoincrement())
+  reportInterval     String    @default("weekly") // daily, weekly, monthly
+  reportEmails       String    @default("") // JSON array of emails
+  errorAlertsEnabled Boolean   @default(true)
+  lastReportSent     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 enum Role {
@@ -261,4 +327,18 @@ enum Role {
 enum Transmission {
   MANUAL
   AUTOMATIC
+}
+
+enum SlotStatus {
+  AVAILABLE
+  HELD
+  BOOKED
+  BLOCKED
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  COMPLETED
 }

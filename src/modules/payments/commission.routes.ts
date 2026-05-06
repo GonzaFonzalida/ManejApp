@@ -3,7 +3,7 @@ import CommissionController from './commission.controller';
 import CommissionEnhancedService from './commission-enhanced.service';
 import CommissionPaymentService from './commission-payment.service';
 import PrismaPaymentRepository from './repositories/PrismaPaymentRepository';
-import { authenticate } from '@auth/auth.middlewares';
+import { authenticate, requireRole } from '@auth/auth.middlewares';
 import { generalRateLimit } from '@shared/middlewares/security';
 import { validateZodSchema } from '@shared/middlewares/validation';
 import * as schema from './payment.schemas';
@@ -25,13 +25,14 @@ commissionRoutes.post('/with-commission',
   controller.createPaymentWithCommission
 );
 
-// Commission reports (admin only)
+// Commission reports y earnings: solo ADMIN
 commissionRoutes.get('/commission-report',
+  requireRole('ADMIN'),
   controller.getCommissionReport
 );
 
-// Instructor earnings
 commissionRoutes.get('/instructor/:instructorId/earnings',
+  requireRole('ADMIN'),
   controller.getInstructorEarnings
 );
 

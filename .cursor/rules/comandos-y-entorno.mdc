@@ -1,0 +1,42 @@
+---
+alwaysApply: true
+---
+
+# Comandos y entorno
+
+## Scripts que SÍ existen en package.json (usar solo estos)
+- `pnpm install` — instalar dependencias
+- `pnpm run dev` — desarrollo (puerto **3099** por defecto: `PORT` en `.env` / default en `config.ts`)
+- `pnpm run kill:ports` — libera puertos **3000** y **3099** (`scripts/kill-backend-ports.sh`)
+- `pnpm run build` — compilar TypeScript a `dist/`
+- `pnpm start` — build + ejecutar `node dist/index.js`
+- `pnpm run dev:ngrok` — dev + ngrok en paralelo (túnel al **3099**)
+- `pnpm run dev:tunnel` — dev + localtunnel en paralelo (**3099**)
+- `pnpm run ngrok` — solo ngrok puerto **3099**
+- `pnpm run tunnel` — solo localtunnel puerto **3099**
+- `pnpm run setup:logging` — ejecuta `node scripts/setup-logging.js`
+- `pnpm run logs:tail` — `tail -f logs/app.log`
+- `pnpm run logs:clean` — borrar `logs/*.log`
+
+## Base de datos (Prisma)
+- `npx prisma generate` — generar cliente Prisma
+- `npx prisma db push` — sincronizar schema sin migraciones (local, tests)
+- `npx prisma migrate deploy` — aplicar migraciones (existen en `prisma/migrations/`; usado en Docker y CI)
+
+## Tests
+- Tests existen: `jest.config.js`, carpeta `tests/`. Ejecutar con **`npx jest`** o **`pnpm exec jest`**.
+- **No hay script `test` en package.json.** El CI (`.github/workflows/test.yml`) usa `npm test`; si falla en CI, añadir en package.json: `"test": "jest"`.
+
+## Docker
+- Desarrollo: `docker-compose -f docker-compose.dev.yml up --build`
+- Producción: `docker-compose up --build`
+
+## Variables de entorno
+- Copiar `.env.example` a `.env` y completar valores. Usar los nombres exactos de `src/config/config.ts` (p. ej. `JWT_EXPIRATION`, `JWT_REFRESH_EXPIRATION`, `COOKIE_SECRET`).
+- Tests: `.env.test`; `DATABASE_URL` la inyecta el global-setup (SQLite `prisma/test.db`).
+
+## Qué NO existe (no inventar)
+- **Lint:** no hay script `lint` ni configuración ESLint en el repo.
+- **Typecheck:** no hay script `typecheck`; el tipo se comprueba al hacer `pnpm run build` (tsc).
+- **Seed oficial:** no hay script `seed` en package.json ni sección `prisma.seed` en package.json. Hay scripts en `scripts/` (p. ej. `seed-test-data.ts`) pero no están enlazados como comando único; no usar `npx prisma db seed` a menos que se configure.
+- No declarar que existe `pnpm run test`, `pnpm run lint` ni `pnpm run typecheck` salvo que se añadan al package.json.

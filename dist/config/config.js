@@ -3,14 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMercadoPagoUrl = exports.AUTH_RATE_LIMIT_MAX = exports.RATE_LIMIT_MAX_REQUESTS = exports.RATE_LIMIT_WINDOW_MS = exports.LOG_RETENTION_DAYS = exports.LOG_TABLE_NAME = exports.LOG_MAX_FILES = exports.LOG_MAX_SIZE = exports.LOG_FILENAME = exports.LOG_DIRECTORY = exports.ENABLE_DATABASE_LOGS = exports.ENABLE_FILE_LOGS = exports.ENABLE_CONSOLE_LOGS = exports.LOG_LEVEL = exports.APP_URL_PUBLIC = exports.APP_URL = exports.MERCADOPAGO_PUBLIC_KEY = exports.MERCADOPAGO_ACCESS_TOKEN = exports.COOKIE_SECRET = exports.JWT_REFRESH_EXPIRATION = exports.JWT_EXPIRATION = exports.JWT_REFRESH_SECRET = exports.JWT_SECRET = exports.DATABASE_URL = exports.PORT = exports.NODE_ENV = void 0;
+exports.getMercadoPagoUrl = exports.AUTH_RATE_LIMIT_MAX = exports.RATE_LIMIT_MAX_REQUESTS = exports.RATE_LIMIT_WINDOW_MS = exports.LOG_RETENTION_DAYS = exports.LOG_TABLE_NAME = exports.LOG_MAX_FILES = exports.LOG_MAX_SIZE = exports.LOG_FILENAME = exports.LOG_DIRECTORY = exports.ENABLE_DATABASE_LOGS = exports.ENABLE_FILE_LOGS = exports.ENABLE_CONSOLE_LOGS = exports.LOG_LEVEL = exports.APPLE_CLIENT_ID = exports.GOOGLE_CLIENT_ID = exports.APP_URL_PUBLIC = exports.APP_URL = exports.APP_COMMISSION_PERCENTAGE = exports.MERCADOPAGO_WEBHOOK_SECRET = exports.MERCADOPAGO_PUBLIC_KEY = exports.MERCADOPAGO_ACCESS_TOKEN = exports.COOKIE_SECRET = exports.JWT_REFRESH_EXPIRATION = exports.JWT_EXPIRATION = exports.JWT_REFRESH_SECRET = exports.JWT_SECRET = exports.DATABASE_URL = exports.PORT = exports.NODE_ENV = void 0;
 const zod_1 = require("zod");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 // Definimos el esquema de validación para las variables de entorno
 const envSchema = zod_1.z.object({
     NODE_ENV: zod_1.z.enum(["development", "production", "test"]).default("development"),
-    PORT: zod_1.z.string().default("3000"),
+    PORT: zod_1.z.string().default("3099"),
     DATABASE_URL: zod_1.z.string().url(),
     JWT_SECRET: zod_1.z.string().min(10, "JWT_SECRET debe tener al menos 10 caracteres"),
     JWT_REFRESH_SECRET: zod_1.z.string().min(10, "JWT_REFRESH_SECRET debe tener al menos 10 caracteres"),
@@ -20,8 +20,24 @@ const envSchema = zod_1.z.object({
     // Mercado Pago configuration
     MERCADOPAGO_ACCESS_TOKEN: zod_1.z.string().min(1, "MERCADOPAGO_ACCESS_TOKEN es requerido"),
     MERCADOPAGO_PUBLIC_KEY: zod_1.z.string().min(1, "MERCADOPAGO_PUBLIC_KEY es requerido"),
-    APP_URL: zod_1.z.string().url().optional().default("http://localhost:3000"),
+    /** Secreto de firma de webhooks (Tus integraciones → Webhooks). Obligatorio en producción. */
+    MERCADOPAGO_WEBHOOK_SECRET: zod_1.z.string().optional().transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
+    /** Porcentaje que retiene la app sobre el bruto (ej. 20 → el instructor recibe ~80%). */
+    APP_COMMISSION_PERCENTAGE: zod_1.z
+        .string()
+        .default("20")
+        .transform((v) => {
+        const n = parseFloat(v);
+        if (Number.isNaN(n) || n < 0 || n > 100) {
+            throw new Error("APP_COMMISSION_PERCENTAGE debe ser un número entre 0 y 100");
+        }
+        return n;
+    }),
+    APP_URL: zod_1.z.string().url().optional().default("http://localhost:3099"),
     APP_URL_PUBLIC: zod_1.z.string().url().optional(),
+    GOOGLE_CLIENT_ID: zod_1.z.string().optional().transform(s => (s && s.trim().length > 0 ? s.trim() : undefined)),
+    /** Bundle ID de la app iOS (Sign in with Apple). Debe coincidir con el `aud` del identityToken. */
+    APPLE_CLIENT_ID: zod_1.z.string().optional().transform(s => (s && s.trim().length > 0 ? s.trim() : undefined)),
     // Logging configuration
     LOG_LEVEL: zod_1.z.enum(["error", "warn", "info", "debug"]).default("info"),
     ENABLE_CONSOLE_LOGS: zod_1.z.string().default("true").transform(val => val === "true"),
@@ -41,7 +57,17 @@ const envSchema = zod_1.z.object({
     AUTH_RATE_LIMIT_MAX: zod_1.z.string().default("5").transform(val => parseInt(val, 10)),
 });
 // Parseamos y validamos process.env
-const env = envSchema.parse(process.env);
+const env = envSchema.superRefine((data, ctx) => {
+    if (data.NODE_ENV === "production") {
+        if (!data.MERCADOPAGO_WEBHOOK_SECRET || data.MERCADOPAGO_WEBHOOK_SECRET.length < 8) {
+            ctx.addIssue({
+                code: zod_1.z.ZodIssueCode.custom,
+                message: "MERCADOPAGO_WEBHOOK_SECRET es obligatorio en producción (clave de firma de webhooks en Mercado Pago).",
+                path: ["MERCADOPAGO_WEBHOOK_SECRET"],
+            });
+        }
+    }
+}).parse(process.env);
 // Exportamos constantes tipadas y listas para usar
 exports.NODE_ENV = env.NODE_ENV;
 exports.PORT = parseInt(env.PORT, 10);
@@ -54,8 +80,12 @@ exports.COOKIE_SECRET = env.COOKIE_SECRET;
 // Mercado Pago configuration
 exports.MERCADOPAGO_ACCESS_TOKEN = env.MERCADOPAGO_ACCESS_TOKEN;
 exports.MERCADOPAGO_PUBLIC_KEY = env.MERCADOPAGO_PUBLIC_KEY;
+exports.MERCADOPAGO_WEBHOOK_SECRET = env.MERCADOPAGO_WEBHOOK_SECRET;
+exports.APP_COMMISSION_PERCENTAGE = env.APP_COMMISSION_PERCENTAGE;
 exports.APP_URL = env.APP_URL;
 exports.APP_URL_PUBLIC = env.APP_URL_PUBLIC;
+exports.GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
+exports.APPLE_CLIENT_ID = env.APPLE_CLIENT_ID;
 // Logging configuration exports
 exports.LOG_LEVEL = env.LOG_LEVEL;
 exports.ENABLE_CONSOLE_LOGS = env.ENABLE_CONSOLE_LOGS;

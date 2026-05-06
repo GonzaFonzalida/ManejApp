@@ -6,7 +6,7 @@ dotenv.config();
 // Definimos el esquema de validación para las variables de entorno
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  PORT: z.string().default("3000"),
+  PORT: z.string().default("3099"),
   DATABASE_URL: z.string().url(),
   JWT_SECRET: z.string().min(10, "JWT_SECRET debe tener al menos 10 caracteres"),
   JWT_REFRESH_SECRET: z.string().min(10, "JWT_REFRESH_SECRET debe tener al menos 10 caracteres"),
@@ -17,8 +17,26 @@ const envSchema = z.object({
   // Mercado Pago configuration
   MERCADOPAGO_ACCESS_TOKEN: z.string().min(1, "MERCADOPAGO_ACCESS_TOKEN es requerido"),
   MERCADOPAGO_PUBLIC_KEY: z.string().min(1, "MERCADOPAGO_PUBLIC_KEY es requerido"),
-  APP_URL: z.string().url().optional().default("http://localhost:3000"),
+  /** Secreto de firma de webhooks (Tus integraciones → Webhooks). Obligatorio en producción. */
+  MERCADOPAGO_WEBHOOK_SECRET: z.string().optional().transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
+  /** Porcentaje que retiene la app sobre el bruto (ej. 20 → el instructor recibe ~80%). */
+  APP_COMMISSION_PERCENTAGE: z
+    .string()
+    .default("20")
+    .transform((v) => {
+      const n = parseFloat(v);
+      if (Number.isNaN(n) || n < 0 || n > 100) {
+        throw new Error("APP_COMMISSION_PERCENTAGE debe ser un número entre 0 y 100");
+      }
+      return n;
+    }),
+  APP_URL: z.string().url().optional().default("http://localhost:3099"),
   APP_URL_PUBLIC: z.string().url().optional(),
+
+  GOOGLE_CLIENT_ID: z.string().optional().transform(s => (s && s.trim().length > 0 ? s.trim() : undefined)),
+
+  /** Bundle ID de la app iOS (Sign in with Apple). Debe coincidir con el `aud` del identityToken. */
+  APPLE_CLIENT_ID: z.string().optional().transform(s => (s && s.trim().length > 0 ? s.trim() : undefined)),
 
   // Logging configuration
   LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
@@ -43,7 +61,18 @@ const envSchema = z.object({
 });
 
 // Parseamos y validamos process.env
-const env = envSchema.parse(process.env);
+const env = envSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV === "production") {
+    if (!data.MERCADOPAGO_WEBHOOK_SECRET || data.MERCADOPAGO_WEBHOOK_SECRET.length < 8) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "MERCADOPAGO_WEBHOOK_SECRET es obligatorio en producción (clave de firma de webhooks en Mercado Pago).",
+        path: ["MERCADOPAGO_WEBHOOK_SECRET"],
+      });
+    }
+  }
+}).parse(process.env);
 
 // Exportamos constantes tipadas y listas para usar
 export const NODE_ENV = env.NODE_ENV;
@@ -60,8 +89,12 @@ export const COOKIE_SECRET = env.COOKIE_SECRET;
 // Mercado Pago configuration
 export const MERCADOPAGO_ACCESS_TOKEN = env.MERCADOPAGO_ACCESS_TOKEN;
 export const MERCADOPAGO_PUBLIC_KEY = env.MERCADOPAGO_PUBLIC_KEY;
+export const MERCADOPAGO_WEBHOOK_SECRET = env.MERCADOPAGO_WEBHOOK_SECRET;
+export const APP_COMMISSION_PERCENTAGE = env.APP_COMMISSION_PERCENTAGE;
 export const APP_URL = env.APP_URL;
 export const APP_URL_PUBLIC = env.APP_URL_PUBLIC;
+export const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
+export const APPLE_CLIENT_ID = env.APPLE_CLIENT_ID;
 
 // Logging configuration exports
 export const LOG_LEVEL = env.LOG_LEVEL;

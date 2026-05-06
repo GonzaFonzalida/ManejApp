@@ -21,7 +21,31 @@ export class PrismaDrivingClassRepository implements DrivingClassRepository {
   }
 
   async findAll(): Promise<DrivingClass[]> {
-    return this.prisma.drivingClass.findMany();
+    const rows = await this.prisma.drivingClass.findMany({
+      include: {
+        student: { include: { user: true } },
+      },
+      orderBy: { date: "desc" },
+    });
+
+    return rows.map((row) => {
+      const { student: st, ...rest } = row;
+      let studentPayload: Record<string, unknown> | undefined;
+      if (st?.user) {
+        studentPayload = {
+          id: st.user.id,
+          name: st.user.name,
+          surname: st.user.surname,
+          email: st.user.email,
+          role: st.user.role,
+          experienceLevel: st.experienceLevel,
+        };
+      }
+      return {
+        ...rest,
+        student: studentPayload,
+      } as unknown as DrivingClass;
+    });
   }
 
   async update(id: number, data: Partial<DrivingClass>): Promise<DrivingClass> {

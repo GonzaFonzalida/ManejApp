@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import AuthService from "./auth.services";
 import { ExpressFunction } from "@sharedTypes/ExpressFunction";
+import CustomizedError from "@classes/CustomizedError";
 
 export default class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -51,6 +52,27 @@ export default class AuthController {
       if (result instanceof Error) {
         return next(result);
       }
+      return res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  googleLogin: ExpressFunction = async (req, res, next) => {
+    try {
+      const { idToken } = req.body;
+      const result = await this.authService.googleLogin(req, res, idToken);
+      if (result instanceof Error) return next(result);
+      return res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  appleLogin: ExpressFunction = async (req, res, next) => {
+    try {
+      const result = await this.authService.appleLogin(req, res, req.body);
+      if (result instanceof Error) return next(result);
       return res.json(result);
     } catch (err) {
       next(err);
@@ -146,7 +168,12 @@ export default class AuthController {
    */
   me : ExpressFunction = async (req, res, next) => {
     try {
-      res.json({ user: (req as any).user });
+      const userId = (req as any).user?.id as number;
+      const profile = await this.authService.getAuthenticatedProfile(userId);
+      if (profile instanceof CustomizedError) {
+        return res.status(profile.statusCode).json({ error: profile.message });
+      }
+      res.json({ user: profile });
     } catch (err) {
       next(err);
     }

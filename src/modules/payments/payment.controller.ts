@@ -8,7 +8,7 @@ export default class PaymentController {
   constructor(
     private paymentService: PaymentService,
     private commissionService: CommissionEnhancedService
-  ) {}
+  ) { }
 
   /**
    * @swagger
@@ -263,10 +263,12 @@ export default class PaymentController {
    *         description: Internal server error
    */
   createMercadoPagoPreference: ExpressFunction = async (req, res, next) => {
+    console.log("DEBUG: createMercadoPagoPreference called");
     try {
       const preference = await this.paymentService.createMercadoPagoPreference(req.body);
       res.status(201).json(preference);
     } catch (err) {
+      console.log("DEBUG: Error in createMercadoPagoPreference", err);
       next(err);
     }
   };
@@ -314,6 +316,52 @@ export default class PaymentController {
       const userId = (req as any).user?.id;
       const payment = await this.commissionService.createPaymentWithCommission(req.body, userId);
       res.status(201).json(payment);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * @swagger
+   * /payments/booking/{bookingId}/preference:
+   *   post:
+   *     summary: Create preference for booking
+   *     tags: [Payments]
+   *     parameters:
+   *       - in: path
+   *         name: bookingId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: Booking (Driving Class) ID
+   *     responses:
+   *       201:
+   *         description: Preference created successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 preferenceId:
+   *                   type: string
+   *                 initPoint:
+   *                   type: string
+   *       500:
+   *         description: Internal server error
+   */
+  createPreferenceForBooking: ExpressFunction = async (req, res, next) => {
+    console.log("DEBUG: createPreferenceForBooking called");
+    try {
+      const bookingId = Number(req.params.bookingId);
+      const userId = Number((req as any).user?.id);
+      const userRole = (req as any).user?.role;
+
+      const result = await this.paymentService.createPreferenceForBooking(
+        bookingId,
+        userId,
+        userRole
+      );
+      res.status(201).json(result);
     } catch (err) {
       next(err);
     }

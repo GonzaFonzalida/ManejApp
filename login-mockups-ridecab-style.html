@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ManejApp Login – 5 propuestas estilo RideCab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --yellow: #FFC700;
+      --yellow-soft: #FFD700;
+      --white: #FFFFFF;
+      --gray-bg: #F8F8F8;
+      --gray-border: #E0E0E0;
+      --text-primary: #000000;
+      --text-secondary: #666666;
+      --text-placeholder: #AAAAAA;
+      --shadow-soft: 0 4px 24px rgba(0,0,0,0.06);
+      --shadow-bar: 0 6px 20px rgba(0,0,0,0.08);
+      --radius-pill: 9999px;
+      --radius-bar: 28px;
+      --font: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: #e5e5e5;
+      padding: 24px;
+      color: var(--text-primary);
+    }
+    h1.page-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+    .mockup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .mockup-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .mockup-label {
+      padding: 12px 16px;
+      background: var(--gray-bg);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--gray-border);
+    }
+    .phone-frame {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      min-height: 680px;
+      background: var(--gray-bg);
+      border-radius: 36px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.12);
+      overflow: hidden;
+      position: relative;
+    }
+    .screen {
+      padding: 0 20px;
+      min-height: 680px;
+      display: flex;
+      flex-direction: column;
+      background: var(--gray-bg);
+    }
+
+    /* Logo tipo RideCab: parte amarilla + parte negra */
+    .logo-split {
+      display: flex;
+      align-items: baseline;
+      gap: 0;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      padding-top: 52px;
+      padding-bottom: 24px;
+    }
+    .logo-split .part-yellow { color: var(--yellow); }
+    .logo-split .part-black { color: var(--text-primary); }
+
+    /* Headline grande, bold, izquierda, line-height ajustado */
+    .headline-big {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: var(--text-primary);
+      margin-bottom: 32px;
+      max-width: 280px;
+    }
+
+    /* Barra inferior amarilla pill (estilo Get Started) */
+    .bottom-bar {
+      margin-top: auto;
+      padding: 16px 0 28px;
+    }
+    .bar-pill {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 56px;
+      padding: 0 20px;
+      background: var(--yellow);
+      border-radius: var(--radius-bar);
+      box-shadow: var(--shadow-bar);
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--white);
+      text-decoration: none;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .bar-pill:active { transform: scale(0.98); }
+    .bar-pill .arrows { opacity: 0.95; letter-spacing: 2px; }
+
+    /* Botón circular blanco con borde (estilo padlock de la imagen) */
+    .btn-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--white);
+      border: 2px solid var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      text-decoration: none;
+      color: var(--text-primary);
+      font-size: 18px;
+    }
+    .bar-with-circles {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 56px;
+      padding: 6px 6px 6px 16px;
+      background: var(--yellow);
+      border-radius: var(--radius-bar);
+      box-shadow: var(--shadow-bar);
+    }
+    .bar-with-circles .main-cta {
+      flex: 1;
+      font-family: var(--font);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--white);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: center;
+    }
+    .bar-with-circles .circles { display: flex; gap: 8px; }
+
+    .input-pill {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: var(--white);
+      font-family: var(--font);
+      font-size: 15px;
+      color: var(--text-primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .input-pill::placeholder { color: var(--text-placeholder); }
+    .input-wrap { margin-bottom: 14px; }
+    .link {
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 18px 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--gray-border);
+    }
+
+    /* Área hero / ilustración (estilo coche grande) */
+    .hero-visual {
+      width: 100%;
+      height: 180px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, #EEEEEE 0%, #E0E0E0 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+      font-size: 64px;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="page-title">ManejApp – Login estilo RideCab</h1>
+  <p class="subtitle">5 maquetas alineadas a la referencia: logo arriba a la izquierda (parte en amarillo), headline grande bold, fondo #F8F8F8, barra amarilla pill abajo con "Ingresar >>>", botones circulares con borde.</p>
+
+  <div class="mockup-grid">
+    <!-- Maqueta 1: Igual que la referencia – logo, headline, ilustración, barra con círculos -->
+    <div class="mockup-card">
+      <div class="mockup-label">Maqueta 1 – Logo + headline + hero + barra con círculos</div>
+      <div class="phone-frame">
+        <div class="screen">
+          <div class="logo-split">
+            <span class="part-yellow">Manej</span><span class="part-black">App</span>
+          </div>
+          <h2 class="headline-big">Encontrá tu clase ideal para empezar a manejar</h2>
+          <div class="hero-visual">🚗</div>
+          <div class="input-wrap">
+            <input type="email" class="input-pill" placeholder="Correo electrónico">
+          </div>
+          <div class="input-wrap">
+            <input type="password" class="input-pill" placeholder="Contraseña">
+          </div>
+          <a href="#" class="link" style="display: inline-block; margin-bottom: 24px;">¿Olvidaste tu contraseña?</a>
+          <div class="bottom-bar">
+            <div class="bar-with-circles">
+              <button type="button" class="main-cta">Ingresar >>></button>
+              <div class="circles">
+                <a href="#" class="btn-circle" aria-label="Olvidé contraseña">🔒</a>
+                <a href="#" class="btn-circle" aria-label="Google">G</a>
+              </div>
+            </div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); text-align: center; padding-bottom: 16px;">¿No tenés cuenta? <a href="#" class="link">Regístrate</a></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maqueta 2: Sin hero, barra pill simple (solo CTA) -->
+    <div class="mockup-card">
+      <div class="mockup-label">Maqueta 2 – Logo + headline + formulario + barra pill simple</div>
+      <div class="phone-frame">
+        <div class="screen">
+          <div class="logo-split">
+            <span class="part-yellow">Manej</span><span class="part-black">App</span>
+          </div>
+          <h2 class="headline-big">Iniciá sesión para reservar tu próxima clase</h2>
+          <div class="input-wrap">
+            <input type="email" class="input-pill" placeholder="Correo electrónico">
+          </div>
+          <div class="input-wrap">
+            <input type="password" class="input-pill" placeholder="Contraseña">
+          </div>
+          <a href="#" class="link" style="display: inline-block; margin-bottom: 28px;">¿Olvidaste tu contraseña?</a>
+          <div class="bottom-bar">
+            <button type="button" class="bar-pill">Ingresar <span class="arrows">>>></span></button>
+          </div>
+          <div class="divider">o</div>
+          <button type="button" style="width: 100%; padding: 14px; border-radius: var(--radius-bar); border: 2px solid var(--gray-border); background: var(--white); font-family: var(--font); font-size: 15px; font-weight: 600; cursor: pointer;">Acceder con Google</button>
+          <p style="font-size: 13px; color: var(--text-secondary); text-align: center; padding: 20px 0;">¿No tenés cuenta? <a href="#" class="link">Regístrate</a></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maqueta 3: Hero más grande, headline encima del visual -->
+    <div class="mockup-card">
+      <div class="mockup-label">Maqueta 3 – Headline + hero grande + barra</div>
+      <div class="phone-frame">
+        <div class="screen">
+          <div class="logo-split">
+            <span class="part-yellow">Manej</span><span class="part-black">App</span>
+          </div>
+          <h2 class="headline-big">Encontrá tu clase ideal para empezar tu camino</h2>
+          <div class="hero-visual" style="height: 220px; font-size: 80px;">🚗</div>
+          <div class="input-wrap">
+            <input type="email" class="input-pill" placeholder="Correo electrónico">
+          </div>
+          <div class="input-wrap">
+            <input type="password" class="input-pill" placeholder="Contraseña">
+          </div>
+          <div class="bottom-bar">
+            <div class="bar-with-circles">
+              <button type="button" class="main-cta">Ingresar >>></button>
+              <div class="circles">
+                <a href="#" class="btn-circle">🔒</a>
+                <a href="#" class="btn-circle">G</a>
+              </div>
+            </div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); text-align: center; padding-bottom: 16px;">¿Olvidaste tu contraseña? · ¿No tenés cuenta? <a href="#" class="link">Regístrate</a></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maqueta 4: Barra amarilla con un solo círculo (seguridad) a la izquierda -->
+    <div class="mockup-card">
+      <div class="mockup-label">Maqueta 4 – Barra con círculo a la izquierda</div>
+      <div class="phone-frame">
+        <div class="screen">
+          <div class="logo-split">
+            <span class="part-yellow">Manej</span><span class="part-black">App</span>
+          </div>
+          <h2 class="headline-big">Tu camino hacia el carnet empieza acá</h2>
+          <div class="input-wrap">
+            <input type="email" class="input-pill" placeholder="Correo electrónico">
+          </div>
+          <div class="input-wrap">
+            <input type="password" class="input-pill" placeholder="Contraseña">
+          </div>
+          <a href="#" class="link" style="display: inline-block; margin-bottom: 24px;">¿Olvidaste tu contraseña?</a>
+          <div class="bottom-bar">
+            <div class="bar-with-circles" style="padding: 6px 16px 6px 6px;">
+              <a href="#" class="btn-circle" style="margin-right: 4px;">🔒</a>
+              <button type="button" class="main-cta">Ingresar >>></button>
+            </div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); text-align: center; padding-bottom: 16px;">¿No tenés cuenta? <a href="#" class="link">Regístrate</a></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maqueta 5: Minimal – solo logo, headline, 2 inputs y barra (sin “o”, sin Google en vista principal) -->
+    <div class="mockup-card">
+      <div class="mockup-label">Maqueta 5 – Minimal (solo lo esencial)</div>
+      <div class="phone-frame">
+        <div class="screen">
+          <div class="logo-split">
+            <span class="part-yellow">Manej</span><span class="part-black">App</span>
+          </div>
+          <h2 class="headline-big">Iniciá sesión para continuar</h2>
+          <div style="margin-top: 8px; margin-bottom: 32px;">
+            <input type="email" class="input-pill" placeholder="Correo electrónico" style="margin-bottom: 12px;">
+            <input type="password" class="input-pill" placeholder="Contraseña">
+          </div>
+          <a href="#" class="link" style="font-size: 13px; margin-bottom: 32px;">¿Olvidaste tu contraseña?</a>
+          <div class="bottom-bar">
+            <button type="button" class="bar-pill">Ingresar <span class="arrows">>>></span></button>
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary); text-align: center; padding-bottom: 24px;">¿No tenés cuenta? <a href="#" class="link">Regístrate</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top: 32px; font-size: 13px; color: var(--text-secondary); max-width: 640px;">Todas usan: logo "Manej" (amarillo) + "App" (negro) arriba a la izquierda, headline grande bold alineado a la izquierda, fondo #F8F8F8, inputs blancos redondeados, barra amarilla pill abajo con "Ingresar >>>" en blanco. Opcional: botones circulares blancos con borde (estilo RideCab). Elegí una y la pasamos a Flutter.</p>
+</body>
+</html>

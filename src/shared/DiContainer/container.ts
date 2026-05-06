@@ -60,34 +60,7 @@ diContainer.register("PrismaSessionRepository", PrismaSessionRepository);
 diContainer.register("authService", AuthService, ["PrismaSessionRepository","UserRepository"]);
 diContainer.register("authController", AuthController, ["authService"]);
 
-//drivingClass intances
-diContainer.register("DrivingClassRepo", PrismaDrivingClassRepository);
-diContainer.register("DrivingClassService", DrivingClassService, [
-    "UserRepository",
-    "PrismaInstructorRepository",
-    "DrivingClassRepo"
-]);
-diContainer.register("DrivingClassController", DrivingClassController, ["DrivingClassService"]);
-
-//payment instances
-diContainer.register("PrismaPaymentRepository", PrismaPaymentRepository);
-diContainer.register("MercadoPagoService", MercadoPagoService);
-diContainer.register("CommissionPaymentService", CommissionPaymentService);
-diContainer.register("CommissionEnhancedService", CommissionEnhancedService, ["PrismaPaymentRepository", "CommissionPaymentService"]);
-diContainer.register("paymentService", PaymentService, ["PrismaPaymentRepository", "MercadoPagoService"]);
-diContainer.register("paymentController", PaymentController, ["paymentService", "CommissionEnhancedService"]);
-
-//schedule instances
-diContainer.register("PrismaScheduleSlotRepository", PrismaScheduleSlotRepository);
-diContainer.register("scheduleService", ScheduleService, [
-  "PrismaScheduleSlotRepository",
-  "instructorService",
-  "DrivingClassService",
-  "paymentService"
-]);
-diContainer.register("scheduleController", ScheduleController, ["scheduleService"]);
-
-//notification instances
+//notification (antes de payment/schedule/drivingClass cancel pushes)
 diContainer.register("PrismaNotificationTokenRepository", PrismaNotificationTokenRepository);
 diContainer.registerInstance("logger", logger);
 diContainer.register("notificationService", NotificationService, [
@@ -99,6 +72,35 @@ diContainer.register("notificationController", NotificationController, [
   "notificationService",
   "logger"
 ]);
+
+//drivingClass intances
+diContainer.register("DrivingClassRepo", PrismaDrivingClassRepository);
+diContainer.register("DrivingClassService", DrivingClassService, [
+    "UserRepository",
+    "PrismaInstructorRepository",
+    "DrivingClassRepo",
+    "notificationService"
+]);
+diContainer.register("DrivingClassController", DrivingClassController, ["DrivingClassService"]);
+
+//payment instances
+diContainer.register("PrismaPaymentRepository", PrismaPaymentRepository);
+diContainer.register("MercadoPagoService", MercadoPagoService);
+diContainer.register("CommissionPaymentService", CommissionPaymentService);
+diContainer.register("CommissionEnhancedService", CommissionEnhancedService, ["PrismaPaymentRepository", "CommissionPaymentService"]);
+diContainer.register("paymentService", PaymentService, ["PrismaPaymentRepository", "MercadoPagoService", "notificationService"]);
+diContainer.register("paymentController", PaymentController, ["paymentService", "CommissionEnhancedService"]);
+
+//schedule instances
+diContainer.register("PrismaScheduleSlotRepository", PrismaScheduleSlotRepository);
+diContainer.register("scheduleService", ScheduleService, [
+  "PrismaScheduleSlotRepository",
+  "instructorService",
+  "DrivingClassService",
+  "paymentService",
+  "notificationService"
+]);
+diContainer.register("scheduleController", ScheduleController, ["scheduleService"]);
 
 //messages instances
 diContainer.register("PrismaMessageRepository", PrismaMessageRepository);

@@ -5,6 +5,6 @@ export const refreshCookieOptions = {
   httpOnly: true,
   secure: NODE_ENV === "production",
   sameSite: "strict" as const,
-  path: "/auth/refresh",     // Sólo se envía en este endpoint
+  path: "/api/v1/auth/refresh",
   maxAge: 1000 * 60 * 60 * 24 * 30, // 30 días
 };

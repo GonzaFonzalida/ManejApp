@@ -6,24 +6,15 @@ import { ZodSchema } from 'zod';
 export const validateZodSchema = (schema: ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = schema.parse({
-        body: req.body,
-        params: req.params,
-        query: req.query,
-      });
-      
-      const parsedResult = result as { body?: any; params?: any; query?: any };
-      
-      req.body = parsedResult.body || req.body;
-      req.params = parsedResult.params || req.params;
-      req.query = parsedResult.query || req.query;
-      
+      // Validate only the body, not the entire request object
+      const result = schema.parse(req.body);
+      req.body = result;
       next();
     } catch (error: any) {
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
-        details: error.errors || error.message,
+        details: JSON.stringify(error.errors || error.message),
       });
     }
   };
