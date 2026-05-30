@@ -7,6 +7,8 @@ import UserController from "@users/user.controller";
 import PrismaInstructorRepository from "@instructors/repositories/PrismaInstructorRepository";
 import InstructorService from "@instructors/instructor.services";
 import InstructorController from "@instructors/instructor.controller";
+import InstructorMpService from "@instructors/instructor-mp.service";
+import InstructorMpController from "@instructors/instructor-mp.controller";
 
 import PrismaSessionRepository from "@auth/repositories/PrismaSessionRepository";
 import AuthService from "@auth/auth.services";
@@ -53,6 +55,8 @@ diContainer.register("instructorService", InstructorService,[
     "UserRepository",
     "PrismaPermissionRepository"
 ]);
+diContainer.register("instructorMpService", InstructorMpService);
+diContainer.register("instructorMpController", InstructorMpController, ["instructorMpService"]);
 diContainer.register("instructorController", InstructorController, ["instructorService"]);
 
 //auth instances 
@@ -88,7 +92,7 @@ diContainer.register("PrismaPaymentRepository", PrismaPaymentRepository);
 diContainer.register("MercadoPagoService", MercadoPagoService);
 diContainer.register("CommissionPaymentService", CommissionPaymentService);
 diContainer.register("CommissionEnhancedService", CommissionEnhancedService, ["PrismaPaymentRepository", "CommissionPaymentService"]);
-diContainer.register("paymentService", PaymentService, ["PrismaPaymentRepository", "MercadoPagoService", "notificationService"]);
+diContainer.register("paymentService", PaymentService, ["PrismaPaymentRepository", "MercadoPagoService", "notificationService", "instructorMpService"]);
 diContainer.register("paymentController", PaymentController, ["paymentService", "CommissionEnhancedService"]);
 
 //schedule instances

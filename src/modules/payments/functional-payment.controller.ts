@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import PaymentService from "./payment.services";
 import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import { ResponseFormatter } from "@shared/utils/responseFormatter";
+import { WebhookRetryableError } from "./mercadopago-webhook.errors";
+import { logger } from "@logging/LoggerConfig";
 
 export default class FunctionalPaymentController {
   constructor(private paymentService: PaymentService) { }
@@ -104,11 +106,46 @@ export default class FunctionalPaymentController {
   };
 
   handleMercadoPagoWebhook: ExpressFunction = async (req, res) => {
+    const correlationId =
+      (req.headers["x-request-id"] as string | undefined) ?? `mp-wh-${Date.now()}`;
     try {
-      await this.paymentService.handleMercadoPagoWebhook(req.body);
+      await this.paymentService.handleMercadoPagoWebhook(req.body, { correlationId });
+      return res.status(200).json({ ok: true, correlationId });
     } catch (err) {
-      console.error('MercadoPago webhook error:', err);
+      if (err instanceof WebhookRetryableError) {
+        logger.warn("[MP webhook] Respuesta 503 para reintento MP", {
+          correlationId: err.correlationId ?? correlationId,
+          message: err.message,
+        });
+        return res.status(503).json({
+          ok: false,
+          retry: true,
+          correlationId: err.correlationId ?? correlationId,
+        });
+      }
+      logger.error("[MP webhook] Error no reintetable", undefined, {}, {
+        correlationId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return res.status(200).json({ ok: true, correlationId });
     }
-    return res.status(200).json({ ok: true });
+  };
+
+  getMercadoPagoPaymentStatus: ExpressFunction = async (req, res, next) => {
+    try {
+      const userId = (req as any).user?.id;
+      const userRole = (req as any).user?.role;
+      if (!userId || !userRole) {
+        return ResponseFormatter.error(res, 'No autorizado', 401);
+      }
+      const result = await this.paymentService.getMercadoPagoPaymentStatus(
+        req.params.identifier,
+        userId,
+        userRole
+      );
+      return ResponseFormatter.success(res, result, 'Estado de pago obtenido');
+    } catch (err) {
+      next(err);
+    }
   };
 }

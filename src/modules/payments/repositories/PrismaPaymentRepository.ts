@@ -100,6 +100,12 @@ export default class PrismaPaymentRepository implements PaymentRepository {
     if (data.instructorPayoutEligibleAt !== undefined) {
       patch.instructorPayoutEligibleAt = data.instructorPayoutEligibleAt;
     }
+    if (data.mpCollectorId !== undefined) patch.mpCollectorId = data.mpCollectorId;
+    if (data.marketplaceFee !== undefined) patch.marketplaceFee = data.marketplaceFee;
+    if (data.preferenceInitPoint !== undefined) patch.preferenceInitPoint = data.preferenceInitPoint;
+    if (data.preferenceSandboxInitPoint !== undefined) {
+      patch.preferenceSandboxInitPoint = data.preferenceSandboxInitPoint;
+    }
 
     const result = await this.prisma.payment.update({
       where: { id },

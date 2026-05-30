@@ -52,6 +52,11 @@ functionalPaymentRoutes.post("/mercadopago/preference",
   controller.createPreferenceForBooking
 );
 
+// Estado post-pago (preferenceId, paymentId MP o bookingId). Antes de /:id
+functionalPaymentRoutes.get("/mercadopago/status/:identifier",
+  controller.getMercadoPagoPaymentStatus
+);
+
 // Fix for frontend calling /booking/:bookingId/preference
 functionalPaymentRoutes.post("/booking/:bookingId/preference",
   requireRole("STUDENT"),

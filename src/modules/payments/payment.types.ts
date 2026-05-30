@@ -15,6 +15,10 @@ export interface Payment {
   mpTransactionAmount?: number | null;
   instructorPayoutStatus?: string | null;
   instructorPayoutEligibleAt?: Date | null;
+  mpCollectorId?: string | null;
+  marketplaceFee?: number | null;
+  preferenceInitPoint?: string | null;
+  preferenceSandboxInitPoint?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

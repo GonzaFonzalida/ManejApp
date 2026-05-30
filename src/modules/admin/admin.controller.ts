@@ -13,6 +13,7 @@ import {
 } from '../instructors/instructorPublishable';
 import { syncInstructorAutoValidity } from '../instructors/instructorValiditySync';
 import { buildInstructorOnboardingPayload } from '../instructors/instructorOnboardingDto';
+import { sanitizeInstructorMpFields } from '../instructors/instructor-mp.service';
 import ReportService from '../../shared/services/ReportService';
 import EmailService from '../../shared/services/EmailService';
 import { BookingStatus } from '@shared/utils/bookingStatus';
@@ -375,7 +376,7 @@ export class AdminController {
       ResponseFormatter.success(
         res,
         {
-          ...instructor,
+          ...sanitizeInstructorMpFields(instructor as unknown as Record<string, unknown>),
           publishable,
           publishBlockedReasons: reasons,
           canActivatePublicListing,

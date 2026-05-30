@@ -17,6 +17,26 @@ const envSchema = z.object({
   // Mercado Pago configuration
   MERCADOPAGO_ACCESS_TOKEN: z.string().min(1, "MERCADOPAGO_ACCESS_TOKEN es requerido"),
   MERCADOPAGO_PUBLIC_KEY: z.string().min(1, "MERCADOPAGO_PUBLIC_KEY es requerido"),
+  /** OAuth marketplace: ID de la aplicación (Tus integraciones → Credenciales). */
+  MERCADOPAGO_CLIENT_ID: z
+    .string()
+    .optional()
+    .transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
+  MERCADOPAGO_CLIENT_SECRET: z
+    .string()
+    .optional()
+    .transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
+  /** Alias opcional de client_id si en MP figura como App ID. */
+  MERCADOPAGO_APP_ID: z
+    .string()
+    .optional()
+    .transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
+  /** Redirect URI estática registrada en Mercado Pago (debe coincidir exactamente). */
+  MERCADOPAGO_REDIRECT_URI: z
+    .string()
+    .url()
+    .optional()
+    .transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
   /** Secreto de firma de webhooks (Tus integraciones → Webhooks). Obligatorio en producción. */
   MERCADOPAGO_WEBHOOK_SECRET: z.string().optional().transform((s) => (s && s.trim().length > 0 ? s.trim() : undefined)),
   /** Porcentaje que retiene la app sobre el bruto (ej. 20 → el instructor recibe ~80%). */
@@ -89,6 +109,10 @@ export const COOKIE_SECRET = env.COOKIE_SECRET;
 // Mercado Pago configuration
 export const MERCADOPAGO_ACCESS_TOKEN = env.MERCADOPAGO_ACCESS_TOKEN;
 export const MERCADOPAGO_PUBLIC_KEY = env.MERCADOPAGO_PUBLIC_KEY;
+export const MERCADOPAGO_CLIENT_ID = env.MERCADOPAGO_CLIENT_ID;
+export const MERCADOPAGO_CLIENT_SECRET = env.MERCADOPAGO_CLIENT_SECRET;
+export const MERCADOPAGO_APP_ID = env.MERCADOPAGO_APP_ID;
+export const MERCADOPAGO_REDIRECT_URI = env.MERCADOPAGO_REDIRECT_URI;
 export const MERCADOPAGO_WEBHOOK_SECRET = env.MERCADOPAGO_WEBHOOK_SECRET;
 export const APP_COMMISSION_PERCENTAGE = env.APP_COMMISSION_PERCENTAGE;
 export const APP_URL = env.APP_URL;
@@ -121,4 +145,15 @@ export const getMercadoPagoUrl = (): string => {
   }
   // In production or when no public URL is set, use APP_URL
   return APP_URL;
+};
+
+/** Client ID efectivo para OAuth (CLIENT_ID o APP_ID). */
+export const getMercadoPagoOAuthClientId = (): string | undefined =>
+  MERCADOPAGO_CLIENT_ID ?? MERCADOPAGO_APP_ID;
+
+/** Redirect URI OAuth: env explícita o derivada de la URL pública del API. */
+export const getMercadoPagoOAuthRedirectUri = (): string => {
+  if (MERCADOPAGO_REDIRECT_URI) return MERCADOPAGO_REDIRECT_URI;
+  const base = getMercadoPagoUrl().replace(/\/$/, "");
+  return `${base}/api/v1/instructors/mercadopago/callback`;
 };

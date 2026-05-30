@@ -27,6 +27,7 @@ import UserController from "@users/user.controller";
 
 import InstructorController from "@instructors/instructor.controller";
 import InstructorRouter from "@instructors/instructor.routes";
+import InstructorMpController from "@instructors/instructor-mp.controller";
 
 import AuthController from "@auth/auth.controller";
 import buildAuthRouter from "@auth/auth.routes";
@@ -56,7 +57,8 @@ export const buildApp = () => {
     const userRouter = new UserRouter(userController).init();
 
     const instructorController = diContainer.resolve<InstructorController>("instructorController");
-    const instructorRouter = new InstructorRouter(instructorController).init();
+    const instructorMpController = diContainer.resolve<InstructorMpController>("instructorMpController");
+    const instructorRouter = new InstructorRouter(instructorController, instructorMpController).init();
 
     const authController = diContainer.resolve<AuthController>("authController");
     const authRouter = buildAuthRouter(authController);

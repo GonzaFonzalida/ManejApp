@@ -1,4 +1,5 @@
 import InstructorController from "./instructor.controller";
+import InstructorMpController from "./instructor-mp.controller";
 import GenericRouter from "@shared/classes/GenericRouter";
 import { validate } from "@users/user.middleware";
 import { validateParams } from "@shared/middlewares/zod/validateParams";
@@ -10,7 +11,10 @@ import express from "express";
 import path from "path";
 
 export default class InstructorRouter extends GenericRouter {
-  constructor(private readonly controller: InstructorController) {
+  constructor(
+    private readonly controller: InstructorController,
+    private readonly mpController: InstructorMpController,
+  ) {
     super();
   }
 
@@ -22,6 +26,12 @@ export default class InstructorRouter extends GenericRouter {
     });
 
     const instructorOnly = [authenticate, requireRole("INSTRUCTOR")];
+
+    // Mercado Pago OAuth (callback público antes de /:id)
+    router.get("/mercadopago/callback", this.mpController.callback);
+    router.get("/me/mercadopago/connect", ...instructorOnly, this.mpController.connect);
+    router.get("/me/mercadopago/status", ...instructorOnly, this.mpController.status);
+    router.post("/me/mercadopago/disconnect", ...instructorOnly, this.mpController.disconnect);
 
     router.post("/register", validate(schema.createInstructorSchema), this.controller.register);
 

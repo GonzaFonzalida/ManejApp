@@ -15,15 +15,24 @@ Pruebas ejecutadas:
 5. Build real:
    - `pnpm run build` OK.
 
-## Bloqueo real detectado (Prisma migrate)
+## Prisma migrate (Fase 3.1 — resuelto)
 
-`npx prisma migrate status` contra Neon falla con `P3019`:
-- `schema.prisma` usa provider `postgresql`.
-- `prisma/migrations/migration_lock.toml` tiene provider `sqlite`.
+Historial SQLite archivado en `prisma/migrations_legacy/`.
+Baseline PostgreSQL: `20260530180000_postgresql_baseline`.
 
-Implicancia:
-- **No usar `prisma migrate deploy` en Render por ahora** para esta etapa.
-- Para pruebas, conviene usar `prisma db push` de forma controlada/manual.
+**Neon con schema existente** (una sola vez):
+
+```bash
+npx prisma migrate resolve --applied 20260530180000_postgresql_baseline
+```
+
+**Render build** puede incluir:
+
+```bash
+pnpm install --frozen-lockfile && npx prisma generate && npx prisma migrate deploy && pnpm run build
+```
+
+Ver detalle: `prisma/MIGRATE_DEPLOY.md`.
 
 ## Configuracion recomendada en Render
 
@@ -46,18 +55,13 @@ Node 20 (alineado con `Dockerfile` y `Dockerfile.dev`: `node:20-alpine`).
 En Render:
 - Setear `NODE_VERSION=20`.
 
-## Estrategia Prisma para esta etapa (Render + Neon)
+## Estrategia Prisma (Render + Neon)
 
-Dado el conflicto de providers en historial de migraciones:
+Ver `prisma/MIGRATE_DEPLOY.md`. Resumen:
 
-1. **Paso manual previo al primer deploy** (desde local, apuntando a Neon de Render):
-   - `npx prisma generate`
-   - `npx prisma db push`
-2. Recien despues crear/encender servicio en Render.
-3. En esta etapa de pruebas, no ejecutar `prisma migrate deploy` automatico en Start Command.
-
-Cuando quieras formalizar migraciones versionadas para produccion:
-- Normalizar historial de migraciones a `postgresql` y recien ahi habilitar `migrate deploy`.
+1. Baseline PostgreSQL ya aplicado en Neon vía `migrate resolve`.
+2. Deploys futuros: `npx prisma migrate deploy` aplica solo migraciones nuevas.
+3. **No usar `db push` en producción** salvo emergencia documentada.
 
 ## Variables de entorno para Render (tomadas del codigo real)
 

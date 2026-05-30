@@ -90,6 +90,12 @@ enum InstructorDocumentReviewStatus {
   REJECTED
 }
 
+enum MpConnectionStatus {
+  PENDING
+  CONNECTED
+  DISCONNECTED
+}
+
 model InstructorDocumentReview {
   id               Int                            @id @default(autoincrement())
   instructorId     Int
@@ -112,8 +118,18 @@ model Instructor {
   experienceYears Int
   available       Boolean @default(true)
   isValid         Boolean @default(false)
-  mpCollectorId   String? @map("mp_collector_id") // Mercado Pago Collector ID
-  mpAccessToken   String? @map("mp_access_token") // MP Access Token del instructor
+  mpCollectorId   String? @map("mp_collector_id") // MP user_id / collector ID (OAuth)
+  mpAccessToken   String? @map("mp_access_token") // OAuth access token del instructor (secreto)
+  mpRefreshToken  String? @map("mp_refresh_token")
+  mpPublicKey     String? @map("mp_public_key")
+  mpTokenType     String? @map("mp_token_type")
+  mpScope         String? @map("mp_scope")
+  mpTokenExpiresAt DateTime? @map("mp_token_expires_at")
+  mpConnectedAt   DateTime? @map("mp_connected_at")
+  mpDisconnectedAt DateTime? @map("mp_disconnected_at")
+  mpConnectionStatus MpConnectionStatus @default(DISCONNECTED) @map("mp_connection_status")
+  mpOauthState    String? @unique @map("mp_oauth_state")
+  mpOauthStateExpiresAt DateTime? @map("mp_oauth_state_expires_at")
   commissionRate  Float   @default(20) @map("commission_rate") // % que recibe la app (20%)
   hourlyRate      Float?  @map("hourly_rate") // Precio por hora en pesos (ej. 45000)
   // MVP Document fields (for Admin Approval)
@@ -216,6 +232,13 @@ model Payment {
   instructorPayoutStatus   String    @default("not_applicable") @map("instructor_payout_status")
   /// Cuando la clase permite marcar elegible para payout (fase 2).
   instructorPayoutEligibleAt DateTime? @map("instructor_payout_eligible_at")
+  /// Fase 2 marketplace — collector MP del instructor al crear la preferencia.
+  mpCollectorId            String?   @map("mp_collector_id")
+  /// Fase 2 marketplace — marketplace_fee enviado a Checkout Pro (entero ARS).
+  marketplaceFee           Float?    @map("marketplace_fee")
+  /// URL init_point guardada para reutilizar preferencia marketplace válida.
+  preferenceInitPoint      String?   @map("preference_init_point")
+  preferenceSandboxInitPoint String? @map("preference_sandbox_init_point")
   drivingClass      DrivingClass @relation(fields: [drivingClassId], references: [id])
 
   @@index([idempotencyKey])

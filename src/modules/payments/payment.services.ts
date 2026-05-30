@@ -6,10 +6,19 @@ import { prisma } from "@config/prismaClient";
 import { BookingStatus, SlotStatus } from "@prisma/client";
 import { NotificationService } from "@notifications/service";
 import { logger } from "@logging/LoggerConfig";
+import InstructorMpService from "@instructors/instructor-mp.service";
 import {
   InstructorPayoutStatus,
+  marketplaceFeeFromSplit,
   splitGrossByAppCommissionPercent,
 } from "./payment-commission.policy";
+import {
+  canReuseMarketplacePreference,
+  isLegacyPlatformPreference,
+  mpAmountMatchesDb,
+  mpExternalReferenceMatchesBooking,
+} from "./payment-marketplace.helpers";
+import { WebhookRetryableError } from "./mercadopago-webhook.errors";
 
 const MP_WEBHOOK_APPROVED = "approved";
 const MP_WEBHOOK_FAILED_STATUSES = ["rejected", "cancelled", "refunded", "charged_back"];
@@ -28,7 +37,8 @@ export default class PaymentService {
   constructor(
     private paymentRepo: PaymentRepository,
     private mercadoPagoService: MercadoPagoService,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
+    private instructorMpService: InstructorMpService
   ) { }
 
   async createPayment(data: CreatePaymentData): Promise<Payment> {
@@ -196,19 +206,58 @@ export default class PaymentService {
     }
 
     const amount = booking.amount ?? payment.amount;
+    if (!amount || Number(amount) <= 0) {
+      throw new CustomizedError("El monto de la reserva debe ser mayor a cero", 400);
+    }
 
     const instructor = await prisma.instructor.findUnique({
       where: { id: booking.instructorId },
-      select: { commissionRate: true },
+      select: { id: true, commissionRate: true },
     });
-    const split = splitGrossByAppCommissionPercent(Number(amount), instructor?.commissionRate);
+    if (!instructor) {
+      throw new CustomizedError("Instructor no encontrado", 404);
+    }
 
-    const preference = await this.mercadoPagoService.createPreference({
-      amount: Number(amount),
-      description: `Clase de manejo - Reserva #${bookingId}`,
-      drivingClassId: bookingId,
-      externalReference: String(bookingId),
-    });
+    const split = splitGrossByAppCommissionPercent(Number(amount), instructor.commissionRate);
+    const marketplaceFee = marketplaceFeeFromSplit(split);
+
+    const { accessToken, mpCollectorId } =
+      await this.instructorMpService.resolveAccessTokenForInstructor(instructor.id);
+
+    if (isLegacyPlatformPreference(payment)) {
+      logger.info("[MP marketplace] Regenerando preferencia legacy (sin marketplace_fee)", {
+        bookingId,
+        paymentId: payment.id,
+        legacyPreferenceId: payment.preferenceId,
+      });
+    }
+
+    if (canReuseMarketplacePreference(payment, mpCollectorId, marketplaceFee)) {
+      return {
+        preferenceId: payment.preferenceId!,
+        initPoint: payment.preferenceInitPoint!,
+      };
+    }
+
+    const preference = await this.mercadoPagoService.createMarketplacePreference(
+      {
+        amount: Number(amount),
+        description: `Clase de manejo - Reserva #${bookingId}`,
+        drivingClassId: bookingId,
+        externalReference: String(bookingId),
+        marketplaceFee,
+        metadata: {
+          booking_id: bookingId,
+          instructor_id: booking.instructorId,
+          student_id: booking.studentId,
+          app_commission: split.appCommission,
+          instructor_gross_amount: split.instructorAmount,
+        },
+      },
+      accessToken
+    );
+
+    const initPoint = preference.init_point ?? preference.sandbox_init_point ?? "";
 
     await this.paymentRepo.updatePaymentWithMercadoPagoData(payment.id, {
       preferenceId: preference.id,
@@ -217,51 +266,160 @@ export default class PaymentService {
       appCommission: split.appCommission,
       instructorAmount: split.instructorAmount,
       commissionRate: split.commissionRate,
+      marketplaceFee,
+      mpCollectorId,
+      preferenceInitPoint: preference.init_point ?? null,
+      preferenceSandboxInitPoint: preference.sandbox_init_point ?? null,
+      instructorPayoutStatus: InstructorPayoutStatus.NOT_APPLICABLE,
     });
 
     return {
       preferenceId: preference.id,
-      initPoint: preference.init_point ?? preference.sandbox_init_point ?? "",
+      initPoint,
     };
   }
 
   /**
    * Webhook MP: firma validada en middleware. Idempotente por paymentId.
-   * Modelo cuenta única: persiste bruto (amount), comisión app, neto instructor y estado de liquidación interna.
+   * Marketplace: consulta pago con token plataforma; fallback token instructor si falla.
    */
-  async handleMercadoPagoWebhook(webhookData: any): Promise<void> {
+  async handleMercadoPagoWebhook(
+    webhookData: any,
+    context?: { correlationId?: string }
+  ): Promise<void> {
+    const correlationId = context?.correlationId ?? `mp-wh-${Date.now()}`;
     const { type, data } = webhookData || {};
     if (type !== "payment" || !data?.id) return;
 
     const mpPaymentId = String(data.id);
     let mpPayment: any;
+    let instructorIdForToken: number | null = null;
+
     try {
       mpPayment = await this.mercadoPagoService.getPayment(mpPaymentId);
-    } catch (e) {
-      logger.warn("[MP webhook] No se pudo obtener pago en MP", { mpPaymentId, err: String(e) });
-      return;
+    } catch (platformErr) {
+      const existingByMpId = await this.paymentRepo.getPaymentByPaymentId(mpPaymentId);
+      if (existingByMpId?.drivingClassId) {
+        const booking = await prisma.drivingClass.findUnique({
+          where: { id: existingByMpId.drivingClassId },
+          select: { instructorId: true },
+        });
+        instructorIdForToken = booking?.instructorId ?? null;
+      }
+
+      if (!instructorIdForToken) {
+        mpPayment = await this.tryFetchMpPaymentWithPendingInstructors(mpPaymentId, correlationId);
+        if (!mpPayment) {
+          logger.warn("[MP webhook] No se pudo obtener pago en MP (token plataforma)", {
+            correlationId,
+            mpPaymentId,
+            err: String(platformErr),
+          });
+          throw new WebhookRetryableError(
+            "No se pudo consultar el pago en Mercado Pago",
+            correlationId
+          );
+        }
+      } else {
+        try {
+          const { accessToken } = await this.instructorMpService.resolveAccessTokenForInstructor(
+            instructorIdForToken
+          );
+          mpPayment = await this.mercadoPagoService.getPaymentWithAccessToken(
+            mpPaymentId,
+            accessToken
+          );
+        } catch (sellerErr) {
+          logger.warn("[MP webhook] No se pudo obtener pago en MP (token instructor)", {
+            correlationId,
+            mpPaymentId,
+            instructorId: instructorIdForToken,
+            err: String(sellerErr),
+          });
+          throw new WebhookRetryableError(
+            "No se pudo consultar el pago con token del instructor",
+            correlationId
+          );
+        }
+      }
     }
 
     const externalRef = mpPayment.external_reference ?? mpPayment.external_reference_id;
     const bookingId = externalRef ? parseInt(String(externalRef), 10) : NaN;
     if (!Number.isInteger(bookingId)) {
-      logger.warn("[MP webhook] external_reference no parseable", { externalRef });
+      logger.warn("[MP webhook] external_reference no parseable — no se concilia", {
+        correlationId,
+        mpPaymentId,
+        externalRef,
+      });
       return;
     }
 
     const paymentPreview = await this.paymentRepo.getPaymentByExternalReference(String(bookingId));
     if (!paymentPreview) {
-      logger.warn("[MP webhook] Pago no encontrado por external_reference", { bookingId });
+      logger.warn("[MP webhook] Pago no encontrado por external_reference — no se concilia", {
+        correlationId,
+        bookingId,
+        mpPaymentId,
+      });
+      return;
+    }
+
+    if (
+      !mpExternalReferenceMatchesBooking(externalRef, bookingId, paymentPreview.externalReference)
+    ) {
+      logger.error(
+        "[MP webhook] external_reference no coincide con reserva local — abortando",
+        undefined,
+        {},
+        { correlationId, bookingId, mpPaymentId, externalRef }
+      );
+      return;
+    }
+
+    if (paymentPreview.drivingClassId !== bookingId) {
+      logger.error(
+        "[MP webhook] drivingClassId local difiere de external_reference — abortando",
+        undefined,
+        {},
+        {
+          correlationId,
+          bookingId,
+          drivingClassId: paymentPreview.drivingClassId,
+          mpPaymentId,
+        }
+      );
       return;
     }
 
     const mpTxAmount =
       mpPayment.transaction_amount != null ? Number(mpPayment.transaction_amount) : null;
+
+    const isApproved = mpPayment.status === MP_WEBHOOK_APPROVED;
+    const isRejected = MP_WEBHOOK_FAILED_STATUSES.includes(mpPayment.status);
+
+    if (isApproved && !mpAmountMatchesDb(mpTxAmount, paymentPreview.amount)) {
+      logger.error(
+        "[MP webhook] Monto MP difiere del registrado — no se confirma reserva",
+        undefined,
+        {},
+        {
+          correlationId,
+          bookingId,
+          dbAmount: paymentPreview.amount,
+          mpTransactionAmount: mpTxAmount,
+          mpPaymentId,
+        }
+      );
+      return;
+    }
+
     if (
       mpTxAmount != null &&
-      Math.abs(mpTxAmount - paymentPreview.amount) > 0.02
+      !mpAmountMatchesDb(mpTxAmount, paymentPreview.amount)
     ) {
       logger.warn("[MP webhook] transaction_amount MP difiere del monto registrado", {
+        correlationId,
         bookingId,
         dbAmount: paymentPreview.amount,
         mpTransactionAmount: mpTxAmount,
@@ -275,13 +433,12 @@ export default class PaymentService {
           ? "failed"
           : "pending";
 
-    const isApproved = mpPayment.status === MP_WEBHOOK_APPROVED;
-    const isRejected = MP_WEBHOOK_FAILED_STATUSES.includes(mpPayment.status);
-
     const bookingBefore = await prisma.drivingClass.findUnique({
       where: { id: bookingId },
       select: { status: true, studentId: true, instructorId: true, date: true },
     });
+
+    let wasAlreadyPaidIdempotent = false;
 
     await prisma.$transaction(async (tx) => {
       const paymentLocked = await tx.payment.findFirst({
@@ -290,7 +447,9 @@ export default class PaymentService {
       if (!paymentLocked) return;
 
       if (paymentLocked.status === "paid" && paymentLocked.paymentId === mpPaymentId) {
+        wasAlreadyPaidIdempotent = true;
         logger.info("[MP webhook] Idempotente: mismo paymentId ya acreditado", {
+          correlationId,
           bookingId,
           mpPaymentId,
         });
@@ -385,9 +544,14 @@ export default class PaymentService {
         instr?.commissionRate
       );
 
+      const isMarketplacePayment =
+        paymentLocked.marketplaceFee != null && paymentLocked.mpCollectorId != null;
+
       let instructorPayoutStatus: string | undefined;
       if (nextPaymentStatus === "paid") {
-        instructorPayoutStatus = InstructorPayoutStatus.PENDING_INTERNAL_PAYOUT;
+        instructorPayoutStatus = isMarketplacePayment
+          ? InstructorPayoutStatus.NOT_APPLICABLE
+          : InstructorPayoutStatus.PENDING_INTERNAL_PAYOUT;
       } else if (nextPaymentStatus === "failed" || nextPaymentStatus === "cancelled") {
         instructorPayoutStatus = InstructorPayoutStatus.NOT_APPLICABLE;
       }
@@ -396,7 +560,15 @@ export default class PaymentService {
         where: { id: paymentLocked.id },
         data: {
           paymentId: mpPaymentId,
-          rawPayload: webhookData as object,
+          rawPayload: {
+            ...(typeof webhookData === "object" && webhookData ? webhookData : {}),
+            _reconciliation: {
+              correlationId,
+              mpPaymentId,
+              bookingId,
+              reconciledAt: new Date().toISOString(),
+            },
+          } as object,
           status: nextPaymentStatus,
           appCommission: split.appCommission,
           instructorAmount: split.instructorAmount,
@@ -408,6 +580,8 @@ export default class PaymentService {
         },
       });
     });
+
+    if (wasAlreadyPaidIdempotent) return;
 
     const bookingAfter = await prisma.drivingClass.findUnique({
       where: { id: bookingId },
@@ -465,6 +639,159 @@ export default class PaymentService {
           payload
         );
       }
+    }
+  }
+
+  /** Fallback webhook: consulta pago con token del instructor de cada reserva marketplace pendiente. */
+  private async tryFetchMpPaymentWithPendingInstructors(
+    mpPaymentId: string,
+    correlationId: string
+  ): Promise<any | null> {
+    const pending = await prisma.payment.findMany({
+      where: {
+        status: "pending",
+        mpCollectorId: { not: null },
+        marketplaceFee: { not: null },
+      },
+      select: { drivingClassId: true, externalReference: true, id: true },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+    });
+
+    for (const row of pending) {
+      const booking = await prisma.drivingClass.findUnique({
+        where: { id: row.drivingClassId },
+        select: { instructorId: true, id: true },
+      });
+      if (!booking) continue;
+
+      try {
+        const { accessToken } = await this.instructorMpService.resolveAccessTokenForInstructor(
+          booking.instructorId
+        );
+        const candidate = await this.mercadoPagoService.getPaymentWithAccessToken(
+          mpPaymentId,
+          accessToken
+        );
+        if (String(candidate.id) !== mpPaymentId) continue;
+
+        const extRef = candidate.external_reference ?? candidate.external_reference_id;
+        if (!mpExternalReferenceMatchesBooking(extRef, booking.id, row.externalReference)) {
+          logger.warn("[MP webhook] Scan: external_reference no coincide con reserva pendiente", {
+            correlationId,
+            mpPaymentId,
+            paymentRowId: row.id,
+            candidateExternalRef: extRef,
+            bookingId: booking.id,
+          });
+          continue;
+        }
+
+        logger.info("[MP webhook] Pago conciliado vía scan marketplace pendiente", {
+          correlationId,
+          mpPaymentId,
+          bookingId: booking.id,
+          paymentRowId: row.id,
+        });
+        return candidate;
+      } catch {
+        /* probar siguiente reserva pendiente */
+      }
+    }
+
+    logger.warn("[MP webhook] Scan marketplace: sin conciliación en ventana de pendientes", {
+      correlationId,
+      mpPaymentId,
+      pendingScanned: pending.length,
+    });
+    return null;
+  }
+
+  /**
+   * Estado de pago MP para el cliente (preferenceId, paymentId MP o bookingId).
+   * Prioriza estado en DB; solo consulta MP si sigue pending y hay paymentId.
+   */
+  async getMercadoPagoPaymentStatus(
+    identifier: string,
+    userId: number,
+    userRole: string
+  ): Promise<{
+    status: string;
+    paymentId?: string | null;
+    preferenceId?: string | null;
+    bookingId?: number;
+    marketplace?: boolean;
+  }> {
+    let payment =
+      (await this.paymentRepo.getPaymentByPreferenceId(identifier)) ??
+      (await this.paymentRepo.getPaymentByPaymentId(identifier)) ??
+      (await this.paymentRepo.getPaymentByExternalReference(identifier));
+
+    if (!payment && /^\d+$/.test(identifier)) {
+      const byId = await this.paymentRepo.getPaymentById(Number(identifier));
+      payment = byId;
+    }
+
+    if (!payment) {
+      throw new CustomizedError("Pago no encontrado", 404);
+    }
+
+    const booking = await prisma.drivingClass.findUnique({
+      where: { id: payment.drivingClassId },
+      include: { student: { select: { userId: true } } },
+    });
+    if (!booking) {
+      throw new CustomizedError("Reserva no encontrada", 404);
+    }
+
+    const isOwner = booking.student.userId === userId;
+    const isAdmin = userRole === "ADMIN";
+    if (!isOwner && !isAdmin) {
+      throw new CustomizedError("No autorizado", 403);
+    }
+
+    const marketplace =
+      payment.marketplaceFee != null && payment.mpCollectorId != null;
+
+    if (payment.status !== "pending" || !payment.paymentId) {
+      return {
+        status: payment.status,
+        paymentId: payment.paymentId,
+        preferenceId: payment.preferenceId,
+        bookingId: payment.drivingClassId,
+        marketplace,
+      };
+    }
+
+    try {
+      let mpPayment: any;
+      try {
+        mpPayment = await this.mercadoPagoService.getPayment(payment.paymentId);
+      } catch {
+        const { accessToken } = await this.instructorMpService.resolveAccessTokenForInstructor(
+          booking.instructorId
+        );
+        mpPayment = await this.mercadoPagoService.getPaymentWithAccessToken(
+          payment.paymentId,
+          accessToken
+        );
+      }
+      const mapped = this.mercadoPagoService.mapMercadoPagoStatus(mpPayment.status);
+      return {
+        status: mapped,
+        paymentId: payment.paymentId,
+        preferenceId: payment.preferenceId,
+        bookingId: payment.drivingClassId,
+        marketplace,
+      };
+    } catch {
+      return {
+        status: payment.status,
+        paymentId: payment.paymentId,
+        preferenceId: payment.preferenceId,
+        bookingId: payment.drivingClassId,
+        marketplace,
+      };
     }
   }
 }

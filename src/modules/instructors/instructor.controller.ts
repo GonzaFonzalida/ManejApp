@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import InstructorService from "./instructor.services";
 import { ExpressFunction } from "@sharedTypes/ExpressFunction";
 import CustomizedError from "@shared/classes/CustomizedError";
+import { sanitizeInstructorMpFields } from "./instructor-mp.service";
 
 export default class InstructorController {
   constructor(private instructorService: InstructorService) { }
@@ -16,7 +17,7 @@ export default class InstructorController {
       if (!userId) return next(new CustomizedError("No autenticado", 401));
       const profile = await this.instructorService.getProfileForMeResponse(userId);
       if (!profile) return next(new CustomizedError("Perfil de instructor no encontrado", 404));
-      return res.json(profile);
+      return res.json(sanitizeInstructorMpFields(profile as unknown as Record<string, unknown>));
     } catch (err) {
       next(err);
     }
@@ -33,7 +34,7 @@ export default class InstructorController {
       const updated = await this.instructorService.updateProfileByUserId(userId, req.body);
       if (!updated) return next(new CustomizedError("Perfil de instructor no encontrado", 404));
       const full = await this.instructorService.getProfileForMeResponse(userId);
-      return res.json(full ?? updated);
+      return res.json(sanitizeInstructorMpFields((full ?? updated) as unknown as Record<string, unknown>));
     } catch (err) {
       next(err);
     }

@@ -1,6 +1,6 @@
 import { APP_COMMISSION_PERCENTAGE } from "@config/config";
 
-/** Estados internos de liquidación al instructor (cuenta única; sin marketplace MP). */
+/** Estados internos de liquidación al instructor (legacy cuenta única; marketplace usa NOT_APPLICABLE). */
 export const InstructorPayoutStatus = {
   NOT_APPLICABLE: "not_applicable",
   PENDING_INTERNAL_PAYOUT: "pending_internal",
@@ -46,4 +46,9 @@ export function splitGrossByAppCommissionPercent(
     appCommission,
     instructorAmount,
   };
+}
+
+/** marketplace_fee para Checkout Pro marketplace (entero ARS, sin decimales). */
+export function marketplaceFeeFromSplit(split: PaymentCommissionSplit): number {
+  return Math.round(split.appCommission);
 }
