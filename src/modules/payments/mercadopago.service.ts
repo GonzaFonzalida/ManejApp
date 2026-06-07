@@ -21,7 +21,7 @@ export interface MercadoPagoPreference {
   sandbox_init_point: string;
 }
 
-function buildPreferenceBody(
+export function buildPreferenceBody(
   data: CreatePreferenceData,
   extra?: { marketplaceFee?: number; metadata?: Record<string, string | number> }
 ): Record<string, unknown> {

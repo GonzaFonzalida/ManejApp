@@ -38,6 +38,7 @@ import { DrivingClassController } from "@drivingClass/controller";
 
 import { functionalPaymentRoutes, webhookRouter } from "@payments/functional-payment.routes";
 import commissionRoutes from "@payments/commission.routes";
+import paymentCheckoutPagesRouter from "@payments/payment-checkout-pages.routes";
 
 import { ScheduleController } from "@schedule/schedule.controller";
 import { ScheduleRouter } from "@schedule/schedule.routes";
@@ -179,6 +180,9 @@ export const buildApp = () => {
 
     // Health check endpoint (before rate limiting)
     app.get('/health', healthCheck);
+
+    // Mercado Pago Checkout Pro back_urls (públicas, sin auth, no modifican DB)
+    app.use('/payments', paymentCheckoutPagesRouter);
 
     // Swagger UI
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));

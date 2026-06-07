@@ -137,14 +137,23 @@ export const RATE_LIMIT_WINDOW_MS = env.RATE_LIMIT_WINDOW_MS;
 export const RATE_LIMIT_MAX_REQUESTS = env.RATE_LIMIT_MAX_REQUESTS;
 export const AUTH_RATE_LIMIT_MAX = env.AUTH_RATE_LIMIT_MAX;
 
+/** Quita slash final para evitar URLs rotas tipo https://host//path. */
+export const normalizeBaseUrl = (url: string): string => {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    throw new Error("URL base vacía");
+  }
+  return trimmed.replace(/\/+$/, "");
+};
+
 // Helper function to get the appropriate URL for Mercado Pago
 export const getMercadoPagoUrl = (): string => {
   // In development, prefer public URL if available (for ngrok, etc.)
-  if (NODE_ENV === 'development' && APP_URL_PUBLIC) {
-    return APP_URL_PUBLIC;
+  if (NODE_ENV === "development" && APP_URL_PUBLIC) {
+    return normalizeBaseUrl(APP_URL_PUBLIC);
   }
   // In production or when no public URL is set, use APP_URL
-  return APP_URL;
+  return normalizeBaseUrl(APP_URL);
 };
 
 /** Client ID efectivo para OAuth (CLIENT_ID o APP_ID). */
@@ -154,6 +163,5 @@ export const getMercadoPagoOAuthClientId = (): string | undefined =>
 /** Redirect URI OAuth: env explícita o derivada de la URL pública del API. */
 export const getMercadoPagoOAuthRedirectUri = (): string => {
   if (MERCADOPAGO_REDIRECT_URI) return MERCADOPAGO_REDIRECT_URI;
-  const base = getMercadoPagoUrl().replace(/\/$/, "");
-  return `${base}/api/v1/instructors/mercadopago/callback`;
+  return `${getMercadoPagoUrl()}/api/v1/instructors/mercadopago/callback`;
 };
