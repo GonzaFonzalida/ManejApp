@@ -1,10 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:manejapp/widgets/design/app_button.dart';
+import 'package:manejapp/config/design_system.dart';
 
 import '../services/api_service.dart';
-import 'login_screen.dart'; // Importamos LoginScreen
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../services/notification_service.dart';
+import 'login_screen.dart';
+import '../services/secure_storage.dart';
+import '../utils/role_router.dart' show RoleRouter, kChooseRoleCompletedKey;
+import '../utils/user_facing_error.dart';
 
-const storage = FlutterSecureStorage();
+const storage = appSecureStorage;
 
 class ChooseRoleScreen extends StatefulWidget {
   static const routeName = '/choose_role';
@@ -17,134 +25,276 @@ class ChooseRoleScreen extends StatefulWidget {
 
 class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
   String _selectedRole = 'Alumno';
-  final _licenceController = TextEditingController();
   final _experienceController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _licenceController.dispose();
     _experienceController.dispose();
     super.dispose();
   }
 
   Future<void> _submitRole() async {
+    if (_isLoading) {
+      debugPrint('ChooseRoleScreen: _submitRole ignorado (ya loading)');
+      return;
+    }
+
+    final roleLabel = _selectedRole;
+    final role = roleLabel == 'Instructor' ? 'INSTRUCTOR' : 'STUDENT';
+    final experienceText = _experienceController.text.trim();
+    int? experienceYears;
+
+    if (role == 'INSTRUCTOR') {
+      experienceYears = int.tryParse(experienceText);
+      if (experienceYears == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ingresá años de experiencia válidos')),
+        );
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
+    debugPrint('ChooseRoleScreen: _submitRole iniciado, isLoading=true');
     try {
-      debugPrint('Intentando completar registro con userId: ${widget.userId}, role: $_selectedRole');
-      debugPrint('Licence: ${_licenceController.text}, Experience: ${_experienceController.text}');
+      debugPrint('Intentando completar registro con userId: ${widget.userId}, role: $role');
+      debugPrint('Experience: $experienceText');
       await ApiService.completeRegistration(
         widget.userId,
-        _selectedRole,
-        licenceNumber: _selectedRole == 'Instructor' && _licenceController.text.isNotEmpty
-            ? _licenceController.text
-            : null,
-        experienceYears: _selectedRole == 'Instructor' && _experienceController.text.isNotEmpty
-            ? int.tryParse(_experienceController.text)
-            : null,
+        role,
+        experienceYears: role == 'INSTRUCTOR' ? experienceYears : null,
       );
 
-      // Limpiamos las credenciales temporales después del registro
-      await storage.delete(key: 'temp_email');
-      await storage.delete(key: 'temp_password');
+      if (role == 'INSTRUCTOR') {
+        final email = await storage.read(key: 'temp_email');
+        final password = await storage.read(key: 'temp_password');
+        if (email != null && password != null) {
+          debugPrint('[RoleRouter] choose_role: refreshing token after role change');
+          await ApiService.login(email, password);
+          unawaited(NotificationService.registerTokenWithBackendIfLoggedIn());
+        }
+      }
+
+      final hasAuthToken = await storage.read(key: 'auth_token') != null;
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registro completado exitoso, inicia sesión')),
-      );
-      Navigator.pushReplacementNamed(context, LoginScreen.routeName); // Navegamos a LoginScreen
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+      if (hasAuthToken) {
+        await storage.write(key: kChooseRoleCompletedKey, value: widget.userId);
+        await storage.delete(key: 'temp_email');
+        await storage.delete(key: 'temp_password');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              role == 'STUDENT'
+                  ? '¡Genial! Siguiente: unos pasos para dejar tu perfil listo.'
+                  : '¡Registro completado! Bienvenido a ManejApp',
+            ),
+          ),
+        );
+        final target = await RoleRouter.resolveRouteForCurrentUser(context: 'choose_role(hasToken)');
+        debugPrint('[RoleRouter] choose_role(hasToken) → $target');
+        if (!mounted) return;
+        unawaited(NotificationService.registerTokenWithBackendIfLoggedIn());
+        navigator.pushReplacementNamed(target);
+      } else {
+        final email = await storage.read(key: 'temp_email');
+        final password = await storage.read(key: 'temp_password');
+        if (email != null && password != null) {
+          try {
+            await ApiService.login(email, password);
+            await storage.write(key: kChooseRoleCompletedKey, value: widget.userId);
+            await storage.delete(key: 'temp_email');
+            await storage.delete(key: 'temp_password');
+            if (mounted) {
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    role == 'STUDENT'
+                        ? '¡Genial! Siguiente: unos pasos para dejar tu perfil listo.'
+                        : '¡Registro completado! Bienvenido a ManejApp',
+                  ),
+                ),
+              );
+              final target = await RoleRouter.resolveRouteForCurrentUser(context: 'choose_role(afterLogin)');
+              debugPrint('[RoleRouter] choose_role(afterLogin) → $target');
+              if (!mounted) return;
+              unawaited(NotificationService.registerTokenWithBackendIfLoggedIn());
+              navigator.pushReplacementNamed(target);
+            }
+          } catch (_) {
+            if (mounted) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Registro completado. Iniciá sesión para continuar')),
+              );
+              navigator.pushReplacementNamed(LoginScreen.routeName);
+            }
+          }
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Registro completado. Iniciá sesión para continuar')),
+          );
+          navigator.pushReplacementNamed(LoginScreen.routeName);
+        }
+      }
     } catch (e) {
       if (!mounted) return;
-      debugPrint('Error en _submitRole: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al completar el registro: $e')),
-      );
+      debugPrint('ChooseRoleScreen: Error en _submitRole: $e');
+      final msg = humanizeApiError(e);
+      final is409AlreadyExists = msg.contains('409') || msg.contains('ya existe') || msg.contains('already');
+      if (is409AlreadyExists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Este rol ya estaba registrado. Continuá a inicio.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        final navigator = Navigator.of(context);
+        final target = await RoleRouter.resolveRouteForCurrentUser(context: 'choose_role(409)');
+        debugPrint('[RoleRouter] choose_role(409) → $target');
+        if (!mounted) return;
+        await storage.write(key: kChooseRoleCompletedKey, value: widget.userId);
+        unawaited(NotificationService.registerTokenWithBackendIfLoggedIn());
+        navigator.pushReplacementNamed(target);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(humanizeApiError(e))),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
+      debugPrint('ChooseRoleScreen: _submitRole finalizado, isLoading=false');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.panel,
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Completa tu perfil',
+              Text(
+                'COMPLETÁ TU PERFIL',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Elige tu rol',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF003087),
+                style: AppTextStyles.bodyNormal.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                  color: AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 40),
-              _buildRoleCard(
-                role: 'Instructor',
-                description: 'Comparte tu experiencia enseñando.',
-                icon: Icons.school,
+              const SizedBox(height: AppSpacing.compact),
+              Text(
+                'Elegí tu rol',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.displayLarge.copyWith(
+                  fontSize: 28,
+                  height: 1.15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Elegí cómo vas a usar ManejApp. Si sos alumno, en el siguiente paso personalizamos tu perfil en minutos.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyNormal.copyWith(
+                  fontSize: 14,
+                  height: 1.4,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                '¿Cómo vas a usar la app?',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.compact),
               _buildRoleCard(
                 role: 'Alumno',
-                description: 'Aprende nuevas habilidades.',
-                icon: Icons.person,
+                description: 'Aprendé con instructores verificados.',
+                icon: Icons.person_outline_rounded,
+              ),
+              const SizedBox(height: AppSpacing.compact),
+              _buildRoleCard(
+                role: 'Instructor',
+                description: 'Enseñá y gestioná tus clases.',
+                icon: Icons.school_outlined,
               ),
               if (_selectedRole == 'Instructor') ...[
-                const SizedBox(height: 24),
-                const Text('Información adicional',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _licenceController,
-                  label: 'Número de Licencia',
-                  icon: Icons.credit_card,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _experienceController,
-                  label: 'Años de Experiencia',
-                  icon: Icons.emoji_events,
-                  keyboardType: TextInputType.number,
+                const SizedBox(height: AppSpacing.lg),
+                _buildPremiumPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Información adicional',
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        'Indicá tu experiencia como instructor. La licencia de conducir la validamos con la foto del documento en el siguiente paso.',
+                        style: AppTextStyles.bodyNormal.copyWith(
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.panel),
+                      _buildTextField(
+                        controller: _experienceController,
+                        label: 'Años de experiencia',
+                        icon: Icons.timeline_outlined,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ],
+                  ),
                 ),
               ],
-              const Spacer(),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
-                      onPressed: _submitRole,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF003087),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text(
-                        'Completar Registro',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
+              const SizedBox(height: AppSpacing.section),
+              AppButton(
+                text: 'Completar registro',
+                onPressed: _isLoading ? null : _submitRole,
+                isLoading: _isLoading,
+                type: AppButtonType.primary,
+              ),
+              const SizedBox(height: AppSpacing.lg),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPremiumPanel({required Widget child}) {
+    return AnimatedContainer(
+      duration: AppDurations.normal,
+      curve: AppCurves.emphasized,
+      padding: const EdgeInsets.all(AppSpacing.panel),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(AppRadius.panel),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.06),
+          width: AppStroke.hairline,
+        ),
+        boxShadow: AppShadows.sm,
+      ),
+      child: child,
     );
   }
 
@@ -154,63 +304,104 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
     required IconData icon,
   }) {
     final isSelected = _selectedRole == role;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedRole = role;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE3F2FD) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF003087) : Colors.grey.shade300,
-            width: 2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Color(0xFF003087).withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : [],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 40,
-              color: const Color(0xFF003087),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedRole = role);
+        },
+        borderRadius: BorderRadius.circular(AppRadius.panel),
+        splashColor: AppColors.primary.withValues(alpha: 0.12),
+        highlightColor: AppColors.primary.withValues(alpha: 0.06),
+        child: AnimatedScale(
+          scale: isSelected ? 1.01 : 1.0,
+          duration: AppDurations.normal,
+          curve: AppCurves.emphasized,
+          child: AnimatedContainer(
+            duration: AppDurations.normal,
+            curve: AppCurves.emphasized,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.panel,
+              vertical: AppSpacing.panel,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    role,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF003087),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(AppRadius.panel),
+              border: Border.all(
+                color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.08),
+                width: isSelected ? AppStroke.emphasis : AppStroke.hairline,
               ),
+              boxShadow: isSelected ? AppShadows.roleCardSelected(AppColors.primary) : AppShadows.sm,
             ),
-          ],
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: AppDurations.normal,
+                  curve: AppCurves.emphasized,
+                  width: 48,
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withValues(alpha: 0.18)
+                        : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 26,
+                    color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        role,
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        description,
+                        style: AppTextStyles.bodyNormal.copyWith(
+                          fontSize: 14,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: AnimatedSwitcher(
+                    duration: AppDurations.normal,
+                    switchInCurve: AppCurves.emphasized,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: isSelected
+                        ? Icon(
+                            Icons.check_circle_rounded,
+                            key: ValueKey<String>('check-$role'),
+                            color: AppColors.primary,
+                            size: 26,
+                          )
+                        : const SizedBox(
+                            key: ValueKey<String>('no-check'),
+                            width: 28,
+                            height: 28,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -223,18 +414,38 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
     TextInputType keyboardType = TextInputType.text,
     int? maxLength,
   }) {
+    final r = BorderRadius.circular(AppRadius.md);
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
       maxLength: maxLength,
+      style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF003087)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
+        prefixIcon: Icon(icon, color: AppColors.primary, size: 22),
+        border: OutlineInputBorder(borderRadius: r),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: r,
+          borderSide: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: AppStroke.hairline,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: r,
+          borderSide: const BorderSide(
+            color: AppColors.primary,
+            width: 2,
+          ),
         ),
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: AppColors.surfaceLighter,
+        labelStyle: AppTextStyles.bodyNormal.copyWith(
+          fontSize: 14,
+          color: AppColors.textSecondary,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       ),
     );
   }

@@ -1,0 +1,11 @@
+# Copiar a android/key.properties (no commitear) y completar con el keystore real de Play.
+# Generar keystore:
+#   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Colocar upload-keystore.jks en android/ (o ajustar storeFile).
+# NO usar upload-keystore-demo.jks para builds publicables.
+
+storePassword=REEMPLAZAR
+keyPassword=REEMPLAZAR
+keyAlias=upload
+storeFile=../upload-keystore.jks

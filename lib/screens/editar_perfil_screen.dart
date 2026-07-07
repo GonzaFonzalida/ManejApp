@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import '../controllers/editar_perfil_controller.dart';
 import '../services/api_service.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:manejapp/config/design_system.dart';
+import '../services/secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:manejapp/screens/instructor_dashboard_screen.dart';
+import 'package:manejapp/screens/student_dashboard_screen.dart';
+import 'package:manejapp/utils/role_router.dart';
+import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/services/location_autocomplete_controller.dart';
+import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/widgets/location_autocomplete_dropdown.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
-const storage = FlutterSecureStorage();
+const storage = appSecureStorage;
 
 class EditarPerfilScreen extends StatefulWidget {
   static var routeName = '/editarPerfil';
@@ -18,12 +27,15 @@ class EditarPerfilScreen extends StatefulWidget {
 
 class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   final EditarPerfilController controller = EditarPerfilController();
+  final TextEditingController _phoneController = TextEditingController();
   bool _isLoading = false;
-  File? _selectedImage;
+  bool _isInitialized = false;
+  XFile? _selectedImage;
   String? _currentImageUrl;
   bool _isInstructor = false;
-  List<Map<String, String>> _locationSuggestions = [];
-  bool _showSuggestions = false;
+  final _locationAutocomplete = LocationAutocompleteController();
+  String? _instructorId;
+  String? _loadError;
 
   @override
   void initState() {
@@ -58,6 +70,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     }
     
     if (userId != null && userId.isNotEmpty) {
+      if (mounted) setState(() => _loadError = null);
       try {
         debugPrint('Fetching profile from API...');
         final profile = await ApiService.getUserProfile(userId);
@@ -66,14 +79,19 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         debugPrint('Is instructor: $isInstructor');
         
         if (mounted) {
-          final fullImageUrl = profile['profileImageUrl'] as String?;
           final hourlyRateValue = profile['hourlyRate'];
           final hourlyRateStr = hourlyRateValue != null ? hourlyRateValue.toString() : '';
           setState(() {
             controller.nombreController.text = profile['name'] ?? '';
             controller.zonaController.text = profile['location'] ?? '';
+            _phoneController.text = profile['phoneNumber'] ?? '';
             controller.precioController.text = hourlyRateStr;
-            _currentImageUrl = fullImageUrl;
+            // Construir URL dinámicamente para evitar caché
+            if (profile['profileImage'] != null) {
+               _currentImageUrl = '${ApiService.baseUrl}/users/$userId/profile-image?t=${DateTime.now().millisecondsSinceEpoch}';
+            } else {
+               _currentImageUrl = null;
+            }
             _isInstructor = isInstructor;
           });
         }
@@ -89,12 +107,17 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             );
             debugPrint('Instructor found: ${instructor != null}');
             if (instructor != null) {
-              debugPrint('Instructor description: ${instructor['description']}');
-              if (mounted) {
-                setState(() {
-                  controller.descripcionController.text = instructor['description'] ?? '';
-                });
-              }
+              _instructorId = instructor['id'].toString();
+              debugPrint('Instructor bio: ${instructor['bio']}');
+                if (mounted) {
+                  setState(() {
+                    controller.descripcionController.text = instructor['bio'] ?? instructor['description'] ?? '';
+                    final rate = instructor['hourlyRate'];
+                    if (rate != null) {
+                      controller.precioController.text = rate.toString();
+                    }
+                  });
+                }
             }
           } catch (e) {
             debugPrint('Error cargando instructor: $e');
@@ -102,13 +125,24 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         }
       } catch (e) {
         debugPrint('Error cargando perfil: $e');
+        if (mounted) {
+          setState(() {
+            _loadError = humanizeApiError(e);
+          });
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isInitialized = true);
+        }
       }
     }
   }
 
   @override
   void dispose() {
+    _locationAutocomplete.dispose();
     controller.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -120,50 +154,71 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
+      final XFile? pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 800,
         maxHeight: 800,
         imageQuality: 85,
       );
       
-      if (pickedFile != null && mounted) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
+      if (pickedFile != null) {
+        // En Web no podemos guardar en path local persistente del mismo modo que móviles
+        // Pero usamos pickedFile directamente.
+        if (kIsWeb) {
+             if (mounted) {
+               setState(() {
+                 _selectedImage = pickedFile;
+               });
+             }
+             // Subir inmediatamente en segundo plano
+             _uploadImage(pickedFile);
+        } else {
+             // Móvil: Persistencia local para inmediatez en futuras sesiones
+             // TODO: Implementar path provider si se requiere persistencia entre reinicios offline
+             // Por ahora, comportamiento igual: set state inmediato y subida
+             if (mounted) {
+               setState(() {
+                 _selectedImage = pickedFile;
+               });
+             }
+             _uploadImage(pickedFile);
+        }
       }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
     } finally {
       _isPickingImage = false;
     }
   }
 
-  Future<void> _searchLocations(String query) async {
-    if (query.length < 3) {
-      if (mounted) {
-        setState(() {
-          _locationSuggestions = [];
-          _showSuggestions = false;
-        });
-      }
-      return;
-    }
+  Future<void> _uploadImage(XFile file) async {
+      String? userId = await storage.read(key: 'user_id');
+      if (userId == null) return;
 
-    try {
-      final results = await ApiService.searchLocations(query);
-      if (mounted) {
-        setState(() {
-          _locationSuggestions = results;
-          _showSuggestions = results.isNotEmpty;
-        });
+      try {
+        debugPrint('Subiendo imagen en segundo plano...');
+        await ApiService.uploadProfileImage(userId, file);
+        debugPrint('Imagen subida exitosamente');
+        
+        if (mounted) {
+          // Actualizar URL remota para que la próxima vez que cargue de red, sea la nueva
+          setState(() {
+             _currentImageUrl = '${ApiService.baseUrl}/users/$userId/profile-image?t=${DateTime.now().millisecondsSinceEpoch}';
+             // Opcional: Podríamos limpiar _selectedImage si quisiéramos volver a red, 
+             // pero mejor dejar la local que es lo que el usuario acaba de elegir.
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Foto de perfil actualizada'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error subiendo imagen: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text(humanizeApiError(e)), backgroundColor: Colors.orange),
+          );
+        }
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _locationSuggestions = [];
-          _showSuggestions = false;
-        });
-      }
-    }
   }
 
   Future<void> _saveProfile() async {
@@ -178,10 +233,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             final parts = token.split('.');
             if (parts.length == 3) {
               final payload = parts[1];
-              final normalized = payload.padRight(
-                (payload.length + 3) & ~3,
-                '=',
-              );
+              final normalized = payload.padRight((payload.length + 3) & ~3, '=');
               final decoded = utf8.decode(base64.decode(normalized));
               final payloadData = jsonDecode(decoded) as Map<String, dynamic>;
               userId = payloadData['id']?.toString() ??
@@ -191,59 +243,28 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 await storage.write(key: 'user_id', value: userId);
               }
             }
-          } catch (e) {
-            debugPrint('Error extrayendo userId del token: $e');
-          }
+          } catch (_) {}
         }
-      }
-      
-      if (userId == null || userId.isEmpty) {
-        throw Exception('Sesión inválida. Por favor, inicia sesión nuevamente.');
+        if (userId == null || userId.isEmpty) return;
       }
 
       final Map<String, dynamic> userData = {
         'name': controller.nombreController.text.trim(),
         'location': controller.zonaController.text.trim(),
+        'phoneNumber': _phoneController.text.trim(),
       };
       
-      if (_isInstructor && controller.precioController.text.isNotEmpty) {
-        userData['hourlyRate'] = double.tryParse(controller.precioController.text.trim()) ?? 0.0;
-      }
-
-      if (_selectedImage != null) {
-        try {
-          await ApiService.uploadProfileImage(userId, _selectedImage!);
-          if (mounted) {
-            setState(() => _selectedImage = null);
-          }
-        } catch (e) {
-          debugPrint('Error subiendo imagen: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Advertencia: No se pudo subir la imagen. ${e.toString().replaceAll("Exception: ", "")}')),
-            );
-          }
-        }
-      }
+      // Nota: La imagen ya se subió en _pickImage -> _uploadImage
+      // Aquí solo guardamos datos de texto.
 
       await ApiService.updateUser(userId, userData);
       
-      if (_isInstructor) {
+      if (_isInstructor && _instructorId != null) {
         try {
-          final instructors = await ApiService.getInstructors();
-          final instructor = instructors.firstWhere(
-            (i) => i['userId'].toString() == userId,
-            orElse: () => null,
-          );
-          if (instructor != null) {
-            debugPrint('=== GUARDANDO INSTRUCTOR ====');
-            debugPrint('instructorId: ${instructor['id']}');
-            debugPrint('description: ${controller.descripcionController.text.trim()}');
-            await ApiService.updateInstructor(instructor['id'].toString(), {
-              'description': controller.descripcionController.text.trim(),
+            await ApiService.updateInstructor(_instructorId!, {
+              'bio': controller.descripcionController.text.trim(),
+              'hourlyRate': double.tryParse(controller.precioController.text.trim()) ?? 0.0,
             });
-            debugPrint('Instructor actualizado');
-          }
         } catch (e) {
           debugPrint('Error actualizando instructor: $e');
         }
@@ -260,13 +281,30 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      Navigator.pop(context, true);
+      
+      final target = await RoleRouter.resolveRouteForCurrentUser(context: 'editar_perfil(afterSave)');
+      if (!mounted) return;
+      if (target == InstructorDashboardScreen.routeName) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          target,
+          (route) => false,
+          arguments: {'initialIndex': 3},
+        );
+      } else if (target == StudentDashboardScreen.routeName) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          target,
+          (route) => false,
+          arguments: {'initialIndex': 2},
+        );
+      } else {
+        Navigator.of(context).pushNamedAndRemoveUntil(target, (route) => false);
+      }
     } catch (e) {
       debugPrint('Error guardando perfil: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString().replaceAll("Exception: ", "")}'),
+          content: Text(humanizeApiError(e)),
           backgroundColor: Colors.red,
         ),
       );
@@ -278,28 +316,54 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        backgroundColor: AppColors.surfaceLight,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: const Text(
           "Editar Perfil",
           style: TextStyle(
-            color: Colors.black87,
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.w600,
             fontSize: 20,
           ),
         ),
         centerTitle: true,
       ),
-      body: Stack(
+      body: _loadError != null && _isInitialized
+          ? SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: AppErrorState(
+                    title: 'No pudimos cargar tu perfil',
+                    message: _loadError,
+                    onRetry: () {
+                      setState(() => _loadError = null);
+                      _loadProfile();
+                    },
+                  ),
+                ),
+              ),
+            )
+          : Column(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                GestureDetector(
+          Expanded(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: Column(
+                children: [
+                Semantics(
+                  label: 'Cambiar foto de perfil',
+                  button: true,
+                  child: GestureDetector(
                   onTap: _pickImage,
                   child: Stack(
                     alignment: Alignment.center,
@@ -322,41 +386,21 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             ),
                           ],
                         ),
-                        child: _selectedImage != null
-                            ? ClipOval(
-                                child: Image.file(
-                                  _selectedImage!,
-                                  fit: BoxFit.cover,
-                                  width: 130,
-                                  height: 130,
-                                ),
-                              )
-                            : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
-                                ? ClipOval(
-                                    child: Image.network(
+                        child: ClipOval(
+                          child: _selectedImage != null
+                              ? (kIsWeb 
+                                  ? Image.network(_selectedImage!.path, fit: BoxFit.cover, width: 130, height: 130)
+                                  : Image.file(File(_selectedImage!.path), fit: BoxFit.cover, width: 130, height: 130))
+                              : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty
+                                  ? Image.network(
                                       _currentImageUrl!,
                                       fit: BoxFit.cover,
                                       width: 130,
                                       height: 130,
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            value: loadingProgress.expectedTotalBytes != null
-                                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                                : null,
-                                            color: Colors.white,
-                                          ),
-                                        );
-                                      },
-                                      errorBuilder: (context, error, stackTrace) {
-                                        debugPrint('Error cargando imagen: $error');
-                                        debugPrint('URL: $_currentImageUrl');
-                                        return _buildDefaultAvatar();
-                                      },
-                                    ),
-                                  )
-                                : _buildDefaultAvatar(),
+                                      errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+                                    )
+                                  : _buildDefaultAvatar()),
+                        ),
                       ),
                       Positioned(
                         bottom: 0,
@@ -384,6 +428,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     ],
                   ),
                 ),
+                ),
+                // ... rest of UI code (Text "Toca para cambiar foto", inputs, etc. same as before)
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -412,12 +458,30 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 _buildModernInputCard(
                   icon: Icons.person_outline,
                   label: "Nombre Completo",
+                    child: TextField(
+                      controller: controller.nombreController,
+                      style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: "Ingresá tu nombre",
+                        hintStyle: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                ),
+                // ... (rest of fields unchanged)
+                const SizedBox(height: 16),
+                
+                _buildModernInputCard(
+                  icon: Icons.phone_outlined,
+                  label: "Teléfono",
                   child: TextField(
-                    controller: controller.nombreController,
-                    style: const TextStyle(fontSize: 16),
-                    decoration: const InputDecoration(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                    decoration: InputDecoration(
                       border: InputBorder.none,
-                      hintText: "Ingresá tu nombre",
+                      hintText: "Ej: 11 1234-5678",
+                      hintStyle: TextStyle(color: AppColors.textSecondary),
                     ),
                   ),
                 ),
@@ -428,102 +492,90 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   label: "Ubicación",
                   child: Column(
                     children: [
-                      TextField(
-                        controller: controller.zonaController,
-                        style: const TextStyle(fontSize: 16),
-                        onChanged: _searchLocations,
-                        onTap: () => setState(() => _showSuggestions = true),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          hintText: "Ej: Tortuguitas, Buenos Aires",
-                        ),
-                      ),
-                      if (_showSuggestions && _locationSuggestions.isNotEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(top: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
+                        TextField(
+                          controller: controller.zonaController,
+                          style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                          onChanged: _locationAutocomplete.onQueryChanged,
+                          onTap: _locationAutocomplete.onFocus,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: "Ej: Tortuguitas, Buenos Aires",
+                            hintStyle: TextStyle(color: AppColors.textSecondary),
                           ),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _locationSuggestions.length,
-                            itemBuilder: (context, index) {
-                              final suggestion = _locationSuggestions[index];
-                              return ListTile(
-                                dense: true,
-                                leading: Icon(Icons.location_on, size: 18, color: Colors.blue.shade600),
-                                title: Text(
-                                  suggestion['display']!,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                                onTap: () {
-                                  controller.zonaController.text = suggestion['display']!;
-                                  setState(() {
-                                    _showSuggestions = false;
-                                    _locationSuggestions = [];
-                                  });
-                                },
-                              );
+                        ),
+                      AnimatedBuilder(
+                        animation: _locationAutocomplete,
+                        builder: (context, _) {
+                          if (!_locationAutocomplete.showSuggestions) return const SizedBox.shrink();
+                          return LocationAutocompleteDropdown(
+                            isLoading: _locationAutocomplete.isLoading,
+                            error: _locationAutocomplete.error,
+                            suggestions: _locationAutocomplete.suggestions,
+                            hasQuery: _locationAutocomplete.hasQuery,
+                            onSelect: (suggestion) {
+                              controller.zonaController.text = suggestion['display'] ?? '';
+                              _locationAutocomplete.selectSuggestion();
                             },
-                          ),
-                        ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 if (_isInstructor) ...[
                   _buildModernInputCard(
                     icon: Icons.attach_money,
                     label: "Tarifa por Hora",
                     child: TextField(
-                      controller: controller.precioController,
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(fontSize: 16),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: "Ej: 5000",
-                        prefix: Text("\$ "),
+                        controller: controller.precioController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: "Ej: 5000",
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                          prefix: Text("\$ ", style: TextStyle(color: AppColors.textPrimary)),
+                        ),
                       ),
-                    ),
                   ),
                   const SizedBox(height: 16),
                   _buildModernInputCard(
                     icon: Icons.edit_outlined,
                     label: "Descripción",
                     child: TextField(
-                      controller: controller.descripcionController,
-                      maxLines: 4,
-                      style: const TextStyle(fontSize: 16),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: "Contá un poco sobre vos y tu experiencia...",
+                        controller: controller.descripcionController,
+                        maxLines: 4,
+                        style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: "Contá un poco sobre vos y tu experiencia...",
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                        ),
                       ),
-                    ),
                   ),
                 ],
-                const SizedBox(height: 100),
+                const SizedBox(height: 16),
               ],
             ),
           ),
-          
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 20,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveProfile,
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: ElevatedButton(
+              onPressed: (_isLoading || !_isInitialized) ? null : _saveProfile,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
                 elevation: 8,
-                shadowColor: Colors.blue.withValues(alpha: 0.4),
+                shadowColor: AppColors.primary.withValues(alpha: 0.4),
               ),
               child: _isLoading
                   ? const SizedBox(
@@ -541,6 +593,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+            ),
             ),
           ),
         ],
@@ -563,15 +616,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: AppColors.surfaceLighter, width: 1),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -579,12 +626,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: Colors.blue.shade600, size: 20),
+              Icon(icon, color: AppColors.primary, size: 20),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
-                  color: Colors.grey[700],
+                  color: AppColors.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,

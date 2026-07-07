@@ -46,3 +46,11 @@ app.*.map.json
 /linux
 /macos
 /windows
+
+# Claves y rutas locales (no commitear)
+android/local.properties
+android/key.properties
+**/*.jks
+**/*.keystore
+upload-keystore*.jks
+ios/Flutter/Secrets.xcconfig

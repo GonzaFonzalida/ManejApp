@@ -1,11 +1,53 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/widgets/design/app_card.dart';
+import 'package:manejapp/widgets/design/app_button.dart';
+import 'package:manejapp/widgets/design/app_empty_state.dart';
+import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/screens/home_screen.dart';
+import 'package:manejapp/screens/student_reservation_detail_screen.dart';
+import 'package:manejapp/utils/app_feedback.dart';
+import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/widgets/skeleton_loader.dart';
 import '../services/api_service.dart';
+import '../services/secure_storage.dart';
 import '../models/payment.dart';
 import '../models/driving_class.dart';
 
-const storage = FlutterSecureStorage();
+const storage = appSecureStorage;
+
+String _paymentStatusLabel(String status) {
+  switch (status.toLowerCase()) {
+    case 'paid':
+      return 'Pagado';
+    case 'pending':
+      return 'Pendiente';
+    case 'failed':
+      return 'Fallido';
+    default:
+      return status;
+  }
+}
+
+String _paymentMethodLabel(String method) {
+  switch (method.toLowerCase()) {
+    case 'mercadopago':
+      return 'Mercado Pago';
+    case 'cash':
+      return 'Efectivo';
+    case 'transfer':
+      return 'Transferencia';
+    default:
+      return method;
+  }
+}
+
+String _shortRef(String id) {
+  final t = id.trim();
+  if (t.length <= 10) return '#$t';
+  return '#${t.substring(0, 8)}…';
+}
 
 class StudentPaymentsScreen extends StatefulWidget {
   const StudentPaymentsScreen({super.key});
@@ -21,6 +63,7 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
   List<Payment> _pendingPayments = [];
   List<Payment> _failedPayments = [];
   bool _isLoading = true;
+  String? _loadError;
   double _totalPaid = 0;
   double _totalPending = 0;
 
@@ -28,7 +71,7 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _loadPayments();
+    _loadPayments(silent: false);
   }
 
   @override
@@ -37,70 +80,80 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
     super.dispose();
   }
 
-  Future<void> _loadPayments() async {
+  Future<void> _loadPayments({bool silent = true}) async {
+    if (!silent) {
+      setState(() {
+        _loadError = null;
+        _isLoading = true;
+      });
+    } else if (mounted) {
+      setState(() => _loadError = null);
+    }
     try {
-      final userId = await storage.read(key: 'user_id');
-      if (userId != null) {
-        // Obtener clases del estudiante
-        final classes = await ApiService.getDrivingClasses();
-        final studentClasses = classes
-            .where((c) => c['studentId'].toString() == userId)
-            .map((c) => DrivingClass.fromJson(c))
-            .toList();
+      final token = await storage.read(key: 'auth_token');
+      if (token == null || token.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _loadError = 'No encontramos tu sesión. Volvé a iniciar sesión.';
+          });
+        }
+        return;
+      }
+      // GET /classes ya filtra por rol (solo clases del usuario autenticado).
+      final classes = await ApiService.getDrivingClasses();
+      final studentClasses = classes.map((c) => DrivingClass.fromJson(c as Map<String, dynamic>)).toList();
 
-        // Obtener pagos relacionados con las clases del estudiante
-        final paymentsResponse = await ApiService.getPayments();
-        final payments = paymentsResponse is List ? paymentsResponse : (paymentsResponse as Map<String, dynamic>)['data'] as List? ?? [];
-        _allPayments = payments
-            .where((p) => studentClasses.any((c) => c.id == p['drivingClassId']))
-            .map((p) => Payment.fromJson(p))
-            .toList();
+      final paymentsList = await ApiService.getPayments();
 
-        // Filtrar por estado
-        _paidPayments = _allPayments.where((p) => p.status == 'paid').toList();
-        _pendingPayments = _allPayments.where((p) => p.status == 'pending').toList();
-        _failedPayments = _allPayments.where((p) => p.status == 'failed').toList();
+      _allPayments = paymentsList
+          .where((p) => studentClasses.any((c) => c.id == (p as Map)['drivingClassId']))
+          .map((p) => Payment.fromJson(p as Map<String, dynamic>))
+          .toList();
 
-        // Calcular totales
-        _totalPaid = _paidPayments.fold(0, (sum, p) => sum + p.amount);
-        _totalPending = _pendingPayments.fold(0, (sum, p) => sum + p.amount);
+      // Filtrar por estado
+      _paidPayments = _allPayments.where((p) => p.status == 'paid').toList();
+      _pendingPayments = _allPayments.where((p) => p.status == 'pending').toList();
+      _failedPayments = _allPayments.where((p) => p.status == 'failed').toList();
 
-        // Ordenar por fecha
-        _allPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _paidPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _pendingPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _failedPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // Calcular totales
+      _totalPaid = _paidPayments.fold(0, (sum, p) => sum + p.amount);
+      _totalPending = _pendingPayments.fold(0, (sum, p) => sum + p.amount);
+
+      // Ordenar por fecha
+      _allPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _paidPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _pendingPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _failedPayments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = null;
+        });
       }
     } catch (e) {
       debugPrint('Error cargando pagos: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando pagos: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      if (!mounted) return;
+      if (silent) {
+        AppFeedback.showError(context, humanizeApiError(e));
+      } else {
+        setState(() {
+          _isLoading = false;
+          _loadError = humanizeApiError(e);
+        });
       }
     }
   }
 
-  Future<void> _retryPayment(Payment payment) async {
-    try {
-      // Aquí podrías implementar la lógica para reintentar el pago
-      // Por ahora, solo mostramos un mensaje
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Función de reintento de pago próximamente'),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error reintentando pago: $e')),
-        );
-      }
-    }
+  Future<void> _openReservationToPay(Payment payment) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => StudentReservationDetailScreen(reservationId: payment.drivingClassId),
+      ),
+    );
+    if (mounted) await _loadPayments(silent: true);
   }
 
   void _showPaymentDetails(Payment payment) {
@@ -113,130 +166,211 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('Mis pagos', style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+      ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Mis Pagos',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+          ? _buildLoadingBody()
+          : _loadError != null
+              ? Center(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: AppErrorState(
+                      title: 'No pudimos cargar tus pagos',
+                      message: _loadError,
+                      onRetry: () => _loadPayments(silent: false),
                     ),
                   ),
-                ),
-                
-                // Resumen de pagos
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _buildSummaryCard(
-                              'Total Pagado',
-                              '\$${_totalPaid.toStringAsFixed(0)}',
-                              Colors.green,
-                              Icons.check_circle,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildSummaryCard(
-                              'Pendiente',
-                              '\$${_totalPending.toStringAsFixed(0)}',
-                              Colors.orange,
-                              Icons.schedule,
-                            ),
-                          ),
-                        ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Text(
+                        'Resumen',
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
 
-                TabBar(
-                  controller: _tabController,
-                  labelColor: const Color(0xFF003087),
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: const Color(0xFF003087),
-                  isScrollable: true,
-                  tabs: [
-                    Tab(text: 'Todos (${_allPayments.length})'),
-                    Tab(text: 'Pagados (${_paidPayments.length})'),
-                    Tab(text: 'Pendientes (${_pendingPayments.length})'),
-                    Tab(text: 'Fallidos (${_failedPayments.length})'),
-                  ],
-                ),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadPayments,
-                    child: TabBarView(
+                    // Resumen de pagos
+                    Semantics(
+                      label:
+                          'Total pagado ${_totalPaid.toStringAsFixed(0)} pesos, pendiente ${_totalPending.toStringAsFixed(0)} pesos',
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: AppCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _buildSummaryItem(
+                                  'Pagado',
+                                  '\$${_totalPaid.toStringAsFixed(0)}',
+                                  AppColors.success,
+                                  Icons.check_circle,
+                                ),
+                              ),
+                              Container(width: 1, height: 40, color: AppColors.surfaceLighter),
+                              Expanded(
+                                child: _buildSummaryItem(
+                                  'Pendiente',
+                                  '\$${_totalPending.toStringAsFixed(0)}',
+                                  AppColors.warning,
+                                  Icons.schedule,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    TabBar(
                       controller: _tabController,
-                      children: [
-                        _buildPaymentsList(_allPayments),
-                        _buildPaymentsList(_paidPayments),
-                        _buildPaymentsList(_pendingPayments),
-                        _buildPaymentsList(_failedPayments),
+                      labelColor: AppColors.primary,
+                      unselectedLabelColor: AppColors.textSecondary,
+                      indicatorColor: AppColors.primary,
+                      isScrollable: true,
+                      labelStyle: AppTextStyles.bodyNormal.copyWith(fontWeight: FontWeight.bold),
+                      tabs: [
+                        Tab(text: 'Todos (${_allPayments.length})'),
+                        Tab(text: 'Pagados (${_paidPayments.length})'),
+                        Tab(text: 'Pendientes (${_pendingPayments.length})'),
+                        Tab(text: 'Fallidos (${_failedPayments.length})'),
                       ],
                     ),
-                  ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () => _loadPayments(silent: true),
+                        color: AppColors.primary,
+                        backgroundColor: AppColors.surfaceLight,
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildPaymentsList(_allPayments),
+                            _buildPaymentsList(_paidPayments),
+                            _buildPaymentsList(_pendingPayments),
+                            _buildPaymentsList(_failedPayments),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
     );
   }
 
-  Widget _buildSummaryCard(String title, String amount, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 8),
-          Text(
-            amount,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
+  Widget _buildLoadingBody() {
+    Widget listRowPlaceholder(BuildContext ctx) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Row(
+          children: [
+            const SkeletonLoader(
+              width: 60,
+              height: 60,
+              borderRadius: BorderRadius.all(Radius.circular(30)),
             ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonLoader(
+                    width: double.infinity,
+                    height: 16,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  const SizedBox(height: 8),
+                  SkeletonLoader(
+                    width: MediaQuery.sizeOf(ctx).width * 0.6,
+                    height: 14,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(20),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              SkeletonLoader(width: 160, height: 22, borderRadius: BorderRadius.circular(6)),
+              const SizedBox(height: 20),
+              const CardSkeletonLoader(),
+              const SizedBox(height: 20),
+              Row(
+                children: List.generate(
+                  4,
+                  (i) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: SkeletonLoader(width: 72, height: 28, borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Builder(builder: listRowPlaceholder),
+              Builder(builder: listRowPlaceholder),
+              Builder(builder: listRowPlaceholder),
+              Builder(builder: listRowPlaceholder),
+              Builder(builder: listRowPlaceholder),
+              Builder(builder: listRowPlaceholder),
+            ]),
           ),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
-          ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryItem(String title, String amount, Color color, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 4),
+        Text(amount, style: AppTextStyles.heading.copyWith(fontSize: 18, color: color)),
+        Text(title, style: AppTextStyles.bodyNormal.copyWith(fontSize: 12, color: AppColors.textSecondary)),
+      ],
     );
   }
 
   Widget _buildPaymentsList(List<Payment> payments) {
     if (payments.isEmpty) {
-      return const Center(
-        child: Text(
-          'No hay pagos en esta categoría',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+        children: [
+          AppEmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'No hay pagos en esta categoría',
+            subtitle:
+                'Cuando reserves una clase y pagues con Mercado Pago, vas a ver el historial acá.',
+            actionLabel: 'Buscar instructores',
+            onAction: () => Navigator.pushNamed(context, HomeScreen.routeName),
           ),
-        ),
+        ],
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(20),
       itemCount: payments.length,
       itemBuilder: (context, index) {
         final payment = payments[index];
@@ -249,103 +383,83 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
     final statusColor = _getStatusColor(payment.status);
     final canRetry = payment.status == 'failed';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
         onTap: () => _showPaymentDetails(payment),
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: statusColor,
-                    child: Icon(
-                      _getStatusIcon(payment.status),
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '\$${payment.amount.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          DateFormat('dd/MM/yyyy HH:mm').format(payment.createdAt),
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      payment.status.toUpperCase(),
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '\$${payment.amount.toStringAsFixed(0)}',
+                        style: AppTextStyles.heading.copyWith(fontSize: 18),
                       ),
+                      Text(
+                        DateFormat('dd/MM/yyyy HH:mm', 'es').format(payment.createdAt),
+                        style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    _paymentStatusLabel(payment.status),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.payment, size: 16, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.payment, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(_paymentMethodLabel(payment.method), style: AppTextStyles.bodyNormal.copyWith(fontSize: 13)),
+                const SizedBox(width: 16),
+                if (payment.transactionId != null) ...[
+                  Icon(Icons.receipt, size: 16, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
-                  Text(payment.method.toUpperCase()),
-                  const SizedBox(width: 16),
-                  if (payment.transactionId != null) ...[
-                    Icon(Icons.receipt, size: 16, color: Colors.grey.shade600),
-                    const SizedBox(width: 4),
-                    Text('ID: ${payment.transactionId!.substring(0, 8)}...'),
-                  ],
-                ],
-              ),
-              if (payment.description != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  payment.description!,
-                  style: const TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-              if (canRetry) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _retryPayment(payment),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reintentar Pago'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF003087),
-                      foregroundColor: Colors.white,
+                  Expanded(
+                    child: Text(
+                      _shortRef(payment.transactionId!),
+                      style: AppTextStyles.bodyNormal.copyWith(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
+                ],
               ],
+            ),
+
+            if (canRetry) ...[
+              const SizedBox(height: 12),
+              Semantics(
+                label: 'Ir a la reserva para reintentar el pago',
+                child: AppButton(
+                  text: 'Ir a la reserva para pagar',
+                  icon: Icons.open_in_new,
+                  onPressed: () => _openReservationToPay(payment),
+                  type: AppButtonType.primary,
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -354,26 +468,13 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'paid':
-        return Colors.green;
+        return AppColors.success;
       case 'pending':
-        return Colors.orange;
+        return AppColors.warning;
       case 'failed':
-        return Colors.red;
+        return AppColors.error;
       default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'paid':
-        return Icons.check_circle;
-      case 'pending':
-        return Icons.schedule;
-      case 'failed':
-        return Icons.error;
-      default:
-        return Icons.help;
+        return AppColors.textSecondary;
     }
   }
 }
@@ -386,32 +487,24 @@ class PaymentDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Detalles del Pago'),
+      backgroundColor: AppColors.surfaceLight,
+      title: Text('Detalle del pago', style: AppTextStyles.heading.copyWith(fontSize: 18)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildDetailRow('Monto', '\$${payment.amount.toStringAsFixed(0)}'),
-          _buildDetailRow('Estado', payment.status.toUpperCase()),
-          _buildDetailRow('Método', payment.method.toUpperCase()),
-          if (payment.transactionId != null)
-            _buildDetailRow('ID de Transacción', payment.transactionId!),
-          _buildDetailRow(
-            'Fecha de Creación',
-            DateFormat('dd/MM/yyyy HH:mm').format(payment.createdAt),
-          ),
-          _buildDetailRow(
-            'Última Actualización',
-            DateFormat('dd/MM/yyyy HH:mm').format(payment.updatedAt),
-          ),
-          if (payment.description != null)
-            _buildDetailRow('Descripción', payment.description!),
+          _buildDetailRow('Estado', _paymentStatusLabel(payment.status)),
+          _buildDetailRow('Método', _paymentMethodLabel(payment.method)),
+          if (payment.transactionId != null) _buildDetailRow('ID de transacción', payment.transactionId!),
+          _buildDetailRow('Fecha', DateFormat('dd/MM/yyyy HH:mm', 'es').format(payment.createdAt)),
+          if (payment.description != null) _buildDetailRow('Descripción', payment.description!),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cerrar'),
+          child: Text('Cerrar', style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary)),
         ),
       ],
     );
@@ -424,14 +517,11 @@ class PaymentDetailsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            width: 110,
+            child: Text('$label:', style: AppTextStyles.bodyNormal.copyWith(fontWeight: FontWeight.bold)),
           ),
           Expanded(
-            child: Text(value),
+            child: Text(value, style: AppTextStyles.bodyNormal),
           ),
         ],
       ),

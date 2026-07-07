@@ -24,12 +24,27 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
-    // 🔐 Cargar propiedades del keystore
+    // 🔐 Release signing: solo con key.properties apuntando a un keystore real (no demo).
     val keystorePropertiesFile = rootProject.file("key.properties")
     val keystoreProperties = Properties()
     if (keystorePropertiesFile.exists()) {
         keystoreProperties.load(FileInputStream(keystorePropertiesFile))
     }
+    val releaseStorePath = keystoreProperties.getProperty("storeFile")
+    val hasReleaseKeystore = keystorePropertiesFile.exists() &&
+        !releaseStorePath.isNullOrBlank() &&
+        !releaseStorePath.contains("demo", ignoreCase = true) &&
+        file(releaseStorePath).exists()
+
+    // Google Maps SDK for Android (no commitear la clave en Dart; ver android/local.properties)
+    val localPropertiesForMaps = Properties()
+    val localPropertiesMapsFile = rootProject.file("local.properties")
+    if (localPropertiesMapsFile.exists()) {
+        localPropertiesForMaps.load(FileInputStream(localPropertiesMapsFile))
+    }
+    val googleMapsApiKey = localPropertiesForMaps.getProperty("GOOGLE_MAPS_API_KEY")
+        ?: System.getenv("GOOGLE_MAPS_API_KEY")
+        ?: ""
 
     defaultConfig {
         applicationId = "com.manejapp.app"
@@ -38,14 +53,17 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = (keystoreProperties["storeFile"] as? String)?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = file(releaseStorePath!!)
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
         }
     }
 
@@ -57,7 +75,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

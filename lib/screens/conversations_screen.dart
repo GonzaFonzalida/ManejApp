@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:manejapp/config/design_system.dart';
 import '../controllers/chat_controller.dart';
 import '../models/message.dart';
 import 'chat_screen.dart';
+import 'home_screen.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:manejapp/services/secure_storage.dart';
+import 'package:manejapp/widgets/design/app_empty_state.dart';
+import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/keys/e2e_keys.dart';
 import '../widgets/skeleton_loader.dart';
 
 class ConversationsScreen extends StatefulWidget {
@@ -17,7 +22,7 @@ class ConversationsScreen extends StatefulWidget {
 }
 
 class _ConversationsScreenState extends State<ConversationsScreen> {
-  final storage = const FlutterSecureStorage();
+  final storage = appSecureStorage;
   int? _currentUserId;
   String _searchQuery = '';
 
@@ -37,15 +42,16 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     }
   }
 
-  String _getOtherParticipantName(Conversation conv) {
-    if (conv.lastMessage?.sender != null) {
-      final senderId = conv.lastMessage!.senderId;
-      if (senderId == _currentUserId) {
-        return 'Usuario';
-      }
-      return conv.lastMessage!.sender!.fullName;
+  /// Nombre mostrado: prioriza el remitente del último mensaje si no sos vos; si no hay datos, copy neutro.
+  String _conversationTitle(Conversation conv) {
+    final lm = conv.lastMessage;
+    if (lm?.sender != null && lm!.senderId != _currentUserId) {
+      return lm.sender!.fullName;
     }
-    return 'Usuario';
+    if (lm != null && _currentUserId != null && lm.senderId == _currentUserId) {
+      return 'Conversación';
+    }
+    return 'Conversación';
   }
 
   int _getOtherParticipantId(Conversation conv) {
@@ -56,23 +62,42 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Mensajes'),
-        backgroundColor: const Color(0xFF003087),
-        foregroundColor: Colors.white,
+        title: Text('Mensajes', style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Buscar conversaciones...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+            child: Semantics(
+              label: 'Buscar conversaciones',
+              textField: true,
+              child: TextField(
+                style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre…',
+                  hintStyle: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary),
+                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceLighter,
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
               ),
-              onChanged: (value) => setState(() => _searchQuery = value),
             ),
           ),
           Expanded(child: _buildBody()),
@@ -84,75 +109,116 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget _buildBody() {
     return Consumer<ChatController>(
       builder: (context, controller, _) {
-        if (controller.isLoading) {
-          return const ListSkeletonLoader();
+        if (controller.loadingConversations && controller.conversations.isEmpty) {
+          return const ListSkeletonLoader(itemCount: 8);
+        }
+
+        if (controller.conversationsError != null && controller.conversations.isEmpty) {
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+            children: [
+              AppErrorState(
+                title: 'No pudimos cargar tus conversaciones',
+                message: controller.conversationsError,
+                onRetry: _loadData,
+                retryLabel: 'Reintentar',
+                retryButtonKey: E2eKeys.conversationsRetry,
+              ),
+            ],
+          );
         }
 
         final filtered = controller.conversations.where((conv) {
-          final name = _getOtherParticipantName(conv).toLowerCase();
+          final name = _conversationTitle(conv).toLowerCase();
           return name.contains(_searchQuery.toLowerCase());
         }).toList();
 
         if (filtered.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  _searchQuery.isEmpty ? 'No tienes conversaciones' : 'No se encontraron resultados',
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.lg),
+            children: [
+              if (_searchQuery.isNotEmpty)
+                AppEmptyState(
+                  icon: Icons.search_off_rounded,
+                  title: 'No hay resultados',
+                  subtitle: 'Probá con otro nombre o limpiá la búsqueda.',
+                  actionLabel: 'Limpiar búsqueda',
+                  onAction: () => setState(() => _searchQuery = ''),
+                )
+              else
+                AppEmptyState(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: 'Todavía no tenés conversaciones',
+                  subtitle:
+                      'Cuando reserves con un instructor y tengas el pago en orden, podés escribirle desde acá.',
+                  actionLabel: 'Explorar instructores',
+                  onAction: () => Navigator.pushNamed(context, HomeScreen.routeName),
                 ),
-              ],
-            ),
+            ],
           );
         }
 
         return RefreshIndicator(
-          onRefresh: () => controller.loadConversations(),
+          color: AppColors.primary,
+          backgroundColor: AppColors.surfaceLight,
+          onRefresh: () => context.read<ChatController>().loadConversations(),
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: filtered.length,
             itemBuilder: (context, index) {
               final conv = filtered[index];
-              final otherName = _getOtherParticipantName(conv);
+              final title = _conversationTitle(conv);
               final otherId = _getOtherParticipantId(conv);
 
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF003087),
-                  child: Text(
-                    otherName[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                title: Text(
-                  otherName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  conv.lastMessage?.content ?? 'Sin mensajes',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: conv.lastMessage != null
-                    ? Text(
-                        DateFormat('dd/MM HH:mm').format(conv.lastMessage!.sentAt),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      )
-                    : null,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatScreen(
-                        recipientName: otherName,
-                        recipientId: otherId.toString(),
-                        conversationId: conv.id,
+              return Semantics(
+                label: 'Conversación con $title',
+                button: true,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                    child: Text(
+                      title.isNotEmpty ? title[0].toUpperCase() : '?',
+                      style: AppTextStyles.buttonText.copyWith(
+                        fontSize: 14,
+                        color: AppColors.primary,
                       ),
                     ),
-                  ).then((_) => controller.loadConversations());
-                },
+                  ),
+                  title: Text(
+                    title,
+                    style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    conv.lastMessage?.content ?? 'Todavía no hay mensajes',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyNormal.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  trailing: conv.lastMessage != null
+                      ? Text(
+                          DateFormat('dd/MM HH:mm').format(conv.lastMessage!.sentAt.toLocal()),
+                          style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.push<void>(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) => ChatScreen(
+                          recipientName: title == 'Conversación' ? 'Contacto' : title,
+                          recipientId: otherId.toString(),
+                          conversationId: conv.id,
+                        ),
+                      ),
+                    ).then((_) => controller.loadConversations());
+                  },
+                ),
               );
             },
           ),
@@ -161,5 +227,3 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     );
   }
 }
-
-

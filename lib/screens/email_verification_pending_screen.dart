@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
+import '../services/secure_storage.dart';
+import 'login_screen.dart';
+import '../widgets/responsive_scroll_body.dart';
 
 class EmailVerificationPendingScreen extends StatefulWidget {
   static const routeName = '/email-verification-pending';
@@ -21,6 +23,7 @@ class _EmailVerificationPendingScreenState extends State<EmailVerificationPendin
     super.didChangeDependencies();
     _email ??= ModalRoute.of(context)!.settings.arguments as String?;
     _startPolling();
+    _checkVerificationStatus(); // Verificación inmediata (útil con auto-verify en desarrollo)
   }
 
   @override
@@ -37,12 +40,11 @@ class _EmailVerificationPendingScreenState extends State<EmailVerificationPendin
 
   Future<void> _checkVerificationStatus() async {
     try {
-      final storage = FlutterSecureStorage();
+      const storage = appSecureStorage;
       final userId = await storage.read(key: 'user_id');
       if (userId == null) return;
 
-      final profile = await ApiService.getUserProfile(userId);
-      final isVerified = profile['isVerified'] ?? false;
+      final isVerified = await ApiService.checkVerificationStatus(userId);
 
       if (isVerified && mounted) {
         _timer?.cancel();
@@ -91,8 +93,9 @@ class _EmailVerificationPendingScreenState extends State<EmailVerificationPendin
         backgroundColor: const Color(0xFF003087),
         foregroundColor: Colors.white,
       ),
-      body: Padding(
+      body: ResponsiveScrollBody(
         padding: const EdgeInsets.all(16),
+        centerWhenShort: true,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -124,6 +127,11 @@ class _EmailVerificationPendingScreenState extends State<EmailVerificationPendin
             const Text(
               'Verificando automáticamente...',
               style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: () => Navigator.of(context).pushReplacementNamed(LoginScreen.routeName),
+              child: const Text('¿Ya verificaste? Ir a iniciar sesión'),
             ),
           ],
         ),

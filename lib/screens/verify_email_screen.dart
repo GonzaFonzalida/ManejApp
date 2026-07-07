@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
+import '../services/secure_storage.dart';
+import '../widgets/responsive_scroll_body.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   static const routeName = '/verify-email';
@@ -32,7 +33,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       await ApiService.verifyEmail(_token!);
 
       if (mounted) {
-        final storage = FlutterSecureStorage();
+        const storage = appSecureStorage;
         final userId = await storage.read(key: 'user_id');
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -70,9 +71,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         backgroundColor: const Color(0xFF003087),
         foregroundColor: Colors.white,
       ),
-      body: Center(
+      body: ResponsiveScrollBody(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        centerWhenShort: true,
         child: _isLoading
-            ? const CircularProgressIndicator()
+            ? const Center(child: CircularProgressIndicator())
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -80,12 +83,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   const SizedBox(height: 16),
                   const Text('Verificando tu email...', style: TextStyle(fontSize: 18)),
                   const SizedBox(height: 16),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      'Si no se redirige automáticamente, intenta iniciar sesión.',
-                      textAlign: TextAlign.center,
-                    ),
+                  const Text(
+                    'Si no se redirige automáticamente, intenta iniciar sesión.',
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
