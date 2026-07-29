@@ -68,7 +68,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _pageController,
                 itemCount: _pages.length,
                 onPageChanged: (index) => setState(() => _currentPage = index),
-                itemBuilder: (context, index) => _buildPage(_pages[index], index),
+                itemBuilder: (context, index) =>
+                    _buildPage(_pages[index], index),
               ),
             ),
             Padding(

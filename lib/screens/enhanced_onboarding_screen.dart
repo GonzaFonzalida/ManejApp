@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import 'package:manejapp/config/design_system.dart';
 import 'package:manejapp/services/secure_storage.dart';
@@ -20,7 +22,7 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
 
   final List<OnboardingPage> _pages = [
     OnboardingPage(
-      title: 'Bienvenido a ManejApp',
+      title: 'Te damos la bienvenida a ManejApp',
       description:
           'La mejor app para aprender a manejar con instructores profesionales',
       icon: Icons.drive_eta,
@@ -28,7 +30,7 @@ class _EnhancedOnboardingScreenState extends State<EnhancedOnboardingScreen> {
     ),
     OnboardingPage(
       title: 'Reserva tus Clases',
-      description: 'Elige tu instructor, fecha y hora. Todo desde tu celular',
+      description: 'Elegí tu instructor, fecha y hora. Todo desde tu celular',
       icon: Icons.calendar_today,
       color: AppColors.primary,
     ),

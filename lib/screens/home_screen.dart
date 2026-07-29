@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +16,9 @@ import 'package:manejapp/services/secure_storage.dart';
 import 'package:manejapp/services/location_autocomplete_controller.dart';
 import 'package:manejapp/services/profile_map_marker_icon_service.dart';
 import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/utils/app_feedback.dart';
+import 'package:manejapp/utils/app_formatters.dart';
+import 'package:manejapp/widgets/design/app_avatar.dart';
 import 'package:manejapp/widgets/design/app_empty_state.dart';
 import 'package:manejapp/widgets/design/app_error_state.dart';
 import 'package:manejapp/widgets/design/premium_async_states.dart';
@@ -156,7 +160,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = await _storage.read(key: 'user_id');
       if (userId == null) return;
       final p = await ApiService.getUserProfile(userId);
-      final url = p['profileImageUrl'] as String? ?? p['profileImage'] as String?;
+      final url =
+          p['profileImageUrl'] as String? ?? p['profileImage'] as String?;
       final n = p['name'] as String?;
       var initial = 'U';
       if (n != null && n.trim().isNotEmpty) {
@@ -337,12 +342,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (!silent && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Activá la ubicación para ver instructores cerca tuyo.',
-              ),
-            ),
+          AppFeedback.showInfo(
+            context,
+            'Activá la ubicación para ver instructores cerca tuyo.',
           );
         }
         return;
@@ -353,8 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           if (!silent && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sin permiso de ubicación.')),
+            AppFeedback.showInfo(
+              context,
+              'Necesitamos tu permiso para mostrar instructores cercanos.',
             );
           }
           return;
@@ -363,12 +366,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (permission == LocationPermission.deniedForever) {
         if (!silent && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Ubicación bloqueada. Podés activarla en Ajustes o buscar una zona arriba.',
-              ),
-            ),
+          AppFeedback.showInfo(
+            context,
+            'Ubicación bloqueada. Podés activarla en Ajustes o buscar una zona arriba.',
           );
         }
         return;
@@ -391,8 +391,9 @@ class _HomeScreenState extends State<HomeScreen> {
       unawaited(_rebuildHomeMapMarkers());
     } catch (e) {
       if (!silent && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No pudimos obtener tu ubicación: $e')),
+        AppFeedback.showError(
+          context,
+          'No pudimos obtener tu ubicación. Intentá de nuevo.',
         );
       }
     }
@@ -403,7 +404,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final gen = ++_homeMarkersGen;
     final dpr = MediaQuery.devicePixelRatioOf(context);
 
-    final userIcon = await ProfileMapMarkerIconService.instance.descriptorForProfile(
+    final userIcon =
+        await ProfileMapMarkerIconService.instance.descriptorForProfile(
       devicePixelRatio: dpr,
       imageUrl: _studentMapImageUrl,
       fallbackLabel: _studentMapInitial,
@@ -416,16 +418,19 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final entry in _instructorLocations.entries) {
       if (!visibleIds.contains(entry.key)) continue;
       final idStr = entry.key;
-      final candidates = _instructors.where((i) => i.id.toString() == idStr).toList();
+      final candidates =
+          _instructors.where((i) => i.id.toString() == idStr).toList();
       if (candidates.isEmpty) continue;
       final instructor = candidates.first;
-      final url = instructor.user?.profileImageUrl ?? instructor.user?.profileImage;
+      final url =
+          instructor.user?.profileImageUrl ?? instructor.user?.profileImage;
       final name = instructor.user?.name ?? '';
       final initial = name.trim().isNotEmpty
           ? String.fromCharCode(name.trim().runes.first).toUpperCase()
           : 'I';
       futures.add(() async {
-        final icon = await ProfileMapMarkerIconService.instance.descriptorForProfile(
+        final icon =
+            await ProfileMapMarkerIconService.instance.descriptorForProfile(
           devicePixelRatio: dpr,
           imageUrl: url,
           fallbackLabel: initial,
@@ -435,7 +440,8 @@ class _HomeScreenState extends State<HomeScreen> {
           markerId: MarkerId('instructor_$idStr'),
           position: entry.value,
           icon: icon,
-          anchor: ProfileMapMarkerIconService.anchorFor(ProfileMapMarkerAnchorMode.pin),
+          anchor: ProfileMapMarkerIconService.anchorFor(
+              ProfileMapMarkerAnchorMode.pin),
           zIndexInt: 1,
         );
       }());
@@ -448,7 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
       markerId: const MarkerId('user'),
       position: _userLatLng,
       icon: userIcon,
-      anchor: ProfileMapMarkerIconService.anchorFor(ProfileMapMarkerAnchorMode.pin),
+      anchor:
+          ProfileMapMarkerIconService.anchorFor(ProfileMapMarkerAnchorMode.pin),
       zIndexInt: 2,
     );
 
@@ -508,9 +515,9 @@ class _HomeScreenState extends State<HomeScreen> {
           automaticallyImplyLeading: canGoBack,
           leading: canGoBack
               ? IconButton(
+                  tooltip: 'Volver',
                   icon: const Icon(Icons.arrow_back_ios_new_rounded),
                   color: AppColors.textPrimary,
-                  tooltip: 'Volver',
                   onPressed: () => Navigator.of(context).maybePop(),
                 )
               : null,
@@ -544,9 +551,9 @@ class _HomeScreenState extends State<HomeScreen> {
         automaticallyImplyLeading: canGoBack,
         leading: canGoBack
             ? IconButton(
+                tooltip: 'Volver',
                 icon: const Icon(Icons.arrow_back_ios_new_rounded),
                 color: AppColors.textPrimary,
-                tooltip: 'Volver',
                 onPressed: () => Navigator.of(context).maybePop(),
               )
             : null,
@@ -638,7 +645,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                const HomeInstructorResultsSkeleton(itemCount: 4),
+                                const HomeInstructorResultsSkeleton(
+                                    itemCount: 4),
                               ],
                             ),
                           ),
@@ -646,7 +654,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       else if (_isLoading)
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
                             child: LinearProgressIndicator(
                               color: AppColors.primary,
                               backgroundColor: AppColors.surfaceLighter,
@@ -655,7 +664,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       if (!_isLoading || _instructors.isNotEmpty)
-                        if (_filteredInstructors.isEmpty && _instructors.isEmpty)
+                        if (_filteredInstructors.isEmpty &&
+                            _instructors.isEmpty)
                           SliverFillRemaining(
                             hasScrollBody: false,
                             child: Padding(
@@ -663,7 +673,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: AppEmptyState(
                                 icon: Icons.groups_outlined,
                                 title: 'No hay instructores por ahora',
-                                subtitle: 'Volvé más tarde o probá sin filtros.',
+                                subtitle:
+                                    'Volvé más tarde o probá sin filtros.',
                                 actionLabel: 'Actualizar',
                                 onAction: _loadInstructors,
                               ),
@@ -702,7 +713,8 @@ class _HomeScreenState extends State<HomeScreen> {
               heroTag: 'explore_my_location',
               onPressed: () => _getCurrentLocation(silent: false),
               backgroundColor: AppColors.surfaceLight,
-              child: const Icon(Icons.my_location, color: AppColors.textPrimary),
+              child:
+                  const Icon(Icons.my_location, color: AppColors.textPrimary),
             ),
           ),
         ],
@@ -755,7 +767,8 @@ class _HomeScreenState extends State<HomeScreen> {
           TextField(
             controller: _zoneFieldController,
             focusNode: _zoneFocusNode,
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textPrimary),
+            style:
+                AppTextStyles.bodyNormal.copyWith(color: AppColors.textPrimary),
             onChanged: _zoneAutocomplete.onQueryChanged,
             onTap: _zoneAutocomplete.onFocus,
             decoration: InputDecoration(
@@ -766,12 +779,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               filled: true,
               fillColor: AppColors.surfaceLighter,
-              prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.primary),
+              prefixIcon: const Icon(Icons.location_on_outlined,
+                  color: AppColors.primary),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
           ),
           ListenableBuilder(
@@ -792,7 +807,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 10),
           TextField(
             controller: _nameController,
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textPrimary),
+            style:
+                AppTextStyles.bodyNormal.copyWith(color: AppColors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Buscar por nombre de instructor',
               hintStyle: AppTextStyles.bodyNormal.copyWith(
@@ -801,13 +817,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               filled: true,
               fillColor: AppColors.surfaceLighter,
-              prefixIcon:
-                  const Icon(Icons.person_search_rounded, color: AppColors.textSecondary),
+              prefixIcon: const Icon(Icons.person_search_rounded,
+                  color: AppColors.textSecondary),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
           ),
           const SizedBox(height: 12),
@@ -879,7 +896,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPremiumInstructorCard(Instructor instructor) {
-    final formattedPrice = '\$${instructor.effectiveHourlyRate.toStringAsFixed(0)}';
+    final formattedPrice = AppFormatters.ars(instructor.effectiveHourlyRate);
+    final instructorName =
+        '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}'
+            .trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -916,27 +936,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundColor: AppColors.surfaceLighter,
-                          backgroundImage: instructor.user?.profileImageUrl != null
-                              ? NetworkImage(instructor.user!.profileImageUrl!)
-                              : null,
-                          child: instructor.user?.profileImageUrl == null
-                              ? Text(
-                                  (instructor.user?.name ?? 'I')[0],
-                                  style: AppTextStyles.heading.copyWith(color: AppColors.primary),
-                                )
-                              : null,
+                        AppAvatar(
+                          diameter: 64,
+                          name: instructorName.isEmpty
+                              ? 'Instructor'
+                              : instructorName,
+                          imageUrl: instructor.user?.profileImageUrl ??
+                              instructor.user?.profileImage,
+                          showBorder: true,
                         ),
                         Positioned(
                           right: 0,
                           bottom: 0,
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration:
-                                const BoxDecoration(color: AppColors.surfaceLight, shape: BoxShape.circle),
-                            child: const Icon(Icons.verified, size: 16, color: AppColors.primary),
+                            decoration: const BoxDecoration(
+                                color: AppColors.surfaceLight,
+                                shape: BoxShape.circle),
+                            child: const Icon(Icons.verified,
+                                size: 16, color: AppColors.primary),
                           ),
                         ),
                       ],
@@ -947,7 +965,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}',
+                            instructorName.isEmpty
+                                ? 'Instructor'
+                                : instructorName,
                             style: AppTextStyles.heading.copyWith(fontSize: 18),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -955,7 +975,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.star_rounded, size: 18, color: AppColors.warning),
+                              const Icon(Icons.star_rounded,
+                                  size: 18, color: AppColors.warning),
                               const SizedBox(width: 4),
                               Text(
                                 instructor.rating?.toStringAsFixed(1) ?? 'New',
@@ -966,14 +987,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               Text(
                                 ' (24 reseñas)',
-                                style: AppTextStyles.bodyNormal.copyWith(fontSize: 12),
+                                style: AppTextStyles.bodyNormal
+                                    .copyWith(fontSize: 12),
                               ),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Text(
                             instructor.user?.location ?? 'Zona no especificada',
-                            style: AppTextStyles.bodyNormal.copyWith(fontSize: 13),
+                            style:
+                                AppTextStyles.bodyNormal.copyWith(fontSize: 13),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -983,12 +1006,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('desde', style: AppTextStyles.bodyNormal.copyWith(fontSize: 10)),
+                        Text('Desde',
+                            style: AppTextStyles.bodyNormal
+                                .copyWith(fontSize: 12)),
                         Text(
                           formattedPrice,
-                          style: AppTextStyles.heading.copyWith(fontSize: 18, color: AppColors.primary),
+                          style: AppTextStyles.heading
+                              .copyWith(fontSize: 18, color: AppColors.primary),
                         ),
-                        Text('/hora', style: AppTextStyles.bodyNormal.copyWith(fontSize: 10)),
+                        Text('/hora',
+                            style: AppTextStyles.bodyNormal
+                                .copyWith(fontSize: 12)),
                       ],
                     ),
                   ],
@@ -998,9 +1026,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _buildTag('Manual', Colors.blue.withValues(alpha: 0.2), Colors.blue),
+                    _buildTag(
+                      'Manual',
+                      AppColors.info.withValues(alpha: 0.16),
+                      AppColors.info,
+                    ),
                     if (instructor.cars?.isNotEmpty == true)
-                      _buildTag('Con auto', Colors.purple.withValues(alpha: 0.2), Colors.purple),
+                      _buildTag(
+                        'Vehículo incluido',
+                        AppColors.secondary.withValues(alpha: 0.16),
+                        AppColors.secondary,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -1008,21 +1044,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      final location = _instructorLocations[instructor.id.toString()];
+                      final location =
+                          _instructorLocations[instructor.id.toString()];
                       Navigator.pushNamed(
                         context,
                         InstructorProfileScreen.routeName,
-                        arguments: {'instructor': instructor, 'location': location},
+                        arguments: {
+                          'instructor': instructor,
+                          'location': location
+                        },
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.surfaceLighter,
                       foregroundColor: AppColors.textPrimary,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Ver disponibilidad', style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: const Text('Ver disponibilidad',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
@@ -1042,30 +1084,39 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Text(
         label,
-        style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.bold),
       ),
     );
   }
 
   Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surfaceLighter,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.transparent,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: 'Filtro $label',
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: AppMotion.duration(context, AppDurations.fast),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : AppColors.surfaceLighter,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : Colors.transparent,
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? AppColors.textInverse : AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? AppColors.textInverse : AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
         ),
       ),

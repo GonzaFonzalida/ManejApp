@@ -1,442 +1,575 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../services/api_service.dart';
-import '../models/driving_class.dart';
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/config/premium_booking_ui.dart';
+import 'package:manejapp/keys/e2e_keys.dart';
+import 'package:manejapp/models/premium_reservation.dart';
+import 'package:manejapp/screens/instructor_dashboard_screen.dart';
+import 'package:manejapp/screens/instructor_reservation_detail_screen.dart';
+import 'package:manejapp/widgets/design/app_empty_state.dart';
+import 'package:manejapp/services/api_service.dart';
+import 'package:manejapp/utils/app_resume_refresh_mixin.dart';
+import 'package:manejapp/utils/app_feedback.dart';
+import 'package:manejapp/widgets/skeleton_loader.dart';
 
-const storage = FlutterSecureStorage();
-
+/// Listado premium de clases/reservas del instructor (Próximas / Historial).
+/// Datos: `GET /classes/instructor/upcoming` y `history`.
 class InstructorClassesScreen extends StatefulWidget {
   const InstructorClassesScreen({super.key});
 
   @override
-  State<InstructorClassesScreen> createState() => _InstructorClassesScreenState();
+  State<InstructorClassesScreen> createState() =>
+      _InstructorClassesScreenState();
 }
 
-class _InstructorClassesScreenState extends State<InstructorClassesScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  List<DrivingClass> _allClasses = [];
-  List<DrivingClass> _scheduledClasses = [];
-  List<DrivingClass> _completedClasses = [];
-  List<DrivingClass> _canceledClasses = [];
+class _InstructorClassesScreenState extends State<InstructorClassesScreen>
+    with WidgetsBindingObserver, AppResumeRefreshMixin {
+  List<PremiumReservation> _upcoming = [];
+  List<PremiumReservation> _history = [];
   bool _isLoading = true;
-  String? _instructorId;
+  int _tabIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _loadClasses();
+    _loadReservations();
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void refreshOnAppResume() {
+    _loadReservations(showLoading: false);
   }
 
-  Future<void> _loadClasses() async {
+  void _sortUpcomingInPlace() {
+    _upcoming.sort((a, b) {
+      final ka = PremiumBookingUi.instructorUpcomingSortKey(
+        status: a.status,
+        paymentStatus: a.paymentStatus,
+      );
+      final kb = PremiumBookingUi.instructorUpcomingSortKey(
+        status: b.status,
+        paymentStatus: b.paymentStatus,
+      );
+      if (ka != kb) return ka.compareTo(kb);
+      return (a.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .compareTo(b.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0));
+    });
+  }
+
+  List<PremiumReservation> get _attentionUpcoming => _upcoming
+      .where(
+        (r) => PremiumBookingUi.instructorReservationNeedsAttention(
+          status: r.status,
+          paymentStatus: r.paymentStatus,
+        ),
+      )
+      .toList();
+
+  List<PremiumReservation> get _regularUpcoming => _upcoming
+      .where(
+        (r) => !PremiumBookingUi.instructorReservationNeedsAttention(
+          status: r.status,
+          paymentStatus: r.paymentStatus,
+        ),
+      )
+      .toList();
+
+  Future<void> _loadReservations({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    }
     try {
-      final userId = await storage.read(key: 'user_id');
-      if (userId != null) {
-        // Obtener ID del instructor
-        final instructors = await ApiService.getInstructors();
-        final instructor = instructors.firstWhere(
-          (i) => i['userId'].toString() == userId,
-          orElse: () => null,
-        );
-        
-        if (instructor != null) {
-          _instructorId = instructor['id'].toString();
-          final classes = await ApiService.getDrivingClasses();
-          
-          _allClasses = classes
-              .where((c) => c['instructorId'].toString() == _instructorId)
-              .map((c) => DrivingClass.fromJson(c))
-              .toList();
-
-          // Filtrar por estado
-          _scheduledClasses = _allClasses.where((c) => c.status == 'scheduled').toList();
-          _completedClasses = _allClasses.where((c) => c.status == 'completed').toList();
-          _canceledClasses = _allClasses.where((c) => c.status == 'canceled').toList();
-
-          // Ordenar por fecha
-          _allClasses.sort((a, b) => b.date.compareTo(a.date));
-          _scheduledClasses.sort((a, b) => a.date.compareTo(b.date));
-          _completedClasses.sort((a, b) => b.date.compareTo(a.date));
-          _canceledClasses.sort((a, b) => b.date.compareTo(a.date));
-        }
-      }
+      final upcomingRaw =
+          await ApiService.getInstructorUpcomingReservationsPremium();
+      final historyRaw =
+          await ApiService.getInstructorHistoryReservationsPremium();
+      if (!mounted) return;
+      setState(() {
+        _upcoming = upcomingRaw
+            .map((e) => PremiumReservation(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        _history = historyRaw
+            .map((e) => PremiumReservation(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        _sortUpcomingInPlace();
+      });
     } catch (e) {
-      debugPrint('Error cargando clases: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando clases: $e')),
-        );
-      }
+      if (!mounted) return;
+      AppFeedback.showError(
+        context,
+        'No pudimos cargar tus clases. Revisá tu conexión e intentá nuevamente.',
+      );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _completeClass(DrivingClass drivingClass) async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => CompleteClassDialog(drivingClass: drivingClass),
-    );
-
-    if (result != null) {
-      try {
-        await ApiService.updateDrivingClass(
-          drivingClass.id.toString(),
-          {
-            'status': 'completed',
-            'notes': result['notes'],
-            'rating': result['rating'],
-          },
-        );
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Clase completada exitosamente')),
-          );
-          _loadClasses();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error completando clase: $e')),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _cancelClass(DrivingClass drivingClass) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar Clase'),
-        content: const Text('¿Estás seguro de que quieres cancelar esta clase?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sí, Cancelar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await ApiService.cancelDrivingClass(drivingClass.id.toString());
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Clase cancelada')),
-          );
-          _loadClasses();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error cancelando clase: $e')),
-          );
-        }
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeList = _tabIndex == 0 ? _upcoming : _history;
+
     return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(
+          'Mis clases',
+          style: AppTextStyles.heading.copyWith(fontSize: 24),
+        ),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            key: E2eKeys.instructorClassesRefresh,
+            tooltip: 'Actualizar clases',
+            icon: const Icon(Icons.refresh, color: AppColors.primary),
+            onPressed: _loadReservations,
+          ),
+        ],
+      ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Padding(
+              padding: EdgeInsets.all(20),
+              child: ListSkeletonLoader(itemCount: 4),
+            )
           : Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Mis Clases',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  child: _SegmentedTabs(
+                    index: _tabIndex,
+                    onChanged: (i) => setState(() => _tabIndex = i),
+                    upcomingCount: _upcoming.length,
+                    historyCount: _history.length,
                   ),
-                ),
-                TabBar(
-                  controller: _tabController,
-                  labelColor: const Color(0xFF003087),
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: const Color(0xFF003087),
-                  isScrollable: true,
-                  tabs: [
-                    Tab(text: 'Todas (${_allClasses.length})'),
-                    Tab(text: 'Programadas (${_scheduledClasses.length})'),
-                    Tab(text: 'Completadas (${_completedClasses.length})'),
-                    Tab(text: 'Canceladas (${_canceledClasses.length})'),
-                  ],
                 ),
                 Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadClasses,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildClassesList(_allClasses),
-                        _buildClassesList(_scheduledClasses),
-                        _buildClassesList(_completedClasses),
-                        _buildClassesList(_canceledClasses),
-                      ],
-                    ),
-                  ),
+                  child: activeList.isEmpty
+                      ? _EmptyState(
+                          key: E2eKeys.instructorClassesEmpty(
+                            upcoming: _tabIndex == 0,
+                          ),
+                          isUpcoming: _tabIndex == 0,
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadReservations,
+                          color: AppColors.primary,
+                          backgroundColor: AppColors.surfaceLight,
+                          child: _tabIndex == 0
+                              ? _buildUpcomingList()
+                              : ListView.builder(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                                  itemCount: activeList.length,
+                                  itemBuilder: (context, index) {
+                                    final reservation = activeList[index];
+                                    return _buildReservationCard(reservation);
+                                  },
+                                ),
+                        ),
                 ),
               ],
             ),
     );
   }
 
-  Widget _buildClassesList(List<DrivingClass> classes) {
-    if (classes.isEmpty) {
-      return const Center(
-        child: Text(
-          'No hay clases en esta categoría',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
-          ),
-        ),
-      );
-    }
+  Widget _buildUpcomingList() {
+    final attention = _attentionUpcoming;
+    final regular = _regularUpcoming;
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: classes.length,
-      itemBuilder: (context, index) {
-        final drivingClass = classes[index];
-        return _buildClassCard(drivingClass);
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      children: [
+        if (attention.isNotEmpty) ...[
+          Text(
+            'Requieren atención',
+            style: AppTextStyles.bodyLarge.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final reservation in attention)
+            _buildReservationCard(reservation),
+          if (regular.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              'Próximas confirmadas',
+              style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+        for (final reservation in regular) _buildReservationCard(reservation),
+      ],
+    );
+  }
+
+  Widget _buildReservationCard(PremiumReservation reservation) {
+    return _InstructorReservationCard(
+      reservation: reservation,
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => InstructorReservationDetailScreen(
+              reservationId: reservation.id,
+            ),
+          ),
+        );
+        if (mounted) await _loadReservations();
       },
     );
   }
+}
 
-  Widget _buildClassCard(DrivingClass drivingClass) {
-    final statusColor = _getStatusColor(drivingClass.status);
-    final canComplete = drivingClass.status == 'scheduled' && 
-                       drivingClass.date.isBefore(DateTime.now().add(const Duration(hours: 1)));
-    final canCancel = drivingClass.status == 'scheduled';
+class _SegmentedTabs extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onChanged;
+  final int upcomingCount;
+  final int historyCount;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  const _SegmentedTabs({
+    required this.index,
+    required this.onChanged,
+    required this.upcomingCount,
+    required this.historyCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          _tabButton(
+            context,
+            label: 'Próximas',
+            subtitle: '$upcomingCount',
+            isActive: index == 0,
+            onTap: () => onChanged(0),
+          ),
+          _tabButton(
+            context,
+            label: 'Historial',
+            subtitle: '$historyCount',
+            isActive: index == 1,
+            onTap: () => onChanged(1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabButton(
+    BuildContext context, {
+    required String label,
+    required String subtitle,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isActive,
+        label: 'Pestaña $label, $subtitle clases',
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: AnimatedContainer(
+            duration: AppMotion.duration(context, AppDurations.fast),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
               children: [
-                CircleAvatar(
-                  backgroundColor: statusColor,
-                  child: Icon(
-                    _getStatusIcon(drivingClass.status),
-                    color: Colors.white,
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    color: isActive
+                        ? AppColors.textInverse
+                        : AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${drivingClass.student?.name ?? ''} ${drivingClass.student?.surname ?? ''}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: AppTextStyles.bodyNormal.copyWith(
+                    fontSize: 12,
+                    color: isActive
+                        ? AppColors.textInverse.withValues(alpha: 0.85)
+                        : AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InstructorReservationCard extends StatelessWidget {
+  final PremiumReservation reservation;
+  final VoidCallback onTap;
+
+  const _InstructorReservationCard({
+    required this.reservation,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final startsAt = reservation.startsAt;
+    final status = _statusUi(reservation.status);
+    final payColor = PremiumBookingUi.paymentAccent(reservation.paymentStatus);
+    final payLabel =
+        PremiumBookingUi.paymentShortLabel(reservation.paymentStatus);
+
+    return Semantics(
+      button: true,
+      label: 'Abrir detalle de la clase con ${reservation.studentName}',
+      child: GestureDetector(
+        key: E2eKeys.instructorReservationCard(reservation.id),
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: status.color.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLighter,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.schedule,
+                                color: AppColors.textSecondary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  startsAt == null
+                                      ? 'Sin horario'
+                                      : DateFormat('EEE d MMM · HH:mm', 'es')
+                                          .format(startsAt),
+                                  style: AppTextStyles.bodyNormal.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        DateFormat('EEEE, d MMMM yyyy', 'es').format(drivingClass.date),
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    drivingClass.status.toUpperCase(),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                        _statusPill(status),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    _paymentPill(payLabel, payColor),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
-                Text('${drivingClass.time} (${drivingClass.duration} min)'),
-                const SizedBox(width: 16),
-                if (drivingClass.rating != null) ...[
-                  Icon(Icons.star, size: 16, color: Colors.amber.shade600),
-                  const SizedBox(width: 4),
-                  Text('${drivingClass.rating}/5'),
-                ],
-              ],
-            ),
-            if (drivingClass.notes != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Notas: ${drivingClass.notes}',
-                style: const TextStyle(fontStyle: FontStyle.italic),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reservation.studentName,
+                      style: AppTextStyles.heading.copyWith(fontSize: 18),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      reservation.locationLabel,
+                      style: AppTextStyles.bodyNormal,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${reservation.durationMinutes} min',
+                          style: AppTextStyles.bodyNormal,
+                        ),
+                        Text(
+                          reservation.priceLabel,
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLighter,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt,
+                              size: 16, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              reservation.nextActionHintInstructor,
+                              style: AppTextStyles.bodyNormal.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right,
+                              color: AppColors.textSecondary),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-            if (canComplete || canCancel) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (canComplete)
-                    ElevatedButton.icon(
-                      onPressed: () => _completeClass(drivingClass),
-                      icon: const Icon(Icons.check_circle),
-                      label: const Text('Completar'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  if (canComplete && canCancel) const SizedBox(width: 8),
-                  if (canCancel)
-                    OutlinedButton.icon(
-                      onPressed: () => _cancelClass(drivingClass),
-                      icon: const Icon(Icons.cancel),
-                      label: const Text('Cancelar'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                      ),
-                    ),
-                ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  _StatusUi _statusUi(String status) {
+    return _StatusUi(
+      PremiumBookingUi.statusChipLabel(status),
+      PremiumBookingUi.statusColor(status),
+    );
+  }
+
+  Widget _paymentPill(String label, Color color) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.payments_outlined, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTextStyles.bodyNormal.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
               ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'scheduled':
-        return Colors.blue;
-      case 'completed':
-        return Colors.green;
-      case 'canceled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'scheduled':
-        return Icons.schedule;
-      case 'completed':
-        return Icons.check_circle;
-      case 'canceled':
-        return Icons.cancel;
-      default:
-        return Icons.help;
-    }
+  Widget _statusPill(_StatusUi status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: status.color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        status.label,
+        style: AppTextStyles.bodyNormal.copyWith(
+          color: status.color,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 }
 
-class CompleteClassDialog extends StatefulWidget {
-  final DrivingClass drivingClass;
-  
-  const CompleteClassDialog({super.key, required this.drivingClass});
-
-  @override
-  State<CompleteClassDialog> createState() => _CompleteClassDialogState();
+class _StatusUi {
+  final String label;
+  final Color color;
+  const _StatusUi(this.label, this.color);
 }
 
-class _CompleteClassDialogState extends State<CompleteClassDialog> {
-  final _notesController = TextEditingController();
-  double _rating = 5.0;
+class _EmptyState extends StatelessWidget {
+  final bool isUpcoming;
 
-  @override
-  void dispose() {
-    _notesController.dispose();
-    super.dispose();
-  }
+  const _EmptyState({super.key, required this.isUpcoming});
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Completar Clase'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Estudiante: ${widget.drivingClass.student?.name} ${widget.drivingClass.student?.surname}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          const Text('Calificación del estudiante:'),
-          Slider(
-            value: _rating,
-            min: 1,
-            max: 5,
-            divisions: 4,
-            label: _rating.toString(),
-            onChanged: (value) => setState(() => _rating = value),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _notesController,
-            decoration: const InputDecoration(
-              labelText: 'Notas de la clase',
-              hintText: 'Progreso, áreas de mejora, etc.',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context, {
-              'notes': _notesController.text,
-              'rating': _rating,
-            });
+    if (isUpcoming) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.event_available_outlined,
+          title: 'Todavía no recibiste reservas',
+          subtitle:
+              'Cuando un alumno reserve un horario, vas a verlo acá. Revisá Mis clases con frecuencia.',
+          actionLabel: 'Ver horarios publicados',
+          onAction: () {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              InstructorDashboardScreen.routeName,
+              (route) => false,
+              arguments: {'initialIndex': 1},
+            );
           },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Completar'),
         ),
-      ],
+      );
+    }
+
+    return Center(
+      child: AppEmptyState(
+        icon: Icons.history_rounded,
+        title: 'Historial vacío',
+        subtitle:
+            'Cuando completes o canceles clases, vas a ver el registro acá.',
+      ),
     );
   }
 }

@@ -1,109 +1,190 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:async';
 import 'dart:developer' as developer;
 
-const storage = FlutterSecureStorage();
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
+import 'package:manejapp/config/firebase_runtime_options.dart';
+import 'package:manejapp/screens/instructor_onboarding_hub_screen.dart';
+import 'package:manejapp/screens/instructor_reservation_detail_screen.dart';
+import 'package:manejapp/screens/student_reservation_detail_screen.dart';
+
+import 'api_service.dart';
+import 'session_manager.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (Firebase.apps.isEmpty && FirebaseRuntimeOptions.isConfigured) {
+    await FirebaseRuntimeOptions.initialize();
+  }
+}
 
 class NotificationService {
-  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  NotificationService._();
+
   static bool _initialized = false;
+  static bool _available = false;
+  static GlobalKey<NavigatorState>? _navigatorKey;
+  static RemoteMessage? _launchMessage;
+  static StreamSubscription<String>? _tokenRefreshSubscription;
+  static StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  static StreamSubscription<RemoteMessage>? _openedSubscription;
+
+  static bool get isAvailable => _available;
+
+  static void attachNavigator(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+  }
 
   static Future<void> initialize() async {
     if (_initialized) return;
+    _initialized = true;
+    if (!FirebaseRuntimeOptions.isConfigured) {
+      developer.log(
+        'Firebase no configurado para esta plataforma.',
+        name: 'NotificationService',
+      );
+      return;
+    }
 
     try {
-      // Solicitar permisos
-      await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
+      await FirebaseRuntimeOptions.initialize();
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      final messaging = FirebaseMessaging.instance;
+      await messaging.setAutoInitEnabled(true);
+      _launchMessage = await messaging.getInitialMessage();
+      _foregroundSubscription =
+          FirebaseMessaging.onMessage.listen(_showForegroundMessage);
+      _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+        (message) => navigateFromData(message.data),
       );
-
-      // Configurar notificaciones locales
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosSettings = DarwinInitializationSettings();
-      const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
-      
-      await _localNotifications.initialize(
-        settings,
-        onDidReceiveNotificationResponse: _onNotificationTap,
+      _tokenRefreshSubscription =
+          messaging.onTokenRefresh.listen((token) async {
+        if (await SessionManager.hasSession) {
+          await ApiService.saveFcmToken(token);
+        }
+      });
+      _available = true;
+    } catch (error, stackTrace) {
+      _available = false;
+      developer.log(
+        'No se pudo iniciar Firebase; las notificaciones quedan deshabilitadas.',
+        name: 'NotificationService',
+        error: error,
+        stackTrace: stackTrace,
       );
-
-      // Obtener token
-      final token = await _messaging.getToken();
-      if (token != null) {
-        developer.log('FCM Token: $token', name: 'NotificationService');
-        await _saveTokenToBackend(token);
-      }
-
-      // Escuchar cambios de token
-      _messaging.onTokenRefresh.listen(_saveTokenToBackend);
-
-      // Manejar mensajes en foreground
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-      // Manejar mensajes cuando la app se abre desde notificación
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
-
-      _initialized = true;
-      developer.log('Notification service initialized', name: 'NotificationService');
-    } catch (e) {
-      developer.log('Error initializing notifications: $e', name: 'NotificationService');
     }
   }
 
-  static Future<void> _saveTokenToBackend(String token) async {
+  static Future<bool> requestPermissionAndRegister() async {
+    if (!_available || !await SessionManager.hasSession) return false;
+    final settings = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+      provisional: false,
+    );
+    if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+        settings.authorizationStatus != AuthorizationStatus.provisional) {
+      return false;
+    }
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null || token.isEmpty) return false;
+    await ApiService.saveFcmToken(token);
+    return true;
+  }
+
+  static Future<void> registerTokenWithBackendIfLoggedIn() async {
     try {
-      await storage.write(key: 'fcm_token', value: token);
-      // Aquí llamarías a tu API para guardar el token
-      // await ApiService.saveNotificationToken(token);
-      developer.log('Token saved: $token', name: 'NotificationService');
-    } catch (e) {
-      developer.log('Error saving token: $e', name: 'NotificationService');
+      await requestPermissionAndRegister();
+    } catch (error, stackTrace) {
+      developer.log(
+        'No se pudo registrar el dispositivo para push.',
+        name: 'NotificationService',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
-  static Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    developer.log('Foreground message: ${message.notification?.title}', name: 'NotificationService');
-    
-    const androidDetails = AndroidNotificationDetails(
-      'manejapp_channel',
-      'ManejApp Notifications',
-      channelDescription: 'Notificaciones de ManejApp',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
-    
-    const iosDetails = DarwinNotificationDetails();
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-    await _localNotifications.show(
-      message.hashCode,
-      message.notification?.title ?? 'ManejApp',
-      message.notification?.body ?? '',
-      details,
-      payload: message.data.toString(),
-    );
+  static Future<void> onLogout() async {
+    if (!_available) return;
+    await ApiService.deleteFcmTokenRemote();
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
   }
 
-  static void _handleMessageOpenedApp(RemoteMessage message) {
-    developer.log('Message opened app: ${message.data}', name: 'NotificationService');
-    // Aquí puedes navegar a una pantalla específica según el tipo de notificación
-  }
-
-  static void _onNotificationTap(NotificationResponse response) {
-    developer.log('Notification tapped: ${response.payload}', name: 'NotificationService');
-    // Manejar tap en notificación
+  static Future<void> consumeLaunchNotification() async {
+    final message = _launchMessage;
+    _launchMessage = null;
+    if (message != null) navigateFromData(message.data);
   }
 
   static Future<String?> getToken() async {
-    return await _messaging.getToken();
+    if (!_available) return null;
+    return FirebaseMessaging.instance.getToken();
   }
 
   static Future<void> deleteToken() async {
-    await _messaging.deleteToken();
-    await storage.delete(key: 'fcm_token');
+    if (_available) await FirebaseMessaging.instance.deleteToken();
+  }
+
+  static void _showForegroundMessage(RemoteMessage message) {
+    final context = _navigatorKey?.currentContext;
+    if (context == null) return;
+    final title = message.notification?.title ?? 'ManejApp';
+    final body = message.notification?.body ?? 'Tenés una actualización';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title\n$body'),
+        action: message.data.isEmpty
+            ? null
+            : SnackBarAction(
+                label: 'Ver',
+                onPressed: () => navigateFromData(message.data),
+              ),
+      ),
+    );
+  }
+
+  static void navigateFromData(Map<String, dynamic> data) {
+    final nav = _navigatorKey?.currentState;
+    if (nav == null) return;
+
+    final type = data['type']?.toString() ?? '';
+    final bookingId = int.tryParse(data['bookingId']?.toString() ?? '');
+
+    if (bookingId != null &&
+        (type == 'student_booking' || data['role']?.toString() == 'STUDENT')) {
+      nav.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              StudentReservationDetailScreen(reservationId: bookingId),
+        ),
+      );
+      return;
+    }
+    if (bookingId != null &&
+        (type == 'instructor_booking' ||
+            data['role']?.toString() == 'INSTRUCTOR')) {
+      nav.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              InstructorReservationDetailScreen(reservationId: bookingId),
+        ),
+      );
+      return;
+    }
+
+    if (type == 'instructor_doc' || type == 'instructor_approved') {
+      nav.pushNamed(InstructorOnboardingHubScreen.routeName);
+    }
+  }
+
+  static Future<void> dispose() async {
+    await _tokenRefreshSubscription?.cancel();
+    await _foregroundSubscription?.cancel();
+    await _openedSubscription?.cancel();
   }
 }

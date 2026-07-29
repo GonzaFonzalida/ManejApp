@@ -269,7 +269,7 @@ Documentación:            100% ✅
 ## 📞 Información de Contacto
 
 ### Soporte Técnico
-- **Email:** soporte@manejapp.com
+- **Email:** soporte@manejapp.app
 - **Documentación:** Ver archivos en `/docs`
 - **Issues:** GitHub Issues (si aplica)
 

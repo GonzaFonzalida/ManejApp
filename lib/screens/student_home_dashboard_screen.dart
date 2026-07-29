@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:manejapp/config/design_system.dart';
 import 'package:manejapp/config/premium_booking_ui.dart';
@@ -34,7 +35,8 @@ class StudentHomeDashboardScreen extends StatefulWidget {
   final ValueChanged<int> onSwitchTab;
 
   @override
-  State<StudentHomeDashboardScreen> createState() => _StudentHomeDashboardScreenState();
+  State<StudentHomeDashboardScreen> createState() =>
+      _StudentHomeDashboardScreenState();
 }
 
 class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
@@ -118,7 +120,8 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
       final prompts = StudentProfileCompletion.promptsFor(profile);
       final prompt = pct < 100 && prompts.isNotEmpty ? prompts.first : null;
 
-      final upcomingRaw = await ApiService.getStudentUpcomingReservationsPremium();
+      final upcomingRaw =
+          await ApiService.getStudentUpcomingReservationsPremium();
       final list = upcomingRaw
           .map((e) => PremiumReservation(Map<String, dynamic>.from(e as Map)))
           .toList();
@@ -186,7 +189,8 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
           await Navigator.push<void>(
             context,
             MaterialPageRoute<void>(
-              builder: (_) => StudentReservationDetailScreen(reservationId: pay.id),
+              builder: (_) =>
+                  StudentReservationDetailScreen(reservationId: pay.id),
             ),
           );
           if (mounted) await _load();
@@ -200,7 +204,8 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
     final pct = _profilePercent;
     if (prompt != null && pct != null) {
       return NextActionCard(
-        priority: pct < 50 ? NextActionPriority.high : NextActionPriority.standard,
+        priority:
+            pct < 50 ? NextActionPriority.high : NextActionPriority.standard,
         icon: Icons.person_outline_rounded,
         statusLabel: '$pct%',
         title: prompt.title,
@@ -231,7 +236,8 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
           await Navigator.push<void>(
             context,
             MaterialPageRoute<void>(
-              builder: (_) => StudentReservationDetailScreen(reservationId: next.id),
+              builder: (_) =>
+                  StudentReservationDetailScreen(reservationId: next.id),
             ),
           );
           if (mounted) await _load();
@@ -262,7 +268,8 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
             controller: _homeSearchController,
             textInputAction: TextInputAction.search,
             onSubmitted: (_) => _openExplore(),
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textPrimary),
+            style:
+                AppTextStyles.bodyNormal.copyWith(color: AppColors.textPrimary),
             decoration: InputDecoration(
               hintText: '¿Dónde o con quién querés aprender a manejar?',
               hintStyle: AppTextStyles.bodyNormal.copyWith(
@@ -271,12 +278,14 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
               ),
               filled: true,
               fillColor: AppColors.surfaceLighter,
-              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
+              prefixIcon:
+                  const Icon(Icons.search_rounded, color: AppColors.primary),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
           ),
           SizedBox(height: AppSpacing.sm),
@@ -368,24 +377,32 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary : AppColors.surfaceLighter,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.primary : Colors.transparent,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Filtro $label',
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: AppMotion.duration(context, AppDurations.fast),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : AppColors.surfaceLighter,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? AppColors.primary : Colors.transparent,
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? AppColors.textInverse : AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.textInverse : AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
           ),
         ),
       ),
@@ -518,7 +535,8 @@ class _StudentHomeDashboardScreenState extends State<StudentHomeDashboardScreen>
                                       _profilePercent! < 100 &&
                                       _profilePrompt == null) ...[
                                     SizedBox(height: AppSpacing.md),
-                                    _ProfileProgressStrip(percent: _profilePercent!),
+                                    _ProfileProgressStrip(
+                                        percent: _profilePercent!),
                                   ],
                                 ]),
                               ),
@@ -646,17 +664,19 @@ class _NextClassHighlight extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                  border:
+                      Border.all(color: statusColor.withValues(alpha: 0.35)),
                 ),
                 child: Text(
                   statusLabel,
                   style: TextStyle(
                     color: statusColor,
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -771,7 +791,8 @@ class _ProfileProgressStrip extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary),
+              Icon(Icons.auto_awesome_rounded,
+                  size: 18, color: AppColors.primary),
               SizedBox(width: AppSpacing.sm),
               Text(
                 'Perfil al $percent%',

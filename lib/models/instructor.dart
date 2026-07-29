@@ -1,35 +1,56 @@
 class Instructor {
   final int id;
-  final String licenseNumber;
+  final String? licenseNumber;
   final int experienceYears;
+  final double? hourlyRate;
   final String? image;
   final double? rating;
   final String? description;
-  // ✅ The user object is now optional to prevent TypeErrors
   final User? user;
+
+  final List<dynamic>? cars;
+  final String? bio;
+
+  /// Cuenta aprobada por la plataforma (documentación revisada).
+  final bool? isValid;
+
+  /// Dirección legible del instructor (si el backend la envía).
+  final String? addressText;
 
   Instructor({
     required this.id,
-    required this.licenseNumber,
+    this.licenseNumber,
     required this.experienceYears,
+    this.hourlyRate,
     this.user,
     this.image,
     this.rating,
     this.description,
+    this.cars,
+    this.bio,
+    this.isValid,
+    this.addressText,
   });
+
+  double get effectiveHourlyRate => hourlyRate ?? user?.hourlyRate ?? 45000.0;
 
   factory Instructor.fromJson(Map<String, dynamic> json) {
     return Instructor(
       id: json['id'] as int,
-      licenseNumber: json['licenseNumber'] as String,
+      licenseNumber: json['licenseNumber'] as String?,
       experienceYears: json['experienceYears'] as int,
-      // ✅ Correctly handles a null or missing 'user' key
+      hourlyRate: (json['hourlyRate'] as num?)?.toDouble(),
       user: json['user'] != null
           ? User.fromJson(json['user'] as Map<String, dynamic>)
           : null,
       rating: (json['rating'] as num?)?.toDouble(),
       image: json['image'] as String?,
       description: json['description'] as String?,
+      bio: json['bio'] as String?,
+      cars: json['cars'] as List<dynamic>?,
+      isValid: json['isValid'] as bool?,
+      addressText:
+          json['addressText'] as String? ?? json['address_text'] as String?,
     );
   }
 }

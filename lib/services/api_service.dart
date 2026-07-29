@@ -1,95 +1,249 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:developer' as developer;
 import 'config_service.dart';
+import 'connectivity_service.dart';
+import 'session_manager.dart';
+import 'auth_http_client.dart';
+import 'secure_storage.dart';
+import 'biometric_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:manejapp/models/payment_status_result.dart';
 
-const storage = FlutterSecureStorage();
+final storage = appSecureStorage;
+
+/// Resultado de [ApiService.register]: [serverMessage] viene del API cuando falta verificación por email.
+typedef RegisterResult = ({String userId, String? serverMessage});
 
 class ApiService {
   static String get _baseUrl => '${ConfigService.baseUrl}/api/v1';
-
-
+  static String get baseUrl => _baseUrl;
+  static const Duration _locationSearchTimeout = Duration(seconds: 2);
+  static const Duration _locationSearchCacheTtl = Duration(minutes: 3);
+  static final Map<String, _LocationCacheEntry> _locationSearchCache = {};
+  static final Map<String, Future<List<Map<String, String>>>>
+      _locationSearchInFlight = {};
 
   // ===========================
   // USERS / AUTH
   // ===========================
 
-  static Future<String> register(
+  /// POST /users/register. No retry (evita doble 409). 409 = usuario ya existe → intenta login y devuelve userId.
+  static Future<RegisterResult> register(
     String name,
     String surname,
     String email,
     String password,
     String dni,
-    String birthDate,
-  ) async {
+    String birthDate, {
+    String? phoneNumber,
+    String? location,
+  }) async {
     final userAgent = 'Flutter-Mobile-App/1.0';
     final deviceId = 'flutter-mobile-app';
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/users/register'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(<String, dynamic>{
-        'name': name,
-        'surname': surname,
-        'email': email,
-        'password': password,
-        'dni': dni,
-        'birthDate': birthDate,
-        'userAgent': userAgent,
-        'deviceId': deviceId,
-      }),
+    try {
+      developer.log(
+          'register: POST $_baseUrl/users/register (single attempt, no retry)',
+          name: 'ApiService');
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/users/register'),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(<String, dynamic>{
+              'name': name,
+              'surname': surname,
+              'email': email,
+              'password': password,
+              'dni': dni,
+              'birthDate': birthDate,
+              'userAgent': userAgent,
+              'deviceId': deviceId,
+              if (phoneNumber != null && phoneNumber.isNotEmpty)
+                'phoneNumber': phoneNumber,
+              if (location != null && location.isNotEmpty) 'location': location,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      developer.log('register: status=${response.statusCode}',
+          name: 'ApiService');
+
+      Map<String, dynamic>? data;
+      try {
+        data = jsonDecode(response.body) as Map<String, dynamic>?;
+      } catch (_) {
+        throw Exception(
+            'Respuesta inválida del servidor. ¿Está el backend en $_baseUrl?');
+      }
+
+      if (response.statusCode == 201 && data != null) {
+        String? userId;
+        final tokenData = data['token'];
+        if (tokenData is Map<String, dynamic>) {
+          userId = tokenData['id']?.toString();
+        }
+
+        await storage.write(key: 'temp_email', value: email);
+        await storage.write(key: 'temp_password', value: password);
+
+        if (userId == null || userId.isEmpty) {
+          throw Exception('Error: userId no encontrado en la respuesta.');
+        }
+
+        await storage.write(key: 'user_id', value: userId);
+
+        await _establishSessionAfterRegister(
+          email: email,
+          password: password,
+          userId: userId,
+          registerData: data,
+        );
+
+        final serverMessage = data['message'] as String?;
+        return (userId: userId, serverMessage: serverMessage);
+      }
+
+      if (response.statusCode == 409) {
+        developer.log(
+            'register: 409 Conflict - usuario ya existe, intentando login',
+            name: 'ApiService');
+        try {
+          final loginResult = await login(email, password);
+          final userId = loginResult['userId']?.toString();
+          if (userId != null && userId.isNotEmpty) {
+            await storage.write(key: 'temp_email', value: email);
+            await storage.write(key: 'temp_password', value: password);
+            return (userId: userId, serverMessage: null);
+          }
+        } catch (loginErr) {
+          developer.log('register: login después de 409 falló: $loginErr',
+              name: 'ApiService');
+        }
+        throw Exception(
+            'Este usuario ya existe. Iniciá sesión con tu email y contraseña.');
+      }
+
+      final message = data?['message'] ??
+          data?['error'] ??
+          'Error de registro (${response.statusCode})';
+      throw Exception(message);
+    } on http.ClientException catch (e) {
+      developer.log('ClientException en register: $e', name: 'ApiService');
+      throw Exception(ConnectivityService.connectionErrorMessage);
+    } on Exception catch (e) {
+      if (e.toString().contains('connection') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
+        throw Exception(ConnectivityService.connectionErrorMessage);
+      }
+      rethrow;
+    }
+  }
+
+  /// Same persistence path as [login] / Google / Apple.
+  static Future<Map<String, dynamic>> _persistAuthResponse(
+    Map<String, dynamic> data, {
+    required String email,
+  }) async {
+    final accessToken = data['accessToken'] as String?;
+    final refreshToken = data['refreshToken'] as String?;
+    final user = data['user'] as Map<String, dynamic>?;
+    final userId = user?['id']?.toString();
+    final sessionData = data['session'] as Map<String, dynamic>?;
+
+    if (accessToken == null || userId == null) {
+      throw Exception('Error: token o userId no encontrado en la respuesta.');
+    }
+
+    await SessionManager.saveSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken ?? '',
+      userId: userId,
+      email: email,
+      session: sessionData,
     );
 
-    if (response.statusCode == 201) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      String? userId;
+    return {
+      'token': accessToken,
+      'userId': userId,
+      'refreshToken': refreshToken,
+      'session': sessionData,
+      'user': user,
+    };
+  }
 
-      final tokenData = data['token'] as Map<String, dynamic>?;
-      userId = tokenData?['id']?.toString();
+  /// POST /users/register returns accessToken only in some environments and never
+  /// returns refresh/session today. Align with login by completing via /auth/login.
+  static Future<void> _establishSessionAfterRegister({
+    required String email,
+    required String password,
+    required String userId,
+    required Map<String, dynamic> registerData,
+  }) async {
+    final accessToken = registerData['accessToken'] as String?;
+    if (accessToken == null || accessToken.isEmpty) return;
 
-      await storage.write(key: 'temp_email', value: email);
-      await storage.write(key: 'temp_password', value: password);
+    final refreshToken = registerData['refreshToken'] as String?;
+    final sessionData = registerData['session'] as Map<String, dynamic>?;
 
-      if (userId != null) {
-        await storage.write(key: 'user_id', value: userId);
-      } else {
-        throw Exception('Error: userId no encontrado en la respuesta.');
-      }
-      return userId;
-    } else {
-      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-      final message = errorData?['message'] ?? 'Error de registro desconocido';
-      throw Exception(message);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await SessionManager.saveSession(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        userId: userId,
+        email: email,
+        session: sessionData,
+      );
+      return;
+    }
+
+    try {
+      await login(email, password);
+    } catch (e) {
+      developer.log(
+        'register: login after accessToken failed, saving access-only session: $e',
+        name: 'ApiService',
+      );
+      await SessionManager.saveSession(
+        accessToken: accessToken,
+        refreshToken: '',
+        userId: userId,
+        email: email,
+        session: sessionData,
+      );
     }
   }
 
   static Future<void> completeRegistration(
     String userId,
     String role, {
-    String? licenceNumber,
     int? experienceYears,
     int? carId,
+    required String whatsappNumber,
   }) async {
     developer.log('=== COMPLETE REGISTRATION ===', name: 'ApiService');
     developer.log('userId: $userId, role: $role', name: 'ApiService');
-    
-    if (role == 'Instructor') {
-      final data = {
-        'userId': int.parse(userId),
-        'licenseNumber': licenceNumber,
+
+    if (role.toUpperCase() == 'INSTRUCTOR') {
+      if (experienceYears == null) {
+        throw Exception('experienceYears: requerido');
+      }
+
+      final data = <String, dynamic>{
         'experienceYears': experienceYears,
+        'whatsappNumber': whatsappNumber,
       };
-      final response = await http.post(
+      final response = await AuthHttpClient.post(
         Uri.parse('$_baseUrl/instructors/register'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
         },
         body: jsonEncode(data),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 201) {
         final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
@@ -97,8 +251,126 @@ class ApiService {
             errorData?['message'] ?? 'Error al registrar instructor';
         throw Exception(message);
       }
+    } else {
+      await updateMyWhatsApp(whatsappNumber);
     }
-    // Para estudiantes no se hace nada, el backend los crea automáticamente al reservar
+    // La fila Student se crea durante el alta y también se asegura al reservar.
+  }
+
+  /// PATCH /users/me/whatsapp — guarda un número internacional normalizado.
+  static Future<String> updateMyWhatsApp(String whatsappNumber) async {
+    final response = await AuthHttpClient.patch(
+      Uri.parse('$_baseUrl/users/me/whatsapp'),
+      body: jsonEncode(<String, dynamic>{'whatsappNumber': whatsappNumber}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['data']?['phoneNumber']?.toString() ?? whatsappNumber;
+    }
+    final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+    throw Exception(
+      errorData?['message'] ??
+          errorData?['error'] ??
+          'No pudimos guardar tu WhatsApp',
+    );
+  }
+
+  /// Completa una única vez la identidad real de cuentas creadas con Google/Apple.
+  static Future<void> updateMyIdentity({
+    required String dni,
+    required String birthDate,
+  }) async {
+    final response = await AuthHttpClient.patch(
+      Uri.parse('$_baseUrl/users/me/identity'),
+      body: jsonEncode(<String, dynamic>{
+        'dni': dni,
+        'birthDate': birthDate,
+      }),
+    );
+    if (response.statusCode == 200) return;
+    final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+    throw Exception(
+      errorData?['message'] ??
+          errorData?['error'] ??
+          'No pudimos validar tus datos personales',
+    );
+  }
+
+  /// PATCH /users/student-profile — actualiza nivel de experiencia (1–5). Requiere rol STUDENT.
+  static Future<void> patchStudentProfile(int experienceLevel) async {
+    if (experienceLevel < 1 || experienceLevel > 5) {
+      throw Exception('Nivel de experiencia inválido');
+    }
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http
+        .patch(
+          Uri.parse('$_baseUrl/users/student-profile'),
+          headers: <String, String>{
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Authorization': 'Bearer $token',
+          },
+          body:
+              jsonEncode(<String, dynamic>{'experienceLevel': experienceLevel}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) return;
+
+    try {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      final message = errorData?['message']?.toString() ??
+          errorData?['error']?.toString() ??
+          'Error al guardar nivel de experiencia (${response.statusCode})';
+      throw Exception(message);
+    } catch (_) {
+      throw Exception(
+          'Error al guardar nivel de experiencia (${response.statusCode})');
+    }
+  }
+
+  /// PUT /instructors/me (auth required, INSTRUCTOR only)
+  static Future<Map<String, dynamic>> updateInstructorMe(
+      Map<String, dynamic> data) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final url = Uri.parse('$_baseUrl/instructors/me');
+    developer.log('updateInstructorMe - url=$url data=${jsonEncode(data)}',
+        name: 'ApiService');
+
+    final response = await http
+        .put(
+          url,
+          headers: <String, String>{
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(data),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    Map<String, dynamic>? err;
+    try {
+      err = jsonDecode(response.body) as Map<String, dynamic>?;
+    } catch (_) {}
+
+    if (response.statusCode == 422) {
+      final missing = err?['missing'];
+      final base = err?['message']?.toString() ?? 'Requisitos incompletos';
+      if (missing is List && missing.isNotEmpty) {
+        throw Exception('$base: ${missing.join(', ')}');
+      }
+      throw Exception(base);
+    }
+
+    throw Exception(err?['message'] ??
+        'Error actualizando instructor (HTTP ${response.statusCode})');
   }
 
   static Future<List<dynamic>> getCars() async {
@@ -121,28 +393,47 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getInstructors() async {
+  static Future<List<dynamic>> getInstructors({
+    double? minPrice,
+    double? maxPrice,
+    String? transmission,
+    bool? hasAvailability,
+  }) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
     }
 
+    final queryParams = <String, String>{};
+    if (minPrice != null) queryParams['minPrice'] = minPrice.toString();
+    if (maxPrice != null) queryParams['maxPrice'] = maxPrice.toString();
+    if (transmission != null) queryParams['transmission'] = transmission;
+    if (hasAvailability == true) queryParams['hasAvailability'] = 'true';
+
+    final uri = queryParams.isEmpty
+        ? Uri.parse('$_baseUrl/instructors')
+        : Uri.parse('$_baseUrl/instructors')
+            .replace(queryParameters: queryParams);
+
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/instructors'),
+      final response = await ConnectivityService.getWithRetry(
+        uri,
         headers: <String, String>{
           'Authorization': 'Bearer $token',
         },
-      ).timeout(const Duration(seconds: 10));
+      );
 
-      developer.log('getInstructors - Status: ${response.statusCode}', name: 'ApiService');
-      developer.log('getInstructors - Body: ${response.body}', name: 'ApiService');
+      developer.log('getInstructors - Status: ${response.statusCode}',
+          name: 'ApiService');
+      developer.log('getInstructors - Body: ${response.body}',
+          name: 'ApiService');
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as List<dynamic>;
       } else {
         final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-        final message = errorData?['message'] ?? 'Error al obtener instructores';
+        final message =
+            errorData?['message'] ?? 'Error al obtener instructores';
         throw Exception(message);
       }
     } catch (e) {
@@ -152,27 +443,30 @@ class ApiService {
   }
 
   // ✅ Actualizar perfil de instructor usando PUT /instructors/:id
-  static Future<void> updateProfile(String userId, Map<String, dynamic> data) async {
+  static Future<void> updateProfile(
+      String userId, Map<String, dynamic> data) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
     }
 
-    developer.log('updateProfile - userId: $userId, data: $data', name: 'ApiService');
+    developer.log('updateProfile - userId: $userId, data: $data',
+        name: 'ApiService');
 
     // Obtener el instructor ID basado en el userId
     final instructors = await getInstructors();
     final instructor = instructors.firstWhere(
       (inst) => inst['userId'].toString() == userId,
-      orElse: () => throw Exception('Instructor no encontrado para userId: $userId'),
+      orElse: () =>
+          throw Exception('Instructor no encontrado para userId: $userId'),
     );
-    
+
     final instructorId = instructor['id'].toString();
     final url = '$_baseUrl/instructors/$instructorId';
-    
+
     developer.log('Actualizando instructor - URL: $url', name: 'ApiService');
     developer.log('Datos: ${jsonEncode(data)}', name: 'ApiService');
-    
+
     final response = await http.put(
       Uri.parse(url),
       headers: <String, String>{
@@ -181,8 +475,9 @@ class ApiService {
       },
       body: jsonEncode(data),
     );
-    
-    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
+
+    developer.log('Response status: ${response.statusCode}',
+        name: 'ApiService');
     developer.log('Response body: ${response.body}', name: 'ApiService');
 
     if (response.statusCode != 200) {
@@ -190,283 +485,351 @@ class ApiService {
       final message = errorData?['message'] ?? 'Error al actualizar el perfil';
       throw Exception(message);
     }
-
-
   }
 
-  static Future<Map<String, dynamic>> reserveClass(String instructorId, Map<String, dynamic> reservationData) async {
+  static Future<void> uploadInstructorDocument(
+      String documentType, XFile imageFile) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final bytes = await imageFile.readAsBytes();
+    final base64Image = base64Encode(bytes);
+
+    String? mimeType = imageFile.mimeType;
+    if (mimeType == null || mimeType.isEmpty) {
+      final name = imageFile.name.toLowerCase();
+      if (name.endsWith('.jpg') || name.endsWith('.jpeg')) {
+        mimeType = 'image/jpeg';
+      } else if (name.endsWith('.png')) {
+        mimeType = 'image/png';
+      } else if (name.endsWith('.webp')) {
+        mimeType = 'image/webp';
+      } else if (name.endsWith('.pdf')) {
+        mimeType = 'application/pdf';
+      }
+    }
+
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/instructors/me/documents'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'documentType': documentType,
+            'image': base64Image,
+            'mimeType': mimeType,
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al subir el documento');
+      } catch (_) {
+        throw Exception('Error al subir el documento: ${response.body}');
+      }
+    }
+  }
+
+  /// Reserva un slot vía POST /schedule/reserve/:slotId (flujo unificado con slots).
+  static Future<Map<String, dynamic>> reserveSlotBySlotId(String slotId) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
     }
 
-    // 1) Obtener userId del storage o decodificar desde el JWT como fallback
-    String? userId = await storage.read(key: 'user_id');
-    if (userId == null || userId.isEmpty) {
-      try {
-        if (token.contains('.')) {
-          final parts = token.split('.');
-          if (parts.length == 3) {
-            final payload = parts[1];
-            final normalized = base64Url.normalize(payload);
-            final decoded = utf8.decode(base64Url.decode(normalized));
-            final payloadData = jsonDecode(decoded) as Map<String, dynamic>;
-            userId = payloadData['id']?.toString() ??
-                payloadData['userId']?.toString() ??
-                payloadData['sub']?.toString();
-          }
-        }
-      } catch (_) {
-        // noop: fallback podría fallar
-      }
-    }
-
-    if (userId == null || userId.isEmpty) {
-      throw Exception('Sesión inválida. Inicia sesión nuevamente.');
-    }
-
-    // Helper para reservar
-    Future<http.Response> doReserve({bool includeStudentId = true}) {
-      // Normalizar hora a HH:mm:ss si viene en HH:mm
-      final String rawTime = reservationData['time']?.toString() ?? '';
-      final String timeStr = RegExp(r'^\d{2}:\d{2}$').hasMatch(rawTime) ? '$rawTime:00' : rawTime;
-
-      final payload = {
-        'instructorId': int.parse(instructorId),
-        if (includeStudentId) 'studentId': int.parse(userId!),
-        'date': reservationData['date'],
-        'time': timeStr,
-        'duration': 60,
-        'status': 'scheduled',
-      };
-
-      return http.post(
-        Uri.parse('$_baseUrl/classes'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(payload),
-      );
-    }
-
-    http.Response response = await doReserve();
-    developer.log('reserveClass first attempt status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
-
-    // 2) Si el backend indica que el estudiante no existe, forzar upsert del Student (PATCH role) y reintentar una vez
-    if (response.statusCode >= 400) {
-      try {
-        String extractErrorText(String body) {
-          try {
-            final parsed = jsonDecode(body);
-            if (parsed is Map<String, dynamic>) {
-              final parts = <String>[];
-              void collect(dynamic v) {
-                if (v == null) return;
-                if (v is String) parts.add(v);
-                if (v is Map) {
-                  for (final e in v.entries) {
-                    collect(e.value);
-                  }
-                }
-                if (v is List) {
-                  for (final item in v) {
-                    collect(item);
-                  }
-                }
-              }
-
-              // Campos típicos
-              collect(parsed['message']);
-              collect(parsed['error']);
-              collect(parsed['detail']);
-              collect(parsed['details']);
-              collect(parsed['errors']);
-              collect(parsed['code']);
-              // Todo el objeto por si el mensaje está anidado
-              collect(parsed);
-              return parts.join(' | ');
-            }
-            return body;
-          } catch (_) {
-            return body;
-          }
-        }
-
-        final raw = response.body;
-        final errText = extractErrorText(raw).toLowerCase();
-
-        final isStudentMissing =
-            (errText.contains('estudiante') && (errText.contains('no existe') || errText.contains('no encontrado') || errText.contains('inexist'))) ||
-            errText.contains('student not found') ||
-            errText.contains('student does not exist') ||
-            errText.contains('student not exist') ||
-            errText.contains('student_missing') ||
-            (errText.contains('student') && (errText.contains('exist') || (errText.contains('not') && errText.contains('found'))));
-
-        if (isStudentMissing) {
-          developer.log('Student missing, retrying without studentId', name: 'ApiService');
-          await Future.delayed(const Duration(milliseconds: 300));
-          response = await doReserve(includeStudentId: false);
-          developer.log('reserveClass retry status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
-
-          // Si aún falla por estudiante inexistente, intento final sin studentId (que lo infiera el backend)
-          if (response.statusCode >= 400) {
-            final retryRaw = response.body;
-            final retryErr = extractErrorText(retryRaw).toLowerCase();
-            final stillMissing =
-                (retryErr.contains('estudiante') && (retryErr.contains('no existe') || retryErr.contains('no encontrado') || retryErr.contains('inexist'))) ||
-                retryErr.contains('student not found') ||
-                retryErr.contains('student does not exist') ||
-                retryErr.contains('student not exist') ||
-                retryErr.contains('student_missing') ||
-                (retryErr.contains('student') && (retryErr.contains('exist') || (retryErr.contains('not') && retryErr.contains('found'))));
-
-            if (stillMissing) {
-              developer.log('Still missing, final attempt', name: 'ApiService');
-            }
-          }
-        }
-      } catch (_) {
-        // Si algo falla en el intento de recuperación, se maneja abajo
-      }
-    }
+    final response = await ConnectivityService.postWithRetry(
+      Uri.parse('$_baseUrl/schedule/reserve/$slotId'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: '{}',
+      timeout: const Duration(seconds: 15),
+    );
 
     if (response.statusCode == 201 || response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      // Handle ResponseFormatter: check if 'data' wrapper exists
+      if (jsonResponse.containsKey('data') && jsonResponse['data'] is Map) {
+        return jsonResponse['data'] as Map<String, dynamic>;
+      }
+      return jsonResponse;
     } else {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
       final message = errorData?['message'] ?? 'Error al reservar la clase';
-      developer.log('reserveClass final failure status: ${response.statusCode}, body: ${response.body}', name: 'ApiService');
       throw Exception('$message (HTTP ${response.statusCode})');
     }
   }
 
-  static Future<Map<String, dynamic>> login(String email, String password) async {
-    final userAgent = 'Flutter-Mobile-App/1.0';
+  static Future<BookingPaymentPreference> createBookingPaymentPreference(
+      int bookingId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) {
+      throw Exception('No hay token de autenticación disponible.');
+    }
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/auth/login'),
+    final response = await ConnectivityService.postWithRetry(
+      Uri.parse('$_baseUrl/payments/booking/$bookingId/preference'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
-        'User-Agent': userAgent,
+        'Authorization': 'Bearer $token',
       },
-      body: jsonEncode(<String, dynamic>{
-        'email': email,
-        'password': password,
-        'userAgent': userAgent,
-        'deviceId': 'flutter-mobile-app',
-      }),
+      body: '{}',
+      timeout: const Duration(seconds: 15),
     );
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      Map<String, dynamic> data = jsonResponse;
+      if (jsonResponse.containsKey('data') && jsonResponse['data'] is Map) {
+        data = jsonResponse['data'] as Map<String, dynamic>;
+      }
+
+      final initPoint = data['initPoint']?.toString() ??
+          data['sandbox_init_point']?.toString() ??
+          '';
+      if (initPoint.isEmpty) {
+        throw Exception('No se recibió la URL de pago (initPoint)');
+      }
+
+      return BookingPaymentPreference(
+        initPoint: initPoint,
+        preferenceId: data['preferenceId']?.toString(),
+      );
+    }
+
+    try {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+      final message = errorData['message']?.toString() ??
+          'Error al crear preferencia de pago';
+      final code = errorData['code']?.toString();
+      if (code != null && code.isNotEmpty) {
+        throw Exception('$message [code:$code]');
+      }
+      throw Exception('$message (HTTP ${response.statusCode})');
+    } catch (e) {
+      if (e is Exception && e.toString().contains('[code:')) rethrow;
+      throw Exception(
+          'Error al crear preferencia de pago (HTTP ${response.statusCode})');
+    }
+  }
+
+  static Future<String> createPreferenceForBooking(int bookingId) async {
+    final preference = await createBookingPaymentPreference(bookingId);
+    return preference.initPoint;
+  }
+
+  static Future<Map<String, dynamic>> loginWithGoogle(String idToken) async {
+    final response = await ConnectivityService.postWithRetry(
+      Uri.parse('$_baseUrl/auth/google'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8'
+      },
+      body: jsonEncode({'idToken': idToken}),
+      timeout: const Duration(seconds: 15),
+    );
+    if (response.statusCode != 200) {
+      final err = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(err?['message'] ?? 'Error al iniciar sesión con Google');
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final accessToken = data['accessToken'] as String?;
+    final refreshToken = data['refreshToken'] as String?;
+    final user = data['user'] as Map<String, dynamic>?;
+    final userId = user?['id']?.toString();
+    final sessionData = data['session'] as Map<String, dynamic>?;
+
+    if (accessToken == null || userId == null || user == null) {
+      throw Exception('Respuesta inválida del servidor');
+    }
+
+    await SessionManager.saveSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken ?? '',
+      userId: userId,
+      email: user['email']?.toString() ?? '',
+      session: sessionData,
+    );
+
+    return {
+      'token': accessToken,
+      'userId': userId,
+      'refreshToken': refreshToken,
+      'user': user,
+      'session': sessionData,
+    };
+  }
+
+  /// POST /auth/apple — Sign in with Apple (iOS). Misma sesión que login/password y Google.
+  static Future<Map<String, dynamic>> loginWithApple({
+    required String identityToken,
+    required String rawNonce,
+    String? givenName,
+    String? familyName,
+  }) async {
+    final body = <String, dynamic>{
+      'identityToken': identityToken,
+      'rawNonce': rawNonce,
+      if (givenName != null && givenName.isNotEmpty) 'givenName': givenName,
+      if (familyName != null && familyName.isNotEmpty) 'familyName': familyName,
+    };
+
+    final response = await ConnectivityService.postWithRetry(
+      Uri.parse('$_baseUrl/auth/apple'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8'
+      },
+      body: jsonEncode(body),
+      timeout: const Duration(seconds: 15),
+    );
+
+    if (response.statusCode != 200) {
+      final err = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(err?['message'] ?? 'Error al iniciar sesión con Apple');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final accessToken = data['accessToken'] as String?;
+    final refreshToken = data['refreshToken'] as String?;
+    final user = data['user'] as Map<String, dynamic>?;
+    final userId = user?['id']?.toString();
+    final sessionData = data['session'] as Map<String, dynamic>?;
+
+    if (accessToken == null || userId == null || user == null) {
+      throw Exception('Respuesta inválida del servidor');
+    }
+
+    final email = user['email']?.toString() ?? '';
+
+    await SessionManager.saveSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken ?? '',
+      userId: userId,
+      email: email,
+      session: sessionData,
+    );
+
+    return {
+      'token': accessToken,
+      'userId': userId,
+      'refreshToken': refreshToken,
+      'user': user,
+      'session': sessionData,
+    };
+  }
+
+  static Future<Map<String, dynamic>> login(
+      String email, String password) async {
+    final userAgent = 'Flutter-Mobile-App/1.0';
+
+    http.Response response;
+    try {
+      response = await ConnectivityService.postWithRetry(
+        Uri.parse('$_baseUrl/auth/login'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+          'User-Agent': userAgent,
+        },
+        body: jsonEncode(<String, dynamic>{
+          'email': email,
+          'password': password,
+          'userAgent': userAgent,
+          'deviceId': 'flutter-mobile-app',
+        }),
+        timeout: const Duration(seconds: 15),
+      );
+    } on http.ClientException catch (_) {
+      throw Exception(ConnectivityService.connectionErrorMessage);
+    } on Exception catch (e) {
+      if (e.toString().contains('connection') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
+        throw Exception(ConnectivityService.connectionErrorMessage);
+      }
+      rethrow;
+    }
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      developer.log('Login response: $data', name: 'ApiService');
-
-      String? accessToken;
-      String? userId;
-      String? refreshToken;
-      Map<String, dynamic>? sessionData;
-
-      // Try different response formats
-      if (data['token'] is Map<String, dynamic>) {
-        final tokenData = data['token'] as Map<String, dynamic>;
-        userId = tokenData['id']?.toString() ?? tokenData['userId']?.toString();
-        accessToken = tokenData['token']?.toString() ?? tokenData['accessToken']?.toString() ?? data['accessToken'] as String?;
-        refreshToken = tokenData['refreshToken']?.toString() ?? data['refreshToken'] as String?;
-      } else if (data['data'] is Map<String, dynamic>) {
-        // Handle nested data structure
-        final nestedData = data['data'] as Map<String, dynamic>;
-        accessToken = nestedData['token']?.toString() ?? nestedData['accessToken']?.toString() ?? data['accessToken'] as String?;
-        refreshToken = nestedData['refreshToken']?.toString() ?? data['refreshToken'] as String?;
-        userId = nestedData['userId']?.toString() ?? nestedData['id']?.toString() ?? nestedData['user']?['id']?.toString();
-      } else {
-        // Direct response format
-        accessToken = data['accessToken'] as String? ?? data['token'] as String?;
-        refreshToken = data['refreshToken'] as String?;
-        final user = data['user'] as Map<String, dynamic>? ?? {};
-        userId = user['id']?.toString() ?? data['userId']?.toString() ?? data['id']?.toString();
-
-        // Try to extract from JWT if available
-        if (userId == null && accessToken != null && accessToken.contains('.')) {
-          try {
-            final parts = accessToken.split('.');
-            if (parts.length == 3) {
-              final payload = parts[1];
-              final normalized = base64Url.normalize(payload);
-              final decoded = utf8.decode(base64Url.decode(normalized));
-              final payloadData = jsonDecode(decoded) as Map<String, dynamic>;
-              userId = payloadData['id']?.toString() ?? payloadData['userId']?.toString() ?? payloadData['sub']?.toString();
-            }
-          } catch (e) {
-            developer.log('Error parsing JWT: $e', name: 'ApiService');
-          }
-        }
-      }
-
-      // Handle session data
-      if (data['session'] is Map<String, dynamic>) {
-        sessionData = data['session'] as Map<String, dynamic>;
-      } else if (data['data']?['session'] is Map<String, dynamic>) {
-        sessionData = data['data']['session'] as Map<String, dynamic>;
-      }
-
-      developer.log('Parsed - Token: ${accessToken != null ? "present" : "null"}, UserId: ${userId != null ? "present" : "null"}', name: 'ApiService');
-
-      if (accessToken != null && userId != null) {
-        await storage.write(key: 'auth_token', value: accessToken);
-        await storage.write(key: 'user_id', value: userId);
-        await storage.write(key: 'user_email', value: email);
-        if (refreshToken != null) {
-          await storage.write(key: 'refresh_token', value: refreshToken);
-        }
-        if (sessionData != null) {
-          await storage.write(key: 'session_data', value: jsonEncode(sessionData));
-        }
-        return {
-          'token': accessToken,
-          'userId': userId,
-          'refreshToken': refreshToken,
-          'session': sessionData
-        };
-      } else {
-        developer.log('Login failed - Missing data. Response keys: ${data.keys.toList()}', name: 'ApiService');
-        throw Exception('Error: token o userId no encontrado en la respuesta. Respuesta: ${data.keys.join(", ")}');
+      try {
+        return await _persistAuthResponse(data, email: email);
+      } catch (_) {
+        developer.log(
+            'Login failed - Missing data. Keys: ${data.keys.toList()}',
+            name: 'ApiService');
+        rethrow;
       }
     } else {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-      final message = errorData?['message'] ?? 'Credenciales incorrectas';
+      final message = errorData?['message'] ??
+          errorData?['error'] ??
+          'Credenciales incorrectas';
       throw Exception(message);
     }
   }
 
   static Future<Map<String, dynamic>> getUserProfile(String userId) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) {
-      throw Exception('No hay token de autenticación disponible.');
-    }
-
     final url = '$_baseUrl/users/$userId';
     try {
-      final response = await http.get(
+      final response = await AuthHttpClient.get(
         Uri.parse(url),
-        headers: <String, String>{
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+        timeout: const Duration(seconds: 10),
+      );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
-      } else {
-        throw Exception('Error al obtener el perfil del usuario');
       }
+      if (response.statusCode == 401) {
+        throw const SessionExpiredException();
+      }
+      throw Exception('Error al obtener el perfil del usuario');
     } catch (e) {
+      if (e is SessionExpiredException) rethrow;
       developer.log('Error en getUserProfile: $e', name: 'ApiService');
-      throw Exception('No se pudo conectar al servidor. Verifica tu conexión.');
+      throw Exception('No se pudo conectar al servidor. Verificá tu conexión.');
     }
   }
 
-  static Future<Map<String, dynamic>> updateUser(String userId, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    final response = await ConnectivityService.postWithRetry(
+      Uri.parse('$_baseUrl/users/forgot-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8'
+      },
+      body: jsonEncode({'email': email}),
+      timeout: const Duration(seconds: 15),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    final err = jsonDecode(response.body) as Map<String, dynamic>?;
+    throw Exception(err?['message'] ?? 'Error al solicitar recuperación');
+  }
+
+  static Future<Map<String, dynamic>> resetPassword(
+      String token, String newPassword) async {
+    final response = await ConnectivityService.postWithRetry(
+      Uri.parse('$_baseUrl/users/reset-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8'
+      },
+      body: jsonEncode({'token': token, 'newPassword': newPassword}),
+      timeout: const Duration(seconds: 15),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    final err = jsonDecode(response.body) as Map<String, dynamic>?;
+    throw Exception(err?['message'] ?? 'Error al restablecer contraseña');
+  }
+
+  static Future<Map<String, dynamic>> updateUser(
+      String userId, Map<String, dynamic> data) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) {
       throw Exception('No hay token de autenticación disponible.');
@@ -490,78 +853,185 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> uploadProfileImage(String userId, File imageFile) async {
+  static Future<Map<String, dynamic>> uploadProfileImage(
+      String userId, XFile imageFile) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
-    developer.log('=== UPLOAD IMAGE ===', name: 'ApiService');
-    developer.log('URL: $_baseUrl/users/$userId/upload-profile-image', name: 'ApiService');
-    developer.log('File: ${imageFile.path}', name: 'ApiService');
+    developer.log('=== UPLOAD IMAGE (Base64) ===', name: 'ApiService');
+    developer.log('URL: $_baseUrl/users/$userId/upload-profile-image-base64',
+        name: 'ApiService');
 
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$_baseUrl/users/$userId/upload-profile-image'),
+    final bytes = await imageFile.readAsBytes();
+    final base64Image = base64Encode(bytes);
+
+    String? mimeType = imageFile.mimeType;
+    if (mimeType == null || mimeType.isEmpty) {
+      final name = imageFile.name.toLowerCase();
+      if (name.endsWith('.jpg') || name.endsWith('.jpeg')) {
+        mimeType = 'image/jpeg';
+      } else if (name.endsWith('.png')) {
+        mimeType = 'image/png';
+      } else if (name.endsWith('.webp')) {
+        mimeType = 'image/webp';
+      } else if (name.endsWith('.gif')) {
+        mimeType = 'image/gif';
+      }
+    }
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/$userId/upload-profile-image-base64'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'image': base64Image,
+        'mimeType': mimeType,
+      }),
     );
-    
-    request.headers['Authorization'] = 'Bearer $token';
-    request.files.add(await http.MultipartFile.fromPath('profileImage', imageFile.path));
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    developer.log('Response status: ${response.statusCode}',
+        name: 'ApiService');
 
-    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
-    developer.log('Response body: ${response.body}', name: 'ApiService');
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
+    if (response.statusCode == 200) {
+      final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+      return responseData;
     } else {
-      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-      throw Exception(errorData?['message'] ?? 'Error al subir imagen (${response.statusCode})');
+      developer.log('Response body: ${response.body}', name: 'ApiService');
+      try {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al subir imagen');
+      } catch (_) {
+        throw Exception('Error al subir imagen: ${response.body}');
+      }
     }
   }
 
   static Future<List<Map<String, String>>> searchLocations(String query) async {
-    if (query.length < 3) return [];
-    
-    final url = 'https://nominatim.openstreetmap.org/search?q=$query,Argentina&format=json&limit=5&addressdetails=1';
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'User-Agent': 'ManejApp/1.0'},
-    );
+    final normalized = query.trim().toLowerCase();
+    if (normalized.length < 3) return [];
 
-    if (response.statusCode == 200) {
-      final List<dynamic> results = jsonDecode(response.body);
-      return results.map((r) {
-        final address = r['address'] as Map<String, dynamic>?;
-        final city = address?['city'] ?? address?['town'] ?? address?['village'] ?? '';
-        final state = address?['state'] ?? '';
-        return {
-          'display': '$city, $state',
-          'lat': r['lat'] as String,
-          'lon': r['lon'] as String,
-        };
-      }).toList();
+    final now = DateTime.now();
+    final cached = _locationSearchCache[normalized];
+    if (cached != null && now.isBefore(cached.expiresAt)) {
+      return cached.value;
     }
-    return [];
+
+    final running = _locationSearchInFlight[normalized];
+    if (running != null) {
+      return running;
+    }
+
+    final future = _fetchAndNormalizeLocations(normalized);
+    _locationSearchInFlight[normalized] = future;
+    try {
+      final value = await future;
+      _locationSearchCache[normalized] = _LocationCacheEntry(
+        value: value,
+        expiresAt: now.add(_locationSearchCacheTtl),
+      );
+      return value;
+    } finally {
+      _locationSearchInFlight.remove(normalized);
+    }
   }
 
-  static Future<void> changePassword(String currentPassword, String newPassword) async {
-    final token = await storage.read(key: 'auth_token');
-    final userId = await storage.read(key: 'user_id');
-    if (token == null || userId == null) {
-      throw Exception('No hay sesión activa');
+  static Future<List<Map<String, String>>> _fetchAndNormalizeLocations(
+      String normalizedQuery) async {
+    final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+      'q': normalizedQuery,
+      'countrycodes': 'ar',
+      'format': 'jsonv2',
+      'limit': '8',
+      'addressdetails': '1',
+      'dedupe': '1',
+    });
+
+    final response = await http.get(
+      uri,
+      headers: {'User-Agent': 'ManejApp/1.0'},
+    ).timeout(_locationSearchTimeout);
+
+    if (response.statusCode != 200) {
+      throw Exception('No pudimos buscar ubicaciones ahora.');
     }
 
-    final response = await http.put(
-      Uri.parse('$_baseUrl/users/$userId'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return [];
+
+    final unique = <String, Map<String, String>>{};
+    for (final raw in decoded) {
+      if (raw is! Map<String, dynamic>) continue;
+      final address = raw['address'] as Map<String, dynamic>?;
+      final lat = (raw['lat'] ?? '').toString();
+      final lon = (raw['lon'] ?? '').toString();
+      if (lat.isEmpty || lon.isEmpty) continue;
+
+      final city = _firstNotEmpty([
+        address?['city'],
+        address?['town'],
+        address?['village'],
+        address?['suburb'],
+        address?['neighbourhood'],
+        address?['county'],
+      ]);
+      final state =
+          _firstNotEmpty([address?['state'], address?['state_district']]);
+      final country = _firstNotEmpty([address?['country']]);
+      final displayName = (raw['display_name'] ?? '').toString();
+      final fallbackName = displayName.split(',').first.trim();
+      final main = city.isNotEmpty ? city : fallbackName;
+      if (main.isEmpty) continue;
+
+      final subtitleParts = <String>[];
+      if (state.isNotEmpty &&
+          !state.toLowerCase().contains(main.toLowerCase())) {
+        subtitleParts.add(state);
+      }
+      if (country.isNotEmpty && country.toLowerCase() != 'argentina') {
+        subtitleParts.add(country);
+      }
+      final subtitle = subtitleParts.join(' · ');
+      final display = subtitle.isNotEmpty ? '$main, $state' : main;
+
+      final dedupKey = '${main.toLowerCase()}|${state.toLowerCase()}|$lat|$lon';
+      unique[dedupKey] = {
+        'display': display,
+        'subtitle': subtitle,
+        'lat': lat,
+        'lon': lon,
+      };
+    }
+
+    final list = unique.values.toList();
+    list.sort((a, b) {
+      final da = a['display'] ?? '';
+      final db = b['display'] ?? '';
+      final qa = da.toLowerCase().startsWith(normalizedQuery) ? 0 : 1;
+      final qb = db.toLowerCase().startsWith(normalizedQuery) ? 0 : 1;
+      if (qa != qb) return qa - qb;
+      return da.compareTo(db);
+    });
+
+    return list.take(6).toList();
+  }
+
+  static String _firstNotEmpty(List<dynamic> values) {
+    for (final value in values) {
+      final txt = (value ?? '').toString().trim();
+      if (txt.isNotEmpty) return txt;
+    }
+    return '';
+  }
+
+  static Future<void> changePassword(
+      String currentPassword, String newPassword) async {
+    final response = await AuthHttpClient.patch(
+      Uri.parse('$_baseUrl/users/me/password'),
       body: jsonEncode({
         'currentPassword': currentPassword,
-        'password': newPassword,
+        'newPassword': newPassword,
       }),
     );
 
@@ -572,20 +1042,10 @@ class ApiService {
   }
 
   static Future<void> changeEmail(String newEmail, String password) async {
-    final token = await storage.read(key: 'auth_token');
-    final userId = await storage.read(key: 'user_id');
-    if (token == null || userId == null) {
-      throw Exception('No hay sesión activa');
-    }
-
-    final response = await http.put(
-      Uri.parse('$_baseUrl/users/$userId'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
+    final response = await AuthHttpClient.patch(
+      Uri.parse('$_baseUrl/users/me/email'),
       body: jsonEncode({
-        'email': newEmail,
+        'newEmail': newEmail,
         'password': password,
       }),
     );
@@ -594,105 +1054,221 @@ class ApiService {
       final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
       throw Exception(errorData?['message'] ?? 'Error al cambiar email');
     }
-    
-    await storage.write(key: 'user_email', value: newEmail);
+  }
+
+  // ===========================
+  // NOTIFICACIONES
+  // ===========================
+
+  static Future<void> saveFcmToken(String fcmToken) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) return;
+    final response = await http.post(
+      Uri.parse('$_baseUrl/users/fcm-token'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'fcmToken': fcmToken}),
+    );
+    if (response.statusCode != 200) {
+      developer.log(
+        'saveFcmToken ${response.statusCode} ${response.body}',
+        name: 'ApiService',
+      );
+      throw Exception(
+          'No se pudo registrar el dispositivo para notificaciones');
+    }
+  }
+
+  static Future<void> deleteFcmTokenRemote() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) return;
+    try {
+      await http.delete(
+        Uri.parse('$_baseUrl/users/fcm-token'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+    } catch (e) {
+      developer.log('deleteFcmTokenRemote: $e', name: 'ApiService');
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchNotificationPreferences() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) return null;
+    final response = await http.get(
+      Uri.parse('$_baseUrl/users/notification-preferences'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 200) return null;
+    final body = jsonDecode(response.body);
+    if (body is! Map<String, dynamic>) return null;
+    return body;
+  }
+
+  static Future<void> putNotificationPreferences({
+    required bool emailNotifications,
+    required bool pushNotifications,
+  }) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+    final response = await http.put(
+      Uri.parse('$_baseUrl/users/notification-preferences'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'emailNotifications': emailNotifications,
+        'pushNotifications': pushNotifications,
+      }),
+    );
+    if (response.statusCode != 200) {
+      final err = jsonDecode(response.body);
+      final msg =
+          err is Map ? (err['message'] ?? err['error'])?.toString() : null;
+      throw Exception(msg ?? 'Error al guardar preferencias');
+    }
   }
 
   static Future<void> logout() async {
-    final token = await storage.read(key: 'auth_token');
-
-    if (token != null) {
-      try {
-        await http.post(
-          Uri.parse('$_baseUrl/auth/logout'),
-          headers: <String, String>{
-            'Content-Type': 'application/json; charset=UTF-8',
-            'Authorization': 'Bearer $token',
-          },
-        );
-      } catch (_) {
-        // noop
-      }
-    }
-
-    await storage.delete(key: 'auth_token');
-    await storage.delete(key: 'refresh_token');
-    await storage.delete(key: 'user_id');
-    await storage.delete(key: 'session_id');
-    await storage.delete(key: 'session_created_at');
-    await storage.delete(key: 'session_expires_at');
-    await storage.delete(key: 'session_data');
-    await storage.delete(key: 'temp_email');
-    await storage.delete(key: 'temp_password');
-    await storage.delete(key: 'pending_role');
-    await storage.delete(key: 'pending_licenseNumber');
-    await storage.delete(key: 'pending_experienceYears');
+    await SessionManager.clearSession();
+    await BiometricService.clearPreference();
   }
 
   static Future<Map<String, dynamic>> refreshToken() async {
-    final refreshToken = await storage.read(key: 'refresh_token');
-    if (refreshToken == null) {
-      throw Exception('No hay refresh token disponible');
+    final success = await SessionManager.tryRefresh();
+    if (!success) {
+      throw Exception('La sesión venció. Iniciá sesión nuevamente.');
     }
-
-    final response = await http.post(
-      Uri.parse('$_baseUrl/auth/refresh'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode({'refreshToken': refreshToken}),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final newAccessToken = data['accessToken'] as String?;
-      final newRefreshToken = data['refreshToken'] as String?;
-
-      if (newAccessToken != null) {
-        await storage.write(key: 'auth_token', value: newAccessToken);
-        if (newRefreshToken != null) {
-          await storage.write(key: 'refresh_token', value: newRefreshToken);
-        }
-        return {'token': newAccessToken, 'refreshToken': newRefreshToken};
-      } else {
-        throw Exception('Error: nuevo token no encontrado en respuesta');
-      }
-    } else {
-      await logout();
-      throw Exception('Sesión expirada, por favor inicia sesión nuevamente');
-    }
+    final newToken = await SessionManager.accessToken;
+    final newRefresh = await SessionManager.refreshToken;
+    return {'token': newToken, 'refreshToken': newRefresh};
   }
 
-  static Future<bool> isSessionValid() async {
-    try {
-      final expiresAt = await storage.read(key: 'session_expires_at');
-      if (expiresAt == null) return false;
-      final expiryDate = DateTime.parse(expiresAt);
-      final now = DateTime.now();
-      return now.isBefore(expiryDate);
-    } catch (_) {
-      return false;
-    }
-  }
+  static Future<bool> isSessionValid() => SessionManager.hasSession;
 
-    // ===========================
+  // ===========================
   // AUTH EXTENDED
   // ===========================
 
   static Future<Map<String, dynamic>> getMe() async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
+    if (!await SessionManager.hasSession) {
+      throw const SessionExpiredException('No autenticado');
+    }
 
-    final response = await http.get(
+    final response = await AuthHttpClient.get(
       Uri.parse('$_baseUrl/auth/me'),
-      headers: {'Authorization': 'Bearer $token'},
+      timeout: const Duration(seconds: 10),
     );
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error obteniendo información del usuario');
     }
+    if (response.statusCode == 401) {
+      throw const SessionExpiredException();
+    }
+    throw Exception('Error obteniendo información del usuario');
+  }
+
+  /// POST /users/me/delete-account — anonimización en servidor (no borra historial de clases/pagos).
+  static Future<void> deleteAccount({
+    required String confirmPhrase,
+    String? password,
+  }) async {
+    final url = Uri.parse('$_baseUrl/users/me/delete-account');
+    final payload = <String, dynamic>{
+      'confirmPhrase': confirmPhrase,
+      if (password != null && password.isNotEmpty) 'password': password,
+    };
+    final response = await AuthHttpClient.post(
+      url,
+      body: jsonEncode(payload),
+    );
+    if (response.statusCode == 200) return;
+    String? msg;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        msg = (decoded['message'] ?? decoded['error'])?.toString();
+      }
+    } catch (_) {}
+    throw Exception(msg ?? 'No se pudo eliminar la cuenta');
+  }
+
+  /// GET /instructors/me. Returns full profile if role is INSTRUCTOR.
+  static Future<Map<String, dynamic>?> getInstructorMeOrNull() async {
+    if (!await SessionManager.hasSession) return null;
+
+    final url = Uri.parse('$_baseUrl/instructors/me');
+    try {
+      final response = await AuthHttpClient.get(
+        url,
+        timeout: const Duration(seconds: 10),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      if (response.statusCode == 401) {
+        throw const SessionExpiredException();
+      }
+      return null;
+    } on SessionExpiredException {
+      rethrow;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /instructors/me/mercadopago/connect → authorizationUrl (OAuth MP).
+  static Future<String> getInstructorMercadoPagoConnectUrl() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/instructors/me/mercadopago/connect'),
+      headers: {'Authorization': 'Bearer $token'},
+    ).timeout(const Duration(seconds: 15));
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>?;
+    if (response.statusCode != 200 || body == null) {
+      final msg = body?['error'] ??
+          body?['message'] ??
+          'No se pudo obtener URL de Mercado Pago';
+      throw Exception(msg.toString());
+    }
+
+    final data = body['data'] as Map<String, dynamic>?;
+    final url = data?['authorizationUrl'] as String?;
+    if (url == null || url.isEmpty) {
+      throw Exception('Respuesta inválida del servidor (sin authorizationUrl)');
+    }
+    return url;
+  }
+
+  /// GET /instructors/me/mercadopago/status — sin tokens sensibles.
+  static Future<Map<String, dynamic>> getInstructorMercadoPagoStatus() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/instructors/me/mercadopago/status'),
+      headers: {'Authorization': 'Bearer $token'},
+    ).timeout(const Duration(seconds: 15));
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>?;
+    if (response.statusCode != 200 || body == null) {
+      final msg = body?['error'] ??
+          body?['message'] ??
+          'No se pudo consultar Mercado Pago';
+      throw Exception(msg.toString());
+    }
+
+    final data = body['data'];
+    if (data is Map<String, dynamic>) return data;
+    throw Exception('Respuesta inválida del servidor');
   }
 
   static Future<List<dynamic>> getSessions() async {
@@ -763,7 +1339,8 @@ class ApiService {
   // INSTRUCTORS EXTENDED
   // ===========================
 
-  static Future<void> updateInstructor(String instructorId, Map<String, dynamic> data) async {
+  static Future<void> updateInstructor(
+      String instructorId, Map<String, dynamic> data) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -781,7 +1358,8 @@ class ApiService {
       body: jsonEncode(data),
     );
 
-    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
+    developer.log('Response status: ${response.statusCode}',
+        name: 'ApiService');
     developer.log('Response body: ${response.body}', name: 'ApiService');
 
     if (response.statusCode != 200) {
@@ -794,7 +1372,8 @@ class ApiService {
   // CARS MANAGEMENT
   // ===========================
 
-  static Future<Map<String, dynamic>> createCar(Map<String, dynamic> carData) async {
+  static Future<Map<String, dynamic>> createCar(
+      Map<String, dynamic> carData) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -831,7 +1410,8 @@ class ApiService {
     }
   }
 
-  static Future<void> updateCar(String carId, Map<String, dynamic> carData) async {
+  static Future<void> updateCar(
+      String carId, Map<String, dynamic> carData) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -884,19 +1464,107 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getMyDrivingClasses() async {
+  // ===========================
+  // PREMIUM RESERVATIONS (FASE 2A)
+  // ===========================
+
+  static Future<List<dynamic>> getStudentUpcomingReservationsPremium() async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
     final response = await http.get(
-      Uri.parse('$_baseUrl/classes/my-classes'),
+      Uri.parse('$_baseUrl/classes/student/upcoming'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List<dynamic>;
     } else {
-      throw Exception('Error obteniendo mis clases');
+      throw Exception('Error obteniendo próximas reservas premium de alumno');
+    }
+  }
+
+  static Future<List<dynamic>> getStudentHistoryReservationsPremium() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/student/history'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo historial premium de alumno');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getStudentReservationDetailPremium(
+      String classId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/student/$classId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo detalle premium de alumno');
+    }
+  }
+
+  static Future<List<dynamic>>
+      getInstructorUpcomingReservationsPremium() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/instructor/upcoming'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception(
+          'Error obteniendo próximas reservas premium de instructor');
+    }
+  }
+
+  static Future<List<dynamic>> getInstructorHistoryReservationsPremium() async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/instructor/history'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      throw Exception('Error obteniendo historial premium de instructor');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getInstructorReservationDetailPremium(
+      String classId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/classes/instructor/$classId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Error obteniendo detalle premium de instructor');
     }
   }
 
@@ -916,28 +1584,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> createDrivingClass(Map<String, dynamic> classData) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final response = await http.post(
-      Uri.parse('$_baseUrl/classes'),
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(classData),
-    );
-
-    if (response.statusCode == 201) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
-      throw Exception(errorData?['message'] ?? 'Error creando clase');
-    }
-  }
-
-  static Future<void> updateDrivingClass(String classId, Map<String, dynamic> classData) async {
+  static Future<void> updateDrivingClass(
+      String classId, Map<String, dynamic> classData) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -970,20 +1618,6 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteDrivingClass(String classId) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final response = await http.delete(
-      Uri.parse('$_baseUrl/classes/$classId'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Error eliminando clase');
-    }
-  }
-
   // ===========================
   // PAYMENTS EXTENDED
   // ===========================
@@ -998,7 +1632,14 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
+      final decoded = jsonDecode(response.body);
+      if (decoded is List<dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map<String, dynamic> && decoded['data'] is List<dynamic>) {
+        return decoded['data'] as List<dynamic>;
+      }
+      throw Exception('Formato de pagos inesperado');
     } else {
       throw Exception('Error obteniendo pagos');
     }
@@ -1036,29 +1677,12 @@ class ApiService {
     }
   }
 
-  static Future<void> updatePaymentStatus(String paymentId, String status) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final response = await http.put(
-      Uri.parse('$_baseUrl/payments/$paymentId/status'),
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'status': status}),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Error actualizando estado del pago');
-    }
-  }
-
   // ===========================
   // SCHEDULE MANAGEMENT
   // ===========================
 
-  static Future<Map<String, dynamic>> createScheduleSlot(Map<String, dynamic> slotData) async {
+  static Future<Map<String, dynamic>> createScheduleSlot(
+      Map<String, dynamic> slotData) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -1095,7 +1719,27 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getInstructorSchedule(String instructorId) async {
+  static Future<Map<String, dynamic>> getReservationPreview(
+      String slotId) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/schedule/preview/$slotId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(
+          errorData?['message'] ?? 'Error obteniendo preview de reserva');
+    }
+  }
+
+  static Future<List<dynamic>> getInstructorSchedule(
+      String instructorId) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -1112,39 +1756,12 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> reserveScheduleSlot(String slotId) async {
-    String? token = await storage.read(key: 'auth_token');
-    
-    if (token == null || token.isEmpty) {
-      developer.log('Token not found, trying to refresh...', name: 'ApiService');
-      try {
-        final refreshResult = await refreshToken();
-        token = refreshResult['token'];
-      } catch (e) {
-        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
-      }
-    }
-
     if (slotId.isEmpty) {
       throw Exception('ID del slot no puede estar vacío');
     }
 
-    developer.log('Reservando slot - slotId: "$slotId"', name: 'ApiService');
-    developer.log('Token exists: ${token!.isNotEmpty}', name: 'ApiService');
-    
-    final url = '$_baseUrl/schedule/reserve/$slotId';
-    developer.log('URL: $url', name: 'ApiService');
-
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({}),
-    );
-
-    developer.log('Response status: ${response.statusCode}', name: 'ApiService');
-    developer.log('Response body: ${response.body}', name: 'ApiService');
+    final url = Uri.parse('$_baseUrl/schedule/reserve/$slotId');
+    final response = await AuthHttpClient.post(url, body: jsonEncode({}));
 
     if (response.statusCode == 201 || response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -1158,6 +1775,35 @@ class ApiService {
       } else {
         throw Exception('Error reservando horario');
       }
+    }
+  }
+
+  /// Reprograma una clase confirmada a otro slot del mismo instructor.
+  /// POST /schedule/reschedule/:bookingId con { newSlotId }.
+  static Future<Map<String, dynamic>> rescheduleReservation(
+    String bookingId,
+    String newSlotId,
+  ) async {
+    final token = await storage.read(key: 'auth_token');
+    if (token == null) throw Exception('No autenticado');
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/schedule/reschedule/$bookingId'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'newSlotId': newSlotId}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      final errorData = jsonDecode(response.body);
+      if (errorData is Map<String, dynamic>) {
+        throw Exception(errorData['message'] ?? 'Error reprogramando la clase');
+      }
+      throw Exception('Error reprogramando la clase');
     }
   }
 
@@ -1193,6 +1839,9 @@ class ApiService {
   // MERCADO PAGO – FRONTEND
   // ===========================
 
+  /// @Deprecated Usar [createPreferenceForBooking]. El endpoint legacy fue eliminado.
+  @Deprecated(
+      'Usar createPreferenceForBooking(bookingId) — flujo V1 por reserva')
   static Future<Map<String, dynamic>> mpCreatePreference({
     required int drivingClassId,
     required int amount,
@@ -1202,52 +1851,50 @@ class ApiService {
     String? failureUrl,
     String? pendingUrl,
   }) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final body = {
-      'amount': amount,
-      'drivingClassId': drivingClassId,
-      'description': description,
-      if (payerEmail != null) 'payerEmail': payerEmail,
-      if (successUrl != null) 'successUrl': successUrl,
-      if (failureUrl != null) 'failureUrl': failureUrl,
-      if (pendingUrl != null) 'pendingUrl': pendingUrl,
-    };
-
-    final res = await http.post(
-      Uri.parse('$_baseUrl/payments/mercadopago/preference'),
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer $token',
+    final initPoint = await createPreferenceForBooking(drivingClassId);
+    return {
+      'data': {
+        'initPoint': initPoint,
+        'preferenceId': null,
       },
-      body: jsonEncode(body),
-    );
-
-    if (res.statusCode == 201 || res.statusCode == 200) {
-      return jsonDecode(res.body) as Map<String, dynamic>;
-    } else {
-      final errorData = jsonDecode(res.body) as Map<String, dynamic>?;
-      throw Exception(errorData?['message'] ?? 'Error al crear preferencia');
-    }
+    };
   }
 
-  static Future<Map<String, dynamic>> mpGetPaymentStatus(String paymentIdOrExternalRef) async {
+  /// Consulta estado de pago MP/DB. [identifier] puede ser bookingId, preferenceId, paymentId MP o externalReference.
+  static Future<PaymentStatusResult> mpGetPaymentStatus(
+      String identifier) async {
     final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
+    if (token == null) throw const SessionExpiredException('No autenticado');
 
-    final res = await http.get(
-      Uri.parse('$_baseUrl/payments/mercadopago/status/$paymentIdOrExternalRef'),
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
+    final encoded = Uri.encodeComponent(identifier);
+    final response = await AuthHttpClient.get(
+      Uri.parse('$_baseUrl/payments/mercadopago/status/$encoded'),
+      timeout: const Duration(seconds: 12),
     );
 
-    if (res.statusCode == 200) {
-      return jsonDecode(res.body) as Map<String, dynamic>;
-    } else {
-      final errorData = jsonDecode(res.body) as Map<String, dynamic>?;
-      throw Exception(errorData?['message'] ?? 'Error al consultar estado');
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      Map<String, dynamic> data = jsonResponse;
+      if (jsonResponse.containsKey('data') && jsonResponse['data'] is Map) {
+        data = jsonResponse['data'] as Map<String, dynamic>;
+      }
+      return PaymentStatusResult.fromApiMap(data);
+    }
+    if (response.statusCode == 401) {
+      throw const SessionExpiredException();
+    }
+
+    try {
+      final errorData = jsonDecode(response.body) as Map<String, dynamic>?;
+      throw Exception(errorData?['message']?.toString() ??
+          'Error al consultar estado del pago');
+    } catch (e) {
+      if (e is SessionExpiredException) rethrow;
+      if (e is Exception && e.toString().contains('Error al consultar')) {
+        rethrow;
+      }
+      throw Exception(
+          'Error al consultar estado del pago (HTTP ${response.statusCode})');
     }
   }
 
@@ -1255,39 +1902,8 @@ class ApiService {
   // ADMIN
   // ===========================
 
-  static Future<Map<String, dynamic>> getAdminDashboardStats() async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final response = await http.get(
-      Uri.parse('$_baseUrl/admin/dashboard/stats'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error obteniendo estadísticas');
-    }
-  }
-
-  static Future<Map<String, dynamic>> getSystemHealth() async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final response = await http.get(
-      Uri.parse('$_baseUrl/admin/system/health'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error obteniendo salud del sistema');
-    }
-  }
-
-  static Future<void> manageUser(String userId, {required bool isActive}) async {
+  static Future<void> manageUser(String userId,
+      {required bool isActive}) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -1306,50 +1922,11 @@ class ApiService {
   }
 
   // ===========================
-  // LOGS
-  // ===========================
-
-  static Future<Map<String, dynamic>> getLogs({String? level, int limit = 100, int offset = 0}) async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final queryParams = {
-      'limit': limit.toString(),
-      'offset': offset.toString(),
-      if (level != null) 'level': level,
-    };
-
-    final uri = Uri.parse('$_baseUrl/logs').replace(queryParameters: queryParams);
-    final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception('Error obteniendo logs');
-    }
-  }
-
-  static Future<List<dynamic>> getLogStats() async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No autenticado');
-
-    final response = await http.get(
-      Uri.parse('$_baseUrl/logs/stats'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    } else {
-      throw Exception('Error obteniendo estadísticas de logs');
-    }
-  }
-
-  // ===========================
   // MESSAGES
   // ===========================
 
-  static Future<Map<String, dynamic>> sendMessage(int receiverId, String content) async {
+  static Future<Map<String, dynamic>> sendMessage(
+      int receiverId, String content) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -1388,7 +1965,8 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getConversationMessages(int conversationId) async {
+  static Future<List<dynamic>> getConversationMessages(
+      int conversationId) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) throw Exception('No autenticado');
 
@@ -1449,7 +2027,8 @@ class ApiService {
       final payments = jsonDecode(response.body) as List<dynamic>;
       return payments.any((p) {
         final drivingClass = p['drivingClass'] as Map<String, dynamic>?;
-        return p['status'] == 'paid' && drivingClass?['instructorId'] == instructorId;
+        return p['status'] == 'paid' &&
+            drivingClass?['instructorId'] == instructorId;
       });
     }
     return false;
@@ -1484,4 +2063,31 @@ class ApiService {
       throw Exception(errorData?['message'] ?? 'Error al reenviar');
     }
   }
+
+  /// Verifica si el usuario ya completó la verificación de email (no requiere auth).
+  static Future<bool> checkVerificationStatus(String userId) async {
+    try {
+      final response = await ConnectivityService.getWithRetry(
+        Uri.parse('$_baseUrl/users/verification-status/$userId'),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>?;
+        return data?['verified'] == true;
+      }
+      return false;
+    } catch (e) {
+      developer.log('Error en checkVerificationStatus: $e', name: 'ApiService');
+      return false;
+    }
+  }
+}
+
+class _LocationCacheEntry {
+  _LocationCacheEntry({
+    required this.value,
+    required this.expiresAt,
+  });
+
+  final List<Map<String, String>> value;
+  final DateTime expiresAt;
 }

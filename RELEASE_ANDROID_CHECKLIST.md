@@ -47,7 +47,7 @@ En **Google Cloud Console** → APIs & Services → Credentials → **Create OAu
 |--------|--------|
 | Tipo | Android |
 | Nombre | ManejApp Android Release Upload |
-| Package | `com.manejapp.app` |
+| Package | `com.manejapp_.app` |
 | SHA-1 | *(salida de keytool del keystore real)* |
 
 Mantener también el cliente **Android Debug** con el SHA-1 de debug local.
@@ -59,12 +59,18 @@ cd ManejApp-frontend
 flutter clean
 flutter pub get
 flutter build appbundle --release \
-  --dart-define=API_URL=https://manejapp-1.onrender.com
+  --dart-define=API_URL=https://api.manejapp.app
 ```
 
 Salida: `build/app/outputs/bundle/release/app-release.aab`
 
-**API_URL:** en release, si no pasás `--dart-define`, el default ya es `https://manejapp-1.onrender.com` (`config_service.dart`). Igual se recomienda pasarlo explícito en CI y builds de beta.
+**API_URL:** en release, si no pasás `--dart-define`, el default ya es `https://api.manejapp.app` (`config_service.dart`). Igual se recomienda pasarlo explícito en CI y builds de beta.
+
+**Valores visibles de producción:** configurarlos también en CI para que el panel administrativo, soporte y la versión no dependan de valores locales.
+
+- `ADMIN_PANEL_URL`: URL HTTPS pública del panel web. En release, si falta, el botón queda deshabilitado de forma segura.
+- `SUPPORT_EMAIL`: correo de soporte visible. Default: `soporte@manejapp.app`.
+- `APP_VERSION` y `BUILD_NUMBER`: versión que se muestra en Configuración.
 
 ---
 
@@ -94,7 +100,7 @@ Tras el primer upload:
 | Campo | Valor |
 |--------|--------|
 | Nombre | ManejApp Android Play App Signing |
-| Package | `com.manejapp.app` |
+| Package | `com.manejapp_.app` |
 | SHA-1 | *(Play App Signing SHA-1)* |
 
 Sin este SHA-1, **Google Sign-In falla en builds instalados desde Play** aunque funcione en debug/sideload.
@@ -144,7 +150,7 @@ Si el proyecto OAuth está en modo **Testing**:
 Instalar desde el **enlace de Internal testing** (no sideload del mismo AAB sin pasar por Play si querés validar App Signing + OAuth Play SHA-1).
 
 - [ ] App abre sin crash.
-- [ ] API responde (`https://manejapp-1.onrender.com`).
+- [ ] API responde (`https://api.manejapp.app`).
 - [ ] **Continuar con Google** sin `ApiException: 10` / `DEVELOPER_ERROR`.
 - [ ] Login → dashboard (usuario existente) o choose role (usuario nuevo).
 - [ ] Onboarding alumno completo.
@@ -160,8 +166,13 @@ Instalar desde el **enlace de Internal testing** (no sideload del mismo AAB sin 
 cd ManejApp-frontend
 flutter analyze
 flutter test
-flutter build apk --debug --dart-define=API_URL=https://manejapp-1.onrender.com
-flutter build appbundle --release --dart-define=API_URL=https://manejapp-1.onrender.com
+flutter build apk --debug --dart-define=API_URL=https://api.manejapp.app
+flutter build appbundle --release \
+  --dart-define=API_URL=https://api.manejapp.app \
+  --dart-define=ADMIN_PANEL_URL=https://admin.tudominio.com \
+  --dart-define=SUPPORT_EMAIL=soporte@manejapp.app \
+  --dart-define=APP_VERSION=1.0.0 \
+  --dart-define=BUILD_NUMBER=1
 ```
 
 ---

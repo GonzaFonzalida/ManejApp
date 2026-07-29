@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../services/api_service.dart';
-import '../models/driving_class.dart';
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/config/premium_booking_ui.dart';
+import 'package:manejapp/keys/e2e_keys.dart';
+import 'package:manejapp/models/premium_reservation.dart';
+import 'package:manejapp/screens/student_reservation_detail_screen.dart';
+import 'package:manejapp/services/api_service.dart';
+import 'package:manejapp/utils/app_resume_refresh_mixin.dart';
+import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/widgets/design/app_empty_state.dart';
+import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/widgets/design/next_action_card.dart';
+import 'package:manejapp/screens/home_screen.dart';
 import '../widgets/skeleton_loader.dart';
-import '../widgets/confirmation_dialog.dart';
-
-const storage = FlutterSecureStorage();
 
 class StudentClassesScreen extends StatefulWidget {
   const StudentClassesScreen({super.key});
@@ -15,493 +22,537 @@ class StudentClassesScreen extends StatefulWidget {
   State<StudentClassesScreen> createState() => _StudentClassesScreenState();
 }
 
-class _StudentClassesScreenState extends State<StudentClassesScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  List<DrivingClass> _allClasses = [];
-  List<DrivingClass> _scheduledClasses = [];
-  List<DrivingClass> _completedClasses = [];
-  List<DrivingClass> _canceledClasses = [];
+class _StudentClassesScreenState extends State<StudentClassesScreen>
+    with WidgetsBindingObserver, AppResumeRefreshMixin {
+  List<PremiumReservation> _upcoming = [];
+  List<PremiumReservation> _history = [];
   bool _isLoading = true;
-  String _searchQuery = '';
+  String? _loadError;
+  int _tabIndex = 0; // 0: próximas, 1: historial
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _loadClasses();
+    _loadReservations();
+  }
+
+  bool _reservationNeedsPayment(PremiumReservation r) {
+    if (r.status == 'PENDING_PAYMENT') return true;
+    final p = r.paymentStatus.toLowerCase().trim();
+    return p == 'pending' || p == 'in_process' || p == 'unpaid';
+  }
+
+  Widget _buildUpcomingNextAction(BuildContext context) {
+    if (_upcoming.isEmpty) return const SizedBox.shrink();
+
+    PremiumReservation? paymentOne;
+    for (final r in _upcoming) {
+      if (_reservationNeedsPayment(r)) {
+        paymentOne = r;
+        break;
+      }
+    }
+    if (paymentOne != null) {
+      final pay = paymentOne;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: NextActionCard(
+          priority: NextActionPriority.urgent,
+          icon: Icons.payments_rounded,
+          statusLabel: 'Pago',
+          title: 'Falta completar el pago',
+          description:
+              'Con ${pay.instructorName} quedó pendiente. Finalizalo para confirmar la clase.',
+          primaryLabel: 'Ir al detalle',
+          onPrimary: () async {
+            await Navigator.push<void>(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => StudentReservationDetailScreen(
+                  reservationId: pay.id,
+                ),
+              ),
+            );
+            if (mounted) await _loadReservations();
+          },
+        ),
+      );
+    }
+
+    final sorted = [..._upcoming]..sort((a, b) {
+        final ta = a.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final tb = b.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return ta.compareTo(tb);
+      });
+    final next = sorted.first;
+    final starts = next.startsAt;
+    final when = starts == null
+        ? 'Fecha por confirmar'
+        : DateFormat("EEE d MMM 'a las' HH:mm", 'es').format(starts.toLocal());
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: NextActionCard(
+        priority: NextActionPriority.calm,
+        icon: Icons.event_rounded,
+        title: 'Tu próxima clase',
+        description: '${next.instructorName} · $when',
+        primaryLabel: 'Ver reserva',
+        onPrimary: () async {
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => StudentReservationDetailScreen(
+                reservationId: next.id,
+              ),
+            ),
+          );
+          if (mounted) await _loadReservations();
+        },
+      ),
+    );
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void refreshOnAppResume() {
+    _loadReservations(showLoading: false);
   }
 
-  Future<void> _loadClasses() async {
+  Future<void> _loadReservations({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
     try {
-      final userId = await storage.read(key: 'user_id');
-      if (userId != null) {
-        final classes = await ApiService.getDrivingClasses();
-        
-        _allClasses = classes
-            .where((c) => c['studentId'].toString() == userId)
-            .map((c) => DrivingClass.fromJson(c))
+      final upcomingRaw =
+          await ApiService.getStudentUpcomingReservationsPremium();
+      final historyRaw =
+          await ApiService.getStudentHistoryReservationsPremium();
+      if (!mounted) return;
+      setState(() {
+        _upcoming = upcomingRaw
+            .map((e) => PremiumReservation(Map<String, dynamic>.from(e as Map)))
             .toList();
-
-        // Filtrar por estado
-        _scheduledClasses = _allClasses.where((c) => c.status == 'scheduled').toList();
-        _completedClasses = _allClasses.where((c) => c.status == 'completed').toList();
-        _canceledClasses = _allClasses.where((c) => c.status == 'canceled').toList();
-
-        // Ordenar por fecha
-        _allClasses.sort((a, b) => b.date.compareTo(a.date));
-        _scheduledClasses.sort((a, b) => a.date.compareTo(b.date));
-        _completedClasses.sort((a, b) => b.date.compareTo(a.date));
-        _canceledClasses.sort((a, b) => b.date.compareTo(a.date));
-      }
+        _history = historyRaw
+            .map((e) => PremiumReservation(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        _loadError = null;
+      });
     } catch (e) {
-      debugPrint('Error cargando clases: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando clases: $e')),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _loadError = humanizeApiError(e));
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _cancelClass(DrivingClass drivingClass) async {
-    final confirm = await ConfirmationDialog.show(
-      context,
-      title: 'Cancelar Clase',
-      message: '¿Estás seguro de que quieres cancelar esta clase?\n\nNota: Las cancelaciones con menos de 24 horas de anticipación pueden tener penalizaciones.',
-      confirmText: 'Sí, Cancelar',
-      cancelText: 'No',
-    );
-
-    if (confirm == true) {
-      try {
-        await ApiService.cancelDrivingClass(drivingClass.id.toString());
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Clase cancelada exitosamente')),
-          );
-          _loadClasses();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error cancelando clase: $e')),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _rateClass(DrivingClass drivingClass) async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => RateClassDialog(drivingClass: drivingClass),
-    );
-
-    if (result != null) {
-      try {
-        await ApiService.updateDrivingClass(
-          drivingClass.id.toString(),
-          {
-            'rating': result['rating'],
-            'feedback': result['feedback'],
-          },
-        );
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Calificación enviada exitosamente')),
-          );
-          _loadClasses();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error enviando calificación: $e')),
-          );
-        }
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeList = _tabIndex == 0 ? _upcoming : _history;
+
     return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('Mis reservas',
+            style: AppTextStyles.heading.copyWith(fontSize: 24)),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        automaticallyImplyLeading: Navigator.of(context).canPop(),
+        actions: [
+          IconButton(
+            key: E2eKeys.studentReservationsRefresh,
+            tooltip: 'Actualizar reservas',
+            icon: const Icon(Icons.refresh, color: AppColors.primary),
+            onPressed: _loadReservations,
+          ),
+        ],
+      ),
       body: _isLoading
-          ? const ListSkeletonLoader()
-          : Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Mis Clases',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+          ? const Padding(
+              padding: EdgeInsets.all(20),
+              child: ListSkeletonLoader(itemCount: 4),
+            )
+          : _loadError != null
+              ? Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: AppErrorState(
+                      title: 'No pudimos cargar tus reservas',
+                      message: _loadError,
+                      onRetry: _loadReservations,
+                      retryLabel: 'Reintentar',
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por instructor...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
+                )
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                      child: _SegmentedTabs(
+                        index: _tabIndex,
+                        onChanged: (i) => setState(() => _tabIndex = i),
+                      ),
                     ),
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TabBar(
-                  controller: _tabController,
-                  labelColor: const Color(0xFF003087),
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: const Color(0xFF003087),
-                  isScrollable: true,
-                  tabs: [
-                    Tab(text: 'Todas (${_allClasses.length})'),
-                    Tab(text: 'Programadas (${_scheduledClasses.length})'),
-                    Tab(text: 'Completadas (${_completedClasses.length})'),
-                    Tab(text: 'Canceladas (${_canceledClasses.length})'),
+                    if (_tabIndex == 0) _buildUpcomingNextAction(context),
+                    Expanded(
+                      child: activeList.isEmpty
+                          ? _EmptyState(
+                              key: E2eKeys.studentReservationsEmpty,
+                              isUpcoming: _tabIndex == 0,
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadReservations,
+                              color: AppColors.primary,
+                              backgroundColor: AppColors.surfaceLight,
+                              child: ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                                itemCount: activeList.length,
+                                itemBuilder: (context, index) {
+                                  final reservation = activeList[index];
+                                  return _ReservationCard(
+                                    reservation: reservation,
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              StudentReservationDetailScreen(
+                                            reservationId: reservation.id,
+                                          ),
+                                        ),
+                                      );
+                                      if (mounted) {
+                                        await _loadReservations();
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
                   ],
                 ),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadClasses,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildClassesList(_allClasses),
-                        _buildClassesList(_scheduledClasses),
-                        _buildClassesList(_completedClasses),
-                        _buildClassesList(_canceledClasses),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    );
+  }
+}
+
+class _SegmentedTabs extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  const _SegmentedTabs({
+    required this.index,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          _tabButton(context,
+              label: 'Próximas',
+              isActive: index == 0,
+              onTap: () => onChanged(0)),
+          _tabButton(context,
+              label: 'Historial',
+              isActive: index == 1,
+              onTap: () => onChanged(1)),
+        ],
+      ),
     );
   }
 
-  Widget _buildClassesList(List<DrivingClass> classes) {
-    final filtered = classes.where((c) {
-      if (_searchQuery.isEmpty) return true;
-      final instructorName = '${c.instructor?['user']?['name'] ?? ''} ${c.instructor?['user']?['surname'] ?? ''}'.toLowerCase();
-      return instructorName.contains(_searchQuery.toLowerCase());
-    }).toList();
-
-    if (filtered.isEmpty) {
-      return Center(
-        child: Text(
-          _searchQuery.isEmpty ? 'No hay clases en esta categoría' : 'No se encontraron resultados',
-          style: const TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
+  Widget _tabButton(
+    BuildContext context, {
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isActive,
+        label: 'Pestaña $label',
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: AnimatedContainer(
+            duration: AppMotion.duration(context, AppDurations.fast),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyLarge.copyWith(
+                color:
+                    isActive ? AppColors.textInverse : AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+}
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final drivingClass = filtered[index];
-        return _buildClassCard(drivingClass);
-      },
+class _ReservationCard extends StatelessWidget {
+  final PremiumReservation reservation;
+  final VoidCallback onTap;
+
+  const _ReservationCard({
+    required this.reservation,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final startsAt = reservation.startsAt;
+    final status = _statusUi(reservation.status);
+    final payColor = PremiumBookingUi.paymentAccent(reservation.paymentStatus);
+    final payLabel =
+        PremiumBookingUi.paymentShortLabel(reservation.paymentStatus);
+
+    return Semantics(
+      button: true,
+      label: 'Abrir detalle de la reserva con ${reservation.instructorName}',
+      child: GestureDetector(
+        key: E2eKeys.studentReservationCard(reservation.id),
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: status.color.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLighter,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.schedule,
+                                color: AppColors.textSecondary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  startsAt == null
+                                      ? 'Sin horario'
+                                      : DateFormat('EEE d MMM · HH:mm', 'es')
+                                          .format(startsAt),
+                                  style: AppTextStyles.bodyNormal.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _statusPill(status),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _paymentPill(payLabel, payColor),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reservation.instructorName,
+                      style: AppTextStyles.heading.copyWith(fontSize: 18),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      reservation.locationLabel,
+                      style: AppTextStyles.bodyNormal,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${reservation.durationMinutes} min',
+                          style: AppTextStyles.bodyNormal,
+                        ),
+                        Text(
+                          reservation.priceLabel,
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLighter,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bolt,
+                              size: 16, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              reservation.nextActionHintStudent,
+                              style: AppTextStyles.bodyNormal.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right,
+                              color: AppColors.textSecondary),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildClassCard(DrivingClass drivingClass) {
-    final statusColor = _getStatusColor(drivingClass.status);
-    final canCancel = drivingClass.status == 'scheduled' && 
-                     drivingClass.date.isAfter(DateTime.now().add(const Duration(hours: 1)));
-    final canRate = drivingClass.status == 'completed' && drivingClass.rating == null;
+  _StatusUi _statusUi(String status) {
+    return _StatusUi(
+      PremiumBookingUi.statusChipLabel(status),
+      PremiumBookingUi.statusColor(status),
+    );
+  }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _paymentPill(String label, Color color) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: statusColor,
-                  child: Icon(
-                    _getStatusIcon(drivingClass.status),
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Instructor: ${drivingClass.instructor?['user']?['name'] ?? ''} ${drivingClass.instructor?['user']?['surname'] ?? ''}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        DateFormat('EEEE, d MMMM yyyy', 'es').format(drivingClass.date),
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF003087)),
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/chat',
-                      arguments: {
-                        'recipientName': '${drivingClass.instructor?['user']?['name'] ?? ''} ${drivingClass.instructor?['user']?['surname'] ?? ''}',
-                        'recipientId': drivingClass.instructor?['id']?.toString() ?? '',
-                      },
-                    );
-                  },
-                  tooltip: 'Chat con instructor',
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    drivingClass.status.toUpperCase(),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+            Icon(Icons.payments_outlined, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTextStyles.bodyNormal.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
-                Text('${drivingClass.time} (${drivingClass.duration} min)'),
-                const SizedBox(width: 16),
-                if (drivingClass.rating != null) ...[
-                  Icon(Icons.star, size: 16, color: Colors.amber.shade600),
-                  const SizedBox(width: 4),
-                  Text('${drivingClass.rating}/5'),
-                ],
-              ],
-            ),
-            if (drivingClass.notes != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Notas del instructor:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      drivingClass.notes!,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (drivingClass.feedback != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Mi comentario:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      drivingClass.feedback!,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (canCancel || canRate) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (canRate)
-                    ElevatedButton.icon(
-                      onPressed: () => _rateClass(drivingClass),
-                      icon: const Icon(Icons.star),
-                      label: const Text('Calificar'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  if (canRate && canCancel) const SizedBox(width: 8),
-                  if (canCancel)
-                    OutlinedButton.icon(
-                      onPressed: () => _cancelClass(drivingClass),
-                      icon: const Icon(Icons.cancel),
-                      label: const Text('Cancelar'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                      ),
-                    ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'scheduled':
-        return Colors.blue;
-      case 'completed':
-        return Colors.green;
-      case 'canceled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'scheduled':
-        return Icons.schedule;
-      case 'completed':
-        return Icons.check_circle;
-      case 'canceled':
-        return Icons.cancel;
-      default:
-        return Icons.help;
-    }
+  Widget _statusPill(_StatusUi status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: status.color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        status.label,
+        style: AppTextStyles.bodyNormal.copyWith(
+          color: status.color,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 }
 
-class RateClassDialog extends StatefulWidget {
-  final DrivingClass drivingClass;
-  
-  const RateClassDialog({super.key, required this.drivingClass});
-
-  @override
-  State<RateClassDialog> createState() => _RateClassDialogState();
+class _StatusUi {
+  final String label;
+  final Color color;
+  const _StatusUi(this.label, this.color);
 }
 
-class _RateClassDialogState extends State<RateClassDialog> {
-  final _feedbackController = TextEditingController();
-  double _rating = 5.0;
+class _EmptyState extends StatelessWidget {
+  final bool isUpcoming;
 
-  @override
-  void dispose() {
-    _feedbackController.dispose();
-    super.dispose();
-  }
+  const _EmptyState({super.key, required this.isUpcoming});
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Calificar Clase'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Instructor: ${widget.drivingClass.instructor?['user']?['name']} ${widget.drivingClass.instructor?['user']?['surname']}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+    if (isUpcoming) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: NextActionCard(
+            priority: NextActionPriority.standard,
+            icon: Icons.explore_outlined,
+            title: 'Todavía no tenés reservas',
+            description:
+                'Cuando reserves una clase, vas a poder seguir acá si está pendiente, confirmada o cancelada.',
+            primaryLabel: 'Buscar instructor',
+            onPrimary: () {
+              Navigator.pushNamed(context, HomeScreen.routeName);
+            },
           ),
-          const SizedBox(height: 16),
-          const Text('Tu calificación:'),
-          Row(
-            children: List.generate(5, (index) {
-              return IconButton(
-                onPressed: () => setState(() => _rating = index + 1.0),
-                icon: Icon(
-                  index < _rating ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
-                  size: 32,
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _feedbackController,
-            decoration: const InputDecoration(
-              labelText: 'Comentarios (opcional)',
-              hintText: '¿Cómo fue tu experiencia?',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-        ],
+        ),
+      );
+    }
+
+    return Center(
+      child: AppEmptyState(
+        icon: Icons.history_rounded,
+        title: 'Todavía no hay historial',
+        subtitle:
+            'Cuando completes o canceles clases, vas a ver el registro acá, con fecha e instructor.',
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context, {
-              'rating': _rating,
-              'feedback': _feedbackController.text,
-            });
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.amber,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Enviar'),
-        ),
-      ],
     );
   }
 }

@@ -5,17 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:manejapp/screens/debug_routing_screen.dart';
 import 'package:manejapp/screens/legal_document_screen.dart';
 import 'package:manejapp/widgets/design/app_card.dart';
+import 'package:manejapp/widgets/design/app_input.dart';
 import 'package:manejapp/widgets/responsive_scroll_body.dart';
 import 'package:manejapp/config/design_system.dart';
-import 'package:provider/provider.dart';
+import 'package:manejapp/config/app_environment.dart';
+import 'package:manejapp/utils/support_launcher.dart';
 import '../services/api_service.dart';
 import '../services/secure_storage.dart';
 import '../services/biometric_service.dart';
 import '../services/notification_service.dart';
 import '../utils/google_auth_helper.dart';
 import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/utils/app_feedback.dart';
 import 'login_screen.dart';
-import '../providers/theme_provider.dart';
+import 'email_verification_pending_screen.dart';
 
 const storage = appSecureStorage;
 
@@ -29,6 +32,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _emailNotifications = true;
+  bool _pushNotifications = false;
   bool _notifPrefsLoading = true;
   bool _notifSaving = false;
   bool _biometricAvailable = false;
@@ -62,12 +66,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       if (!authenticated) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No se pudo verificar $_biometricLabel'),
-              backgroundColor: AppColors.error,
-            ),
-          );
+          AppFeedback.showError(
+              context, 'No se pudo verificar $_biometricLabel');
         }
         return;
       }
@@ -83,6 +83,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (remote != null) {
         setState(() {
           _emailNotifications = remote['emailNotifications'] == true;
+          _pushNotifications = remote['pushNotifications'] == true &&
+              NotificationService.isAvailable;
           _notifPrefsLoading = false;
         });
         await storage.write(
@@ -106,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await ApiService.putNotificationPreferences(
         emailNotifications: _emailNotifications,
-        pushNotifications: false,
+        pushNotifications: _pushNotifications,
       );
       await storage.write(
         key: 'email_notifications',
@@ -114,12 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(humanizeApiError(e)),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        AppFeedback.showError(context, humanizeApiError(e));
       }
       await _loadSettings();
     } finally {
@@ -132,23 +129,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _persistNotificationPreferences();
   }
 
+  Future<void> _setPushNotifications(bool enabled) async {
+    if (enabled) {
+      final granted = await NotificationService.requestPermissionAndRegister();
+      if (!granted) {
+        if (mounted) {
+          AppFeedback.showInfo(
+            context,
+            'Habilitá las notificaciones de ManejApp desde los ajustes del teléfono.',
+          );
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
+    setState(() => _pushNotifications = enabled);
+    await _persistNotificationPreferences();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-         title: GestureDetector(
-           onLongPress: kReleaseMode
-               ? null
-               : () => Navigator.pushNamed(context, DebugRoutingScreen.routeName),
-           child: Text('Configuración', style: AppTextStyles.heading),
-         ),
-         backgroundColor: AppColors.background,
-         elevation: 0,
-         automaticallyImplyLeading: Navigator.of(context).canPop(),
+        title: GestureDetector(
+          onLongPress: kReleaseMode
+              ? null
+              : () =>
+                  Navigator.pushNamed(context, DebugRoutingScreen.routeName),
+          child: Text('Configuración', style: AppTextStyles.heading),
+        ),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        automaticallyImplyLeading: Navigator.of(context).canPop(),
       ),
       body: SingleChildScrollView(
-        padding: ResponsiveLayout.scrollPadding(context, base: const EdgeInsets.all(20)),
+        padding: ResponsiveLayout.scrollPadding(context,
+            base: const EdgeInsets.all(20)),
         child: Column(
           children: [
             _buildSectionTitle('Cuenta'),
@@ -156,13 +173,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(0),
               child: Column(
                 children: [
-                  _buildSettingTile(Icons.lock_outline, 'Cambiar Contraseña', onTap: _showChangePasswordDialog),
+                  _buildSettingTile(Icons.lock_outline, 'Cambiar contraseña',
+                      onTap: _showChangePasswordDialog),
                   const Divider(height: 1, color: AppColors.surfaceLighter),
-                  _buildSettingTile(Icons.email_outlined, 'Cambiar Email', onTap: _showChangeEmailDialog),
+                  _buildSettingTile(
+                      Icons.email_outlined, 'Cambiar correo electrónico',
+                      onTap: _showChangeEmailDialog),
                 ],
               ),
             ),
-            
+
             if (_biometricAvailable) ...[
               const SizedBox(height: 24),
               _buildSectionTitle('Seguridad'),
@@ -173,13 +193,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Desbloqueo rápido al abrir la app',
                   _biometricEnabled,
                   _toggleBiometric,
-                  icon: _biometricLabel == 'Face ID' ? Icons.face : Icons.fingerprint,
+                  icon: _biometricLabel == 'Face ID'
+                      ? Icons.face
+                      : Icons.fingerprint,
                 ),
               ),
             ],
 
             const SizedBox(height: 24),
-            
+
             _buildSectionTitle('Notificaciones'),
             AppCard(
               padding: const EdgeInsets.all(0),
@@ -190,44 +212,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     )
                   : Column(
                       children: [
-                        ListTile(
-                          leading: const Icon(
-                            Icons.notifications_active_outlined,
-                            color: AppColors.textSecondary,
-                          ),
-                          title: Text(
-                            'Notificaciones push',
-                            style: AppTextStyles.bodyNormal.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text(
-                            'Próximamente. Por ahora revisá tus reservas en la app y activá avisos por email si querés.',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceLighter,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              'Próximamente',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Divider(height: 1, color: AppColors.surfaceLighter),
                         _buildSwitchTile(
-                          'Email',
+                          'Notificaciones push',
+                          NotificationService.isAvailable
+                              ? 'Reservas, pagos, recordatorios y aprobación de documentos'
+                              : 'No disponibles en esta versión instalada',
+                          _pushNotifications,
+                          _notifSaving || !NotificationService.isAvailable
+                              ? null
+                              : _setPushNotifications,
+                          icon: Icons.notifications_active_outlined,
+                        ),
+                        const Divider(
+                            height: 1, color: AppColors.surfaceLighter),
+                        _buildSwitchTile(
+                          'Correo electrónico',
                           'Resúmenes y avisos por correo',
                           _emailNotifications,
                           _notifSaving
@@ -239,58 +238,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SizedBox(height: 24),
-            
-            _buildSectionTitle('Apariencia'),
-            AppCard(
-              padding: const EdgeInsets.all(0),
-              child: Consumer<ThemeProvider>(
-                 builder: (context, themeProvider, _) => _buildSwitchTile(
-                    'Modo Oscuro', 
-                    'Cambiar tema de la app', 
-                    themeProvider.isDarkMode, 
-                    (_) => themeProvider.toggleTheme(),
-                    icon: themeProvider.isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                 ),
-              ),
-            ),
 
-            const SizedBox(height: 24),
-            
             _buildSectionTitle('Soporte'),
             AppCard(
               padding: const EdgeInsets.all(0),
               child: Column(
                 children: [
-                  _buildSettingTile(Icons.help_outline, 'Centro de Ayuda', onTap: () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => LegalDocumentScreen.help(),
-                    ));
+                  _buildSettingTile(Icons.help_outline, 'Centro de ayuda',
+                      onTap: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LegalDocumentScreen.help(),
+                        ));
                   }),
                   const Divider(height: 1, color: AppColors.surfaceLighter),
-                  _buildSettingTile(Icons.description_outlined, 'Términos y Condiciones', onTap: () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => LegalDocumentScreen.terms(),
-                    ));
+                  _buildSettingTile(
+                      Icons.description_outlined, 'Términos y condiciones',
+                      onTap: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LegalDocumentScreen.terms(),
+                        ));
                   }),
                   const Divider(height: 1, color: AppColors.surfaceLighter),
-                  _buildSettingTile(Icons.privacy_tip_outlined, 'Política de Privacidad', onTap: () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => LegalDocumentScreen.privacy(),
-                    ));
+                  _buildSettingTile(
+                      Icons.privacy_tip_outlined, 'Política de privacidad',
+                      onTap: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LegalDocumentScreen.privacy(),
+                        ));
                   }),
+                  const Divider(height: 1, color: AppColors.surfaceLighter),
+                  _buildSettingTile(
+                    Icons.mail_outline_rounded,
+                    'Escribir a soporte',
+                    onTap: () => openSupportEmail(context),
+                  ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             TextButton(
-               onPressed: _onDeleteAccountPressed,
-               child: Text('Eliminar Cuenta', style: AppTextStyles.bodyNormal.copyWith(color: AppColors.error)),
+              onPressed: _onDeleteAccountPressed,
+              child: Text('Eliminar cuenta',
+                  style: AppTextStyles.bodyNormal
+                      .copyWith(color: AppColors.error)),
             ),
             const SizedBox(height: 16),
-            Text('Versión 1.0.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-             const SizedBox(height: 40), // Bottom padding
+            Text(AppEnvironment.versionLabel,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 40), // Bottom padding
           ],
         ),
       ),
@@ -316,7 +319,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancelar',
-              style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary),
+              style: AppTextStyles.bodyNormal
+                  .copyWith(color: AppColors.textSecondary),
             ),
           ),
           TextButton(
@@ -342,12 +346,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo cargar tu perfil. Intentá de nuevo.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppFeedback.showError(
+          context, 'No se pudo cargar tu perfil. Intentá de nuevo.');
       return;
     }
 
@@ -399,28 +399,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(
                 'Cancelar',
-                style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.bodyNormal
+                    .copyWith(color: AppColors.textSecondary),
               ),
             ),
             TextButton(
               onPressed: () {
                 if (phraseCtrl.text.trim() != 'ELIMINAR') {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Debés escribir exactamente ELIMINAR')),
-                  );
+                  AppFeedback.showError(
+                      ctx, 'Debés escribir exactamente ELIMINAR');
                   return;
                 }
                 if (!hasOAuth && passCtrl.text.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Contraseña requerida')),
-                  );
+                  AppFeedback.showError(ctx, 'Ingresá tu contraseña');
                   return;
                 }
                 Navigator.pop(ctx, true);
               },
               child: Text(
                 'Eliminar definitivamente',
-                style: AppTextStyles.bodyNormal.copyWith(color: AppColors.error),
+                style:
+                    AppTextStyles.bodyNormal.copyWith(color: AppColors.error),
               ),
             ),
           ],
@@ -448,9 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await ApiService.logout();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tu cuenta fue eliminada')),
-      );
+      AppFeedback.showSuccess(context, 'Tu cuenta fue eliminada');
       Navigator.pushNamedAndRemoveUntil(
         context,
         LoginScreen.routeName,
@@ -458,12 +455,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(humanizeApiError(e)),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      AppFeedback.showError(context, humanizeApiError(e));
     } finally {
       phraseCtrl.dispose();
       passCtrl.dispose();
@@ -475,12 +467,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 12, left: 4),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Text(title, style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        child: Text(title,
+            style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
       ),
     );
   }
 
-  Widget _buildSettingTile(IconData icon, String title, {required VoidCallback onTap}) {
+  Widget _buildSettingTile(IconData icon, String title,
+      {required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -490,7 +485,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Icon(icon, color: AppColors.primary, size: 24),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(title, style: AppTextStyles.bodyNormal.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              child: Text(title,
+                  style: AppTextStyles.bodyNormal.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary)),
             ),
             Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
           ],
@@ -506,32 +504,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ValueChanged<bool>? onChanged, {
     IconData? icon,
   }) {
-     return Padding(
-       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-       child: Row(
-         children: [
-           if (icon != null) ...[
-             Icon(icon, color: AppColors.primary, size: 24),
-             const SizedBox(width: 16),
-           ],
-           Expanded(
-             child: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Text(title, style: AppTextStyles.bodyNormal.copyWith(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                 Text(subtitle, style: AppTextStyles.bodyNormal.copyWith(fontSize: 12, color: AppColors.textSecondary)),
-               ],
-             ),
-           ),
-           Switch.adaptive(
-             value: value,
-             onChanged: onChanged,
-             activeThumbColor: AppColors.primary,
-             activeTrackColor: AppColors.primary.withValues(alpha: 0.35),
-           ),
-         ],
-       ),
-     );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: AppColors.primary, size: 24),
+            const SizedBox(width: 16),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: AppTextStyles.bodyNormal.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary)),
+                Text(subtitle,
+                    style: AppTextStyles.bodyNormal.copyWith(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: AppColors.primary,
+            activeTrackColor: AppColors.primary.withValues(alpha: 0.35),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showChangePasswordDialog() {
@@ -545,81 +548,97 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           backgroundColor: AppColors.surfaceLight,
-          title: Text('Cambiar Contraseña', style: AppTextStyles.heading.copyWith(fontSize: 20)),
+          title: Text('Cambiar contraseña',
+              style: AppTextStyles.heading.copyWith(fontSize: 20)),
           content: SingleChildScrollView(
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDialogInput('Contraseña Actual', currentPasswordController, isPassword: true),
-              const SizedBox(height: 16),
-              _buildDialogInput('Nueva Contraseña', newPasswordController, isPassword: true),
-              const SizedBox(height: 16),
-              _buildDialogInput('Confirmar Contraseña', confirmPasswordController, isPassword: true),
-            ],
-          ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDialogInput(
+                    'Contraseña actual', currentPasswordController,
+                    isPassword: true),
+                const SizedBox(height: 16),
+                _buildDialogInput('Nueva contraseña', newPasswordController,
+                    isPassword: true),
+                const SizedBox(height: 16),
+                _buildDialogInput(
+                    'Confirmar contraseña', confirmPasswordController,
+                    isPassword: true),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: isLoading ? null : () => Navigator.pop(context),
-              child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+              child: Text('Cancelar',
+                  style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
-              onPressed: isLoading ? null : () async {
-                if (currentPasswordController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ingresa tu contraseña actual')),
-                  );
-                  return;
-                }
-                if (newPasswordController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ingresa la nueva contraseña')),
-                  );
-                  return;
-                }
-                if (newPasswordController.text != confirmPasswordController.text) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Las contraseñas no coinciden')),
-                  );
-                  return;
-                }
-                if (newPasswordController.text.length < 6) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres')),
-                  );
-                  return;
-                }
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (currentPasswordController.text.isEmpty) {
+                        AppFeedback.showError(
+                            context, 'Ingresá tu contraseña actual');
+                        return;
+                      }
+                      if (newPasswordController.text.isEmpty) {
+                        AppFeedback.showError(
+                            context, 'Ingresá la nueva contraseña');
+                        return;
+                      }
+                      if (newPasswordController.text !=
+                          confirmPasswordController.text) {
+                        AppFeedback.showError(
+                            context, 'Las contraseñas no coinciden');
+                        return;
+                      }
+                      if (newPasswordController.text.length < 8 ||
+                          !RegExp(r'[A-Za-záéíóúÁÉÍÓÚñÑ]')
+                              .hasMatch(newPasswordController.text) ||
+                          !RegExp(r'\d').hasMatch(newPasswordController.text)) {
+                        AppFeedback.showError(
+                          context,
+                          'Usá al menos 8 caracteres, letras y números',
+                        );
+                        return;
+                      }
 
-                setState(() => isLoading = true);
-                try {
-                  await ApiService.changePassword(
-                    currentPasswordController.text,
-                    newPasswordController.text,
-                  );
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Contraseña actualizada exitosamente'), backgroundColor: AppColors.success),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(humanizeApiError(e)), backgroundColor: AppColors.error),
-                    );
-                  }
-                } finally {
-                  if (context.mounted) {
-                    setState(() => isLoading = false);
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                      setState(() => isLoading = true);
+                      try {
+                        await ApiService.changePassword(
+                          currentPasswordController.text,
+                          newPasswordController.text,
+                        );
+                        if (context.mounted) {
+                          await NotificationService.onLogout();
+                          await ApiService.logout();
+                          AppFeedback.showSuccess(context,
+                              'Contraseña actualizada. Iniciá sesión nuevamente.');
+                          Navigator.of(context, rootNavigator: true)
+                              .pushNamedAndRemoveUntil(
+                            LoginScreen.routeName,
+                            (_) => false,
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          AppFeedback.showError(context, humanizeApiError(e));
+                        }
+                      } finally {
+                        if (context.mounted) {
+                          setState(() => isLoading = false);
+                        }
+                      }
+                    },
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
               child: isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
                     )
                   : const Text('Cambiar'),
             ),
@@ -628,19 +647,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
-  Widget _buildDialogInput(String label, TextEditingController controller, {bool isPassword = false}) {
-      return TextField(
-        controller: controller,
-        obscureText: isPassword,
-        style: const TextStyle(color: AppColors.textPrimary),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: AppColors.textSecondary),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.surfaceLighter)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary)),
-        ),
-      );
+
+  Widget _buildDialogInput(String label, TextEditingController controller,
+      {bool isPassword = false}) {
+    return AppInput(
+      controller: controller,
+      label: label,
+      obscureText: isPassword,
+      prefixIcon: isPassword
+          ? Icons.lock_outline_rounded
+          : Icons.alternate_email_rounded,
+    );
   }
 
   void _showChangeEmailDialog() {
@@ -653,73 +670,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           backgroundColor: AppColors.surfaceLight,
-          title: Text('Cambiar Email', style: AppTextStyles.heading.copyWith(fontSize: 20)),
+          title: Text('Cambiar correo electrónico',
+              style: AppTextStyles.heading.copyWith(fontSize: 20)),
           content: SingleChildScrollView(
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDialogInput('Nuevo Email', newEmailController),
-              const SizedBox(height: 16),
-              _buildDialogInput('Contraseña Actual', passwordController, isPassword: true),
-            ],
-          ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDialogInput(
+                    'Nuevo correo electrónico', newEmailController),
+                const SizedBox(height: 16),
+                _buildDialogInput('Contraseña actual', passwordController,
+                    isPassword: true),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: isLoading ? null : () => Navigator.pop(context),
-              child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary)),
+              child: Text('Cancelar',
+                  style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
-              onPressed: isLoading ? null : () async {
-                if (newEmailController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ingresa el nuevo email')),
-                  );
-                  return;
-                }
-                if (!newEmailController.text.contains('@')) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ingresa un email válido')),
-                  );
-                  return;
-                }
-                if (passwordController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ingresa tu contraseña actual')),
-                  );
-                  return;
-                }
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (newEmailController.text.isEmpty) {
+                        AppFeedback.showError(
+                            context, 'Ingresá el nuevo correo electrónico');
+                        return;
+                      }
+                      if (!newEmailController.text.contains('@')) {
+                        AppFeedback.showError(
+                            context, 'Ingresá un correo electrónico válido');
+                        return;
+                      }
+                      if (passwordController.text.isEmpty) {
+                        AppFeedback.showError(
+                            context, 'Ingresá tu contraseña actual');
+                        return;
+                      }
 
-                setState(() => isLoading = true);
-                try {
-                  await ApiService.changeEmail(
-                    newEmailController.text,
-                    passwordController.text,
-                  );
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Email actualizado exitosamente'), backgroundColor: AppColors.success),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(humanizeApiError(e)), backgroundColor: AppColors.error),
-                    );
-                  }
-                } finally {
-                  if (context.mounted) {
-                    setState(() => isLoading = false);
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                      setState(() => isLoading = true);
+                      try {
+                        await ApiService.changeEmail(
+                          newEmailController.text,
+                          passwordController.text,
+                        );
+                        if (context.mounted) {
+                          await storage.write(
+                              key: 'temp_email',
+                              value: newEmailController.text.trim());
+                          await storage.write(
+                              key: 'temp_password',
+                              value: passwordController.text);
+                          await NotificationService.onLogout();
+                          await ApiService.logout();
+                          AppFeedback.showSuccess(context,
+                              'Revisá el nuevo correo para verificarlo.');
+                          Navigator.of(context, rootNavigator: true)
+                              .pushNamedAndRemoveUntil(
+                            EmailVerificationPendingScreen.routeName,
+                            (_) => false,
+                            arguments: newEmailController.text.trim(),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          AppFeedback.showError(context, humanizeApiError(e));
+                        }
+                      } finally {
+                        if (context.mounted) {
+                          setState(() => isLoading = false);
+                        }
+                      }
+                    },
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
               child: isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
                     )
                   : const Text('Cambiar'),
             ),

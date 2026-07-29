@@ -3,6 +3,7 @@ import 'dart:io' show File;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:manejapp/config/design_system.dart';
 import 'package:manejapp/services/api_service.dart';
@@ -15,10 +16,12 @@ import 'package:manejapp/widgets/design/app_button.dart';
 import 'package:manejapp/widgets/responsive_scroll_body.dart';
 import 'package:manejapp/widgets/design/app_card.dart';
 import 'package:manejapp/widgets/design/app_input.dart';
+import 'package:manejapp/widgets/design/app_flow_progress.dart';
 import 'package:manejapp/widgets/experience_level_slider.dart';
 import 'package:manejapp/utils/reservation_status_education.dart';
 import 'package:manejapp/widgets/design/context_help_card.dart';
 import 'package:manejapp/widgets/location_autocomplete_dropdown.dart';
+import 'package:manejapp/utils/whatsapp.dart';
 
 const _storage = appSecureStorage;
 
@@ -52,6 +55,20 @@ class _StudentProgressiveOnboardingScreenState
   void initState() {
     super.initState();
     _pageController = PageController();
+    unawaited(_loadExistingWhatsApp());
+  }
+
+  Future<void> _loadExistingWhatsApp() async {
+    try {
+      final userId = await _resolveUserId();
+      if (userId == null) return;
+      final profile = await ApiService.getUserProfile(userId);
+      final phone = profile['phoneNumber']?.toString();
+      if (!mounted || phone == null || phone.isEmpty) return;
+      _phoneController.text = phone;
+    } catch (_) {
+      // El usuario puede ingresarlo manualmente si la precarga falla.
+    }
   }
 
   @override
@@ -85,29 +102,16 @@ class _StudentProgressiveOnboardingScreenState
     }
   }
 
-  Future<void> _savePhoneAndNext({required bool skip}) async {
-    if (skip) {
-      _nextPage();
+  Future<void> _savePhoneAndNext() async {
+    final validationError = validateWhatsAppNumber(_phoneController.text);
+    if (validationError != null) {
+      AppFeedback.showError(context, validationError);
       return;
     }
-    final phone = _phoneController.text.trim();
-    if (phone.isNotEmpty && phone.length < 8) {
-      AppFeedback.showError(context, 'Ingresá un teléfono válido o tocá Saltar.');
-      return;
-    }
-    if (phone.isEmpty) {
-      _nextPage();
-      return;
-    }
-    final userId = await _resolveUserId();
-    if (userId == null) {
-      if (!mounted) return;
-      AppFeedback.showError(context, 'No se encontró tu usuario.');
-      return;
-    }
+    final phone = normalizeWhatsAppNumber(_phoneController.text)!;
     setState(() => _busy = true);
     try {
-      await ApiService.updateUser(userId, {'phoneNumber': phone});
+      await ApiService.updateMyWhatsApp(phone);
       if (!mounted) return;
       _nextPage();
     } catch (e) {
@@ -155,7 +159,8 @@ class _StudentProgressiveOnboardingScreenState
 
   Future<void> _pickPhoto() async {
     final picker = ImagePicker();
-    final img = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+    final img = await picker.pickImage(
+        source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
     if (img != null && mounted) setState(() => _pickedImage = img);
   }
 
@@ -190,15 +195,17 @@ class _StudentProgressiveOnboardingScreenState
       await RoleRouter.markStudentOnboardingV1CompleteFor(userId);
     }
     if (!mounted) return;
-    final target = await RoleRouter.resolveRouteForCurrentUser(context: 'student_onboarding_done');
+    final target = await RoleRouter.resolveRouteForCurrentUser(
+        context: 'student_onboarding_done');
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(target);
   }
 
   void _nextPage() {
     if (_page >= _totalPages - 1) return;
+    HapticFeedback.selectionClick();
     _pageController.nextPage(
-      duration: AppDurations.normal,
+      duration: AppMotion.duration(context, AppDurations.normal),
       curve: AppCurves.emphasized,
     );
   }
@@ -212,61 +219,87 @@ class _StudentProgressiveOnboardingScreenState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Paso ${_page + 1} de $_totalPages',
-                    style: AppTextStyles.labelSmall.copyWith(
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.8,
-                    ),
+                  AppFlowProgress(
+                    label:
+                        'ETAPA 3 DE 3 · PERFIL · PASO ${_page + 1} DE $_totalPages',
+                    value: (2 + ((_page + 1) / _totalPages)) / 3,
                   ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () async {
-                            final ok = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor: AppColors.surfaceLight,
-                                title: Text('¿Salir del asistente?', style: AppTextStyles.heading.copyWith(fontSize: 18)),
-                                content: Text(
-                                  'Podés completar tu perfil más tarde desde Inicio o Perfil.',
-                                  style: AppTextStyles.bodyNormal,
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: Text('Seguir acá', style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Text(
+                        'Perfil del alumno',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: AppColors.surfaceLight,
+                                    title: Text('¿Salir del asistente?',
+                                        style: AppTextStyles.heading
+                                            .copyWith(fontSize: 18)),
+                                    content: Text(
+                                      'Podés completar tu perfil más tarde desde Inicio o Perfil. Necesitarás un WhatsApp válido antes de reservar una clase.',
+                                      style: AppTextStyles.bodyNormal,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: Text('Seguir acá',
+                                            style: TextStyle(
+                                                color:
+                                                    AppColors.textSecondary)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: Text('Salir',
+                                            style: TextStyle(
+                                                color: AppColors.primary,
+                                                fontWeight: FontWeight.w700)),
+                                      ),
+                                    ],
                                   ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: Text('Salir', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (ok == true && mounted) await _completeOnboarding();
-                          },
-                    child: Text(
-                      'Después',
-                      style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary),
-                    ),
+                                );
+                                if (ok == true && mounted) {
+                                  await _completeOnboarding();
+                                }
+                              },
+                        child: Text(
+                          'Después',
+                          style: AppTextStyles.bodyNormal
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                child: LinearProgressIndicator(
-                  value: (_page + 1) / _totalPages,
-                  minHeight: 4,
-                  backgroundColor: AppColors.surfaceLighter,
-                  color: AppColors.primary,
+              child: Semantics(
+                label: 'Progreso del perfil',
+                value: '${_page + 1} de $_totalPages',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: LinearProgressIndicator(
+                    value: (_page + 1) / _totalPages,
+                    minHeight: 4,
+                    backgroundColor: AppColors.surfaceLighter,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ),
@@ -302,7 +335,8 @@ class _StudentProgressiveOnboardingScreenState
           SizedBox(height: AppSpacing.sm),
           Text(
             'Decinos tu nivel actual de manejo. Siempre podés cambiarlo en tu perfil.',
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary, height: 1.4),
+            style: AppTextStyles.bodyNormal
+                .copyWith(color: AppColors.textSecondary, height: 1.4),
           ),
           SizedBox(height: AppSpacing.md),
           ContextHelpCard(
@@ -338,33 +372,29 @@ class _StudentProgressiveOnboardingScreenState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '¿Tu teléfono?',
+            'Tu WhatsApp',
             style: AppTextStyles.displayMedium,
           ),
           SizedBox(height: AppSpacing.sm),
           Text(
-            'Opcional: útil para recordatorios y contacto con instructores.',
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary, height: 1.4),
+            'Es obligatorio para reservar. Solo se habilita entre vos y el instructor cuando la clase está confirmada.',
+            style: AppTextStyles.bodyNormal
+                .copyWith(color: AppColors.textSecondary, height: 1.4),
           ),
           SizedBox(height: AppSpacing.xl),
           AppInput(
             controller: _phoneController,
-            label: 'Teléfono',
-            hint: '11 1234-5678',
-            prefixIcon: Icons.phone_outlined,
+            label: 'WhatsApp con código de país',
+            hint: '+54 9 11 1234 5678',
+            prefixIcon: Icons.chat_outlined,
             keyboardType: TextInputType.phone,
+            validator: validateWhatsAppNumber,
           ),
           SizedBox(height: AppSpacing.lg),
           AppButton(
             text: 'Guardar y continuar',
-            onPressed: _busy ? null : () => _savePhoneAndNext(skip: false),
+            onPressed: _busy ? null : _savePhoneAndNext,
             isLoading: _busy,
-          ),
-          SizedBox(height: AppSpacing.md),
-          AppButton(
-            text: 'Saltar por ahora',
-            type: AppButtonType.ghost,
-            onPressed: _busy ? null : () => _savePhoneAndNext(skip: true),
           ),
         ],
       ),
@@ -384,7 +414,8 @@ class _StudentProgressiveOnboardingScreenState
           SizedBox(height: AppSpacing.sm),
           Text(
             'Opcional: mejoramos sugerencias de instructores en tu zona.',
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary, height: 1.4),
+            style: AppTextStyles.bodyNormal
+                .copyWith(color: AppColors.textSecondary, height: 1.4),
           ),
           SizedBox(height: AppSpacing.xl),
           AppInput(
@@ -397,7 +428,9 @@ class _StudentProgressiveOnboardingScreenState
           AnimatedBuilder(
             animation: _locationAutocomplete,
             builder: (context, _) {
-              if (!_locationAutocomplete.showSuggestions) return const SizedBox.shrink();
+              if (!_locationAutocomplete.showSuggestions) {
+                return const SizedBox.shrink();
+              }
               return LocationAutocompleteDropdown(
                 isLoading: _locationAutocomplete.isLoading,
                 error: _locationAutocomplete.error,
@@ -440,7 +473,8 @@ class _StudentProgressiveOnboardingScreenState
           SizedBox(height: AppSpacing.sm),
           Text(
             'Opcional: ayuda a generar confianza al reservar.',
-            style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary, height: 1.4),
+            style: AppTextStyles.bodyNormal
+                .copyWith(color: AppColors.textSecondary, height: 1.4),
           ),
           SizedBox(height: AppSpacing.xl),
           Center(
@@ -448,33 +482,36 @@ class _StudentProgressiveOnboardingScreenState
               label: 'Elegir foto de perfil',
               button: true,
               child: GestureDetector(
-              onTap: _busy ? null : _pickPhoto,
-              child: Builder(
-                builder: (context) {
-                  final photoSize = ResponsiveLayout.heroIconSize(context, max: 120, min: 88);
-                  return Container(
-                width: photoSize,
-                height: photoSize,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.divider, width: 2),
+                onTap: _busy ? null : _pickPhoto,
+                child: Builder(
+                  builder: (context) {
+                    final photoSize = ResponsiveLayout.heroIconSize(context,
+                        max: 120, min: 88);
+                    return Container(
+                      width: photoSize,
+                      height: photoSize,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLight,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.divider, width: 2),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _pickedImage == null
+                          ? Icon(Icons.add_a_photo_outlined,
+                              size: 40, color: AppColors.textSecondary)
+                          : (!kIsWeb)
+                              ? Image.file(
+                                  File(_pickedImage!.path),
+                                  fit: BoxFit.cover,
+                                  width: photoSize,
+                                  height: photoSize,
+                                )
+                              : Icon(Icons.image_outlined,
+                                  size: 40, color: AppColors.textSecondary),
+                    );
+                  },
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: _pickedImage == null
-                    ? Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.textSecondary)
-                    : (!kIsWeb)
-                        ? Image.file(
-                            File(_pickedImage!.path),
-                            fit: BoxFit.cover,
-                            width: photoSize,
-                            height: photoSize,
-                          )
-                        : Icon(Icons.image_outlined, size: 40, color: AppColors.textSecondary),
-              );
-                },
               ),
-            ),
             ),
           ),
           SizedBox(height: AppSpacing.sm),
@@ -483,13 +520,15 @@ class _StudentProgressiveOnboardingScreenState
               onPressed: _busy ? null : _pickPhoto,
               child: Text(
                 _pickedImage == null ? 'Elegir de la galería' : 'Cambiar foto',
-                style: AppTextStyles.bodyLarge.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600),
+                style: AppTextStyles.bodyLarge.copyWith(
+                    color: AppColors.primary, fontWeight: FontWeight.w600),
               ),
             ),
           ),
           SizedBox(height: AppSpacing.xl),
           AppButton(
-            text: _pickedImage == null ? 'Continuar sin foto' : 'Subir y entrar',
+            text:
+                _pickedImage == null ? 'Continuar sin foto' : 'Subir y entrar',
             onPressed: _busy
                 ? null
                 : () => _finishPhotoStep(skip: _pickedImage == null),

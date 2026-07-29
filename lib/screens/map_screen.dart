@@ -1,9 +1,14 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/services/profile_map_marker_icon_service.dart';
+import 'package:manejapp/widgets/responsive_scroll_body.dart';
 import 'dart:convert';
 
+@Deprecated('V1: pantalla legacy fuera del flujo. El mapa vive en HomeScreen.')
 class MapScreen extends StatefulWidget {
   static const routeName = '/map';
   const MapScreen({super.key});
@@ -14,31 +19,70 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final TextEditingController _addressController = TextEditingController();
-  final MapController _mapController = MapController();
-  LatLng _center = LatLng(-34.505, -58.695); // Tortuguitas
-  List<Marker> _markers = [];
+  GoogleMapController? _mapController;
+  LatLng _center = const LatLng(-34.505, -58.695); // Tortuguitas
   bool _searching = false;
+  Set<Marker> _markers = {};
+  BitmapDescriptor? _placeIcon;
 
   @override
   void initState() {
     super.initState();
-    _markers = [
-      Marker(
-        width: 80.0,
-        height: 80.0,
-        point: _center,
-        child: const Icon(
-          Icons.location_pin,
-          color: Colors.red,
-          size: 40,
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prepareMarker());
+  }
+
+  Future<void> _prepareMarker() async {
+    if (!mounted) return;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final icon =
+        await ProfileMapMarkerIconService.instance.descriptorForProfile(
+      devicePixelRatio: dpr,
+      imageUrl: null,
+      fallbackLabel: '★',
+      fallbackColor: AppColors.primary,
+    );
+    if (!mounted) return;
+    setState(() {
+      _placeIcon = icon;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('center'),
+          position: _center,
+          icon: icon,
+          anchor: ProfileMapMarkerIconService.anchorFor(
+              ProfileMapMarkerAnchorMode.pin),
         ),
-      ),
-    ];
+      };
+    });
+  }
+
+  Future<void> _refreshMarkerPosition() async {
+    final icon = _placeIcon ??
+        await ProfileMapMarkerIconService.instance.descriptorForProfile(
+          devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          imageUrl: null,
+          fallbackLabel: '★',
+          fallbackColor: AppColors.primary,
+        );
+    if (!mounted) return;
+    setState(() {
+      _placeIcon = icon;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('center'),
+          position: _center,
+          icon: icon,
+          anchor: ProfileMapMarkerIconService.anchorFor(
+              ProfileMapMarkerAnchorMode.pin),
+        ),
+      };
+    });
   }
 
   @override
   void dispose() {
     _addressController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -77,24 +121,15 @@ class _MapScreenState extends State<MapScreen> {
             final pos = LatLng(lat, lon);
             setState(() {
               _center = pos;
-              _markers = [
-                Marker(
-                  width: 80.0,
-                  height: 80.0,
-                  point: pos,
-                  child: const Icon(
-                    Icons.location_pin,
-                    color: Colors.red,
-                    size: 40,
-                  ),
-                ),
-              ];
             });
-            _mapController.move(pos, 16.0);
+            await _refreshMarkerPosition();
+            await _mapController
+                ?.animateCamera(CameraUpdate.newLatLngZoom(pos, 16));
           } else {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No se pudo interpretar la ubicación')),
+              const SnackBar(
+                  content: Text('No se pudo interpretar la ubicación')),
             );
           }
         } else {
@@ -106,7 +141,9 @@ class _MapScreenState extends State<MapScreen> {
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error buscando dirección (HTTP ${res.statusCode})')),
+          SnackBar(
+              content:
+                  Text('Error buscando dirección (HTTP ${res.statusCode})')),
         );
       }
     } catch (e) {
@@ -124,55 +161,61 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final searchPadding = ResponsiveLayout.scrollPadding(
+      context,
+      base: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Mapa de ManejApp')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: TextField(
-              controller: _addressController,
-              decoration: InputDecoration(
-                hintText: 'Ingresá la dirección exacta (calle, número, ciudad)',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searching
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: searchPadding,
+              child: TextField(
+                controller: _addressController,
+                decoration: InputDecoration(
+                  hintText:
+                      'Ingresá la dirección exacta (calle, número, ciudad)',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: 'Usar mi ubicación',
+                          icon: const Icon(Icons.my_location),
+                          onPressed: _searchAddress,
                         ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.my_location),
-                        onPressed: _searchAddress,
-                      ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _searchAddress(),
               ),
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _searchAddress(),
             ),
-          ),
-          Expanded(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _center,
-                initialZoom: 13.0,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  subdomains: const ['a', 'b', 'c'],
+            Expanded(
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: _center,
+                  zoom: 13,
                 ),
-                MarkerLayer(markers: _markers),
-              ],
+                onMapCreated: (c) => _mapController = c,
+                markers: _markers,
+                myLocationButtonEnabled: false,
+                zoomControlsEnabled: true,
+                mapToolbarEnabled: false,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -18,11 +18,10 @@
 - ✅ UI mejorada con Card y mejor layout
 - ✅ Botones con ancho completo y altura fija (48px)
 
-### 3. **Constantes Centralizadas**
-**Archivo:** `lib/utils/constants.dart`
-- ✅ `AppColors` - Colores de la app
-- ✅ `AppSizes` - Tamaños y espaciados
-- ✅ `AppAssets` - Rutas de assets
+### 3. **Design system centralizado**
+**Archivo:** `lib/config/design_system.dart`
+- ✅ `AppColors`, `AppSpacing`, `AppRadius`, `AppShadows`, `AppTheme`, etc.
+- ✅ `AppSizes` / `AppAssets` (tokens de layout y rutas de assets)
 
 ### 4. **Mejoras de UI/UX**
 
@@ -57,7 +56,7 @@
 1. ✅ `lib/screens/login_screen.dart`
 2. ✅ `lib/screens/register_screen.dart`
 3. ✅ `lib/screens/payment_screen.dart`
-4. ✅ `lib/utils/constants.dart` (nuevo)
+4. ✅ `lib/config/design_system.dart` (tokens y tema)
 
 ## 🐛 Errores Corregidos
 

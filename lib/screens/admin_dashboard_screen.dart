@@ -1,9 +1,12 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'admin_users_screen.dart';
 import 'admin_logs_screen.dart';
 import '../controllers/login_controller.dart';
 
+@Deprecated('V1: usar AdminMobileNoticeScreen / panel web.')
 class AdminDashboardScreen extends StatefulWidget {
   static const routeName = '/admin_dashboard';
   const AdminDashboardScreen({super.key});
@@ -28,26 +31,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       debugPrint('=== LOADING STATS ===');
-      
+
       debugPrint('Fetching students...');
       final students = await ApiService.getUsersByRole('STUDENT');
       debugPrint('Students count: ${students.length}');
-      
+
       debugPrint('Fetching instructors...');
       final instructors = await ApiService.getUsersByRole('INSTRUCTOR');
       debugPrint('Instructors count: ${instructors.length}');
-      
+
       debugPrint('Fetching classes...');
       final classes = await ApiService.getDrivingClasses();
       debugPrint('Classes count: ${classes.length}');
-      
+
       if (mounted) {
         setState(() {
           _stats = {
             'totalStudents': students.length,
             'totalInstructors': instructors.length,
             'totalClasses': classes.length,
-            'completedClasses': classes.where((c) => c['status'] == 'completed').length,
+            'completedClasses':
+                classes.where((c) => c['status'] == 'completed').length,
             'totalRevenue': 0,
             'pendingPayments': 0,
           };
@@ -84,10 +88,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
-      body: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildBody(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
           BottomNavigationBarItem(icon: Icon(Icons.article), label: 'Logs'),
         ],
@@ -100,10 +107,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildBody() {
     switch (_selectedIndex) {
-      case 0: return _buildDashboard();
-      case 1: return const AdminUsersScreen();
-      case 2: return const AdminLogsScreen();
-      default: return _buildDashboard();
+      case 0:
+        return _buildDashboard();
+      case 1:
+        return const AdminUsersScreen();
+      case 2:
+        return const AdminLogsScreen();
+      default:
+        return _buildDashboard();
     }
   }
 
@@ -116,7 +127,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Resumen General', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text('Resumen General',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             GridView.count(
               shrinkWrap: true,
@@ -126,10 +138,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               crossAxisSpacing: 16,
               childAspectRatio: 1.8,
               children: [
-                _buildStatCard('Estudiantes', '${_stats['totalStudents'] ?? 0}', Icons.school, Colors.blue),
-                _buildStatCard('Instructores', '${_stats['totalInstructors'] ?? 0}', Icons.person, Colors.green),
-                _buildStatCard('Clases Totales', '${_stats['totalClasses'] ?? 0}', Icons.class_, Colors.orange),
-                _buildStatCard('Completadas', '${_stats['completedClasses'] ?? 0}', Icons.check_circle, Colors.purple),
+                _buildStatCard('Estudiantes', '${_stats['totalStudents'] ?? 0}',
+                    Icons.school, Colors.blue),
+                _buildStatCard(
+                    'Instructores',
+                    '${_stats['totalInstructors'] ?? 0}',
+                    Icons.person,
+                    Colors.green),
+                _buildStatCard(
+                    'Clases Totales',
+                    '${_stats['totalClasses'] ?? 0}',
+                    Icons.class_,
+                    Colors.orange),
+                _buildStatCard(
+                    'Completadas',
+                    '${_stats['completedClasses'] ?? 0}',
+                    Icons.check_circle,
+                    Colors.purple),
               ],
             ),
             const SizedBox(height: 24),
@@ -139,16 +164,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Ingresos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text('Ingresos',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
-                          child: _buildRevenueCard('Total Recaudado', '\$${(_stats['totalRevenue'] ?? 0).toStringAsFixed(0)}', Colors.green),
+                          child: _buildRevenueCard(
+                              'Total Recaudado',
+                              '\$${(_stats['totalRevenue'] ?? 0).toStringAsFixed(0)}',
+                              Colors.green),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: _buildRevenueCard('Pagos Pendientes', (_stats['pendingPayments'] ?? 0).toString(), Colors.orange),
+                          child: _buildRevenueCard(
+                              'Pagos Pendientes',
+                              (_stats['pendingPayments'] ?? 0).toString(),
+                              Colors.orange),
                         ),
                       ],
                     ),
@@ -157,7 +190,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text('Acciones Rápidas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('Acciones Rápidas',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: () => setState(() => _selectedIndex = 1),
@@ -177,7 +211,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Cerrar Sesión'),
-                    content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+                    content: const Text(
+                        '¿Estás seguro de que quieres cerrar sesión?'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
@@ -211,7 +246,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -220,8 +256,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Icon(icon, color: color, size: 24),
             const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+            Text(title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
           ],
         ),
       ),
@@ -238,9 +280,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       child: Column(
         children: [
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(height: 4),
-          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+          Text(title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12)),
         ],
       ),
     );

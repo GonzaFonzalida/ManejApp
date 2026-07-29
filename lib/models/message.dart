@@ -25,7 +25,9 @@ class Message {
       content: json['content'],
       sentAt: DateTime.parse(json['sentAt']),
       readAt: json['readAt'] != null ? DateTime.parse(json['readAt']) : null,
-      sender: json['sender'] != null ? MessageSender.fromJson(json['sender']) : null,
+      sender: json['sender'] != null
+          ? MessageSender.fromJson(json['sender'])
+          : null,
     );
   }
 }
@@ -76,7 +78,9 @@ class Conversation {
       participant2Id: json['participant2Id'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      lastMessage: json['lastMessage'] != null ? Message.fromJson(json['lastMessage']) : null,
+      lastMessage: json['lastMessage'] != null
+          ? Message.fromJson(json['lastMessage'])
+          : null,
     );
   }
 }

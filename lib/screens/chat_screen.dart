@@ -76,7 +76,9 @@ class _ChatScreenState extends State<ChatScreen> {
       });
 
       if (widget.conversationId != null && mounted) {
-        await context.read<ChatController>().loadMessages(widget.conversationId!);
+        await context
+            .read<ChatController>()
+            .loadMessages(widget.conversationId!);
         _scrollToBottom();
       }
     } catch (e) {
@@ -139,7 +141,9 @@ class _ChatScreenState extends State<ChatScreen> {
       await context.read<ChatController>().sendMessage(receiverId, content);
 
       if (widget.conversationId != null && mounted) {
-        await context.read<ChatController>().loadMessages(widget.conversationId!);
+        await context
+            .read<ChatController>()
+            .loadMessages(widget.conversationId!);
       }
       _scrollToBottom();
     } catch (e) {
@@ -200,7 +204,10 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SkeletonLoader(width: double.infinity, height: 18, borderRadius: BorderRadius.all(Radius.circular(6))),
+                  SkeletonLoader(
+                      width: double.infinity,
+                      height: 18,
+                      borderRadius: BorderRadius.all(Radius.circular(6))),
                   SizedBox(height: AppSpacing.lg),
                   Expanded(child: ListSkeletonLoader(itemCount: 6)),
                 ],
@@ -220,10 +227,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     const SizedBox(height: AppSpacing.md),
                     TextButton.icon(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textSecondary),
+                      icon: const Icon(Icons.arrow_back_rounded,
+                          color: AppColors.textSecondary),
                       label: Text(
                         'Volver a mensajes',
-                        style: AppTextStyles.bodyLarge.copyWith(color: AppColors.primary),
+                        style: AppTextStyles.bodyLarge
+                            .copyWith(color: AppColors.primary),
                       ),
                     ),
                   ],
@@ -248,7 +257,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         Expanded(
                           child: Consumer<ChatController>(
                             builder: (context, controller, _) {
-                              if (widget.conversationId != null && controller.loadingMessages) {
+                              if (widget.conversationId != null &&
+                                  controller.loadingMessages) {
                                 return const ListSkeletonLoader(itemCount: 8);
                               }
 
@@ -256,8 +266,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                   controller.messagesError != null &&
                                   controller.messages.isEmpty) {
                                 return ListView(
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: AppSpacing.xl),
                                   children: [
                                     AppErrorState(
                                       title: 'No pudimos cargar los mensajes',
@@ -267,11 +279,14 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                     const SizedBox(height: AppSpacing.md),
                                     TextButton.icon(
-                                      onPressed: () => Navigator.of(context).pop(),
-                                      icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textSecondary),
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      icon: const Icon(Icons.arrow_back_rounded,
+                                          color: AppColors.textSecondary),
                                       label: Text(
                                         'Volver a conversaciones',
-                                        style: AppTextStyles.bodyLarge.copyWith(color: AppColors.primary),
+                                        style: AppTextStyles.bodyLarge
+                                            .copyWith(color: AppColors.primary),
                                       ),
                                     ),
                                   ],
@@ -280,7 +295,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
                               if (controller.messages.isEmpty) {
                                 return ListView(
-                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
                                   padding: const EdgeInsets.all(AppSpacing.lg),
                                   children: [
                                     AppEmptyState(
@@ -299,7 +315,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                 onRefresh: _reloadMessages,
                                 child: ListView.builder(
                                   controller: _scrollController,
-                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
                                   padding: const EdgeInsets.all(AppSpacing.md),
                                   itemCount: controller.messages.length,
                                   itemBuilder: (context, index) {
@@ -336,19 +353,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                         enabled: !_isSending,
                                         minLines: 1,
                                         maxLines: 5,
-                                        style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                                        style: AppTextStyles.bodyLarge.copyWith(
+                                            color: AppColors.textPrimary),
                                         decoration: InputDecoration(
                                           hintText: 'Escribí un mensaje…',
-                                          hintStyle: AppTextStyles.bodyNormal.copyWith(
+                                          hintStyle:
+                                              AppTextStyles.bodyNormal.copyWith(
                                             color: AppColors.textSecondary,
                                           ),
                                           border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                                            borderRadius: BorderRadius.circular(
+                                                AppRadius.pill),
                                             borderSide: BorderSide.none,
                                           ),
                                           filled: true,
                                           fillColor: AppColors.surfaceLighter,
-                                          contentPadding: const EdgeInsets.symmetric(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
                                             horizontal: AppSpacing.md,
                                             vertical: AppSpacing.sm,
                                           ),
@@ -360,7 +381,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                   const SizedBox(width: AppSpacing.sm),
                                   Semantics(
-                                    label: _isSending ? 'Enviando mensaje' : 'Enviar mensaje',
+                                    label: _isSending
+                                        ? 'Enviando mensaje'
+                                        : 'Enviar mensaje',
                                     button: true,
                                     child: Tooltip(
                                       message: 'Enviar',
@@ -369,15 +392,19 @@ class _ChatScreenState extends State<ChatScreen> {
                                         shape: const CircleBorder(),
                                         child: InkWell(
                                           customBorder: const CircleBorder(),
-                                          onTap: _isSending ? null : _sendMessage,
+                                          onTap:
+                                              _isSending ? null : _sendMessage,
                                           child: Padding(
-                                            padding: const EdgeInsets.all(AppSpacing.sm),
+                                            padding: const EdgeInsets.all(
+                                                AppSpacing.sm),
                                             child: _isSending
                                                 ? const SizedBox(
                                                     width: 24,
                                                     height: 24,
-                                                    child: CircularProgressIndicator(
-                                                      color: AppColors.onPrimary,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      color:
+                                                          AppColors.onPrimary,
                                                       strokeWidth: 2,
                                                     ),
                                                   )
@@ -413,7 +440,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
-        mainAxisAlignment: isSent ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isSent ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isSent) ...[
@@ -437,8 +465,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(AppRadius.lg),
                   topRight: const Radius.circular(AppRadius.lg),
-                  bottomLeft: Radius.circular(isSent ? AppRadius.lg : AppRadius.sm),
-                  bottomRight: Radius.circular(isSent ? AppRadius.sm : AppRadius.lg),
+                  bottomLeft:
+                      Radius.circular(isSent ? AppRadius.lg : AppRadius.sm),
+                  bottomRight:
+                      Radius.circular(isSent ? AppRadius.sm : AppRadius.lg),
                 ),
               ),
               child: Padding(
@@ -462,12 +492,15 @@ class _ChatScreenState extends State<ChatScreen> {
                       children: [
                         Text(
                           DateFormat('HH:mm').format(message.sentAt.toLocal()),
-                          style: AppTextStyles.caption.copyWith(color: metaColor, fontSize: 11),
+                          style: AppTextStyles.caption
+                              .copyWith(color: metaColor, fontSize: 12),
                         ),
                         if (isSent) ...[
                           const SizedBox(width: 4),
                           Icon(
-                            message.readAt != null ? Icons.done_all_rounded : Icons.done_rounded,
+                            message.readAt != null
+                                ? Icons.done_all_rounded
+                                : Icons.done_rounded,
                             size: 14,
                             color: message.readAt != null
                                 ? AppColors.secondary.withValues(alpha: 0.95)

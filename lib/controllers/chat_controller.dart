@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/message.dart';
+import '../utils/user_facing_error.dart';
 import 'dart:developer' as developer;
 
 class ChatController extends ChangeNotifier {
   List<Conversation> _conversations = [];
   List<Message> _messages = [];
-  bool _isLoading = false;
+  bool _loadingConversations = false;
+  bool _loadingMessages = false;
+  String? _conversationsError;
+  String? _messagesError;
   int _unreadCount = 0;
 
   List<Conversation> get conversations => _conversations;
   List<Message> get messages => _messages;
-  bool get isLoading => _isLoading;
   int get unreadCount => _unreadCount;
 
+  bool get loadingConversations => _loadingConversations;
+  bool get loadingMessages => _loadingMessages;
+  String? get conversationsError => _conversationsError;
+  String? get messagesError => _messagesError;
+
   Future<void> loadConversations() async {
-    _isLoading = true;
+    _conversationsError = null;
+    _loadingConversations = true;
     notifyListeners();
 
     try {
@@ -24,15 +33,16 @@ class ChatController extends ChangeNotifier {
       await loadUnreadCount();
     } catch (e) {
       developer.log('Error loading conversations: $e', name: 'ChatController');
-      rethrow;
+      _conversationsError = humanizeApiError(e);
     } finally {
-      _isLoading = false;
+      _loadingConversations = false;
       notifyListeners();
     }
   }
 
   Future<void> loadMessages(int conversationId) async {
-    _isLoading = true;
+    _messagesError = null;
+    _loadingMessages = true;
     notifyListeners();
 
     try {
@@ -42,9 +52,10 @@ class ChatController extends ChangeNotifier {
       await loadUnreadCount();
     } catch (e) {
       developer.log('Error loading messages: $e', name: 'ChatController');
-      rethrow;
+      _messages = [];
+      _messagesError = humanizeApiError(e);
     } finally {
-      _isLoading = false;
+      _loadingMessages = false;
       notifyListeners();
     }
   }

@@ -1,10 +1,11 @@
 name: manejapp
 description: "ManejApp - Aplicación para clases de manejo"
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+5
 
 environment:
-  sdk: ^3.8.1
+  # Compatible con Dart 3.5.x (Flutter 3.24) para testeo local
+  sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -17,12 +18,7 @@ dependencies:
   url_launcher: ^6.3.2
   google_maps_flutter: ^2.9.0
   geolocator: ^12.0.0
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
-  firebase_core: ^3.8.1
-  firebase_messaging: ^15.1.5
-  flutter_local_notifications: ^18.0.1
-  image_picker: ^1.1.2
+  image_picker: ^1.2.1
   file_picker: ^8.1.6
   cached_network_image: ^3.4.1
   fl_chart: ^0.70.1
@@ -32,10 +28,21 @@ dependencies:
   table_calendar: ^3.1.2
   flutter_staggered_animations: ^1.1.1
   app_links: ^6.3.2
+  google_sign_in: ^5.4.4
+  google_sign_in_web: ^0.10.0
+  local_auth: ^3.0.1
+  sign_in_with_apple: ^7.0.1
+  crypto: ^3.0.7
+  firebase_core: ^4.12.1
+  firebase_messaging: ^16.4.3
+  firebase_crashlytics: ^5.2.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
+  test: ^1.25.0
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
 
@@ -46,3 +53,16 @@ flutter:
     - assets/car1.png
     - assets/car2.png
     - assets/car3.png
+  fonts:
+    - family: Urbanist
+      fonts:
+        - asset: assets/Urbanist-Regular.ttf
+          weight: 400
+        - asset: assets/Urbanist-Medium.ttf
+          weight: 500
+        - asset: assets/Urbanist-SemiBold.ttf
+          weight: 600
+        - asset: assets/Urbanist-Bold.ttf
+          weight: 700
+        - asset: assets/Urbanist-ExtraBold.ttf
+          weight: 800

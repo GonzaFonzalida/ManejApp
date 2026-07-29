@@ -50,7 +50,8 @@ class _DebugRoutingScreenState extends State<DebugRoutingScreen> {
           roleFromDb = 'error al cargar';
         }
         try {
-          resolvedRoute = await RoleRouter.resolveRouteForCurrentUser(context: 'debug_screen');
+          resolvedRoute = await RoleRouter.resolveRouteForCurrentUser(
+              context: 'debug_screen');
         } catch (e) {
           resolvedRoute = 'error: $e';
         }
@@ -104,9 +105,12 @@ class _DebugRoutingScreenState extends State<DebugRoutingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700])),
+          Text(label,
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: Colors.grey[700])),
           const SizedBox(height: 4),
-          SelectableText(value, style: const TextStyle(fontFamily: 'monospace')),
+          SelectableText(value,
+              style: const TextStyle(fontFamily: 'monospace')),
         ],
       ),
     );

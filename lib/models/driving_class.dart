@@ -62,22 +62,42 @@ class User {
   final String? email;
   final String? role;
 
+  /// Nivel 1–5 del perfil estudiante (viene del backend en clases con alumno incluido).
+  final int? experienceLevel;
+
   User({
     required this.id,
     this.name,
     this.surname,
     this.email,
     this.role,
+    this.experienceLevel,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    int? exp = json['experienceLevel'] != null
+        ? (json['experienceLevel'] is int
+            ? json['experienceLevel'] as int
+            : int.tryParse(json['experienceLevel'].toString()))
+        : null;
+    final nested = json['user'];
+    if (nested is Map<String, dynamic>) {
+      exp ??= nested['experienceLevel'] != null
+          ? (nested['experienceLevel'] is int
+              ? nested['experienceLevel'] as int
+              : int.tryParse(nested['experienceLevel'].toString()))
+          : null;
+    }
+    final userMap = nested is Map<String, dynamic> ? nested : null;
     return User(
-      id: json['id'] as int,
-      name: json['name'] as String?,
-      surname: json['surname'] as String?,
-      email: json['email'] as String?,
-      role: json['role'] as String?,
+      id: (json['id'] is int)
+          ? json['id'] as int
+          : int.parse(json['id'].toString()),
+      name: json['name'] as String? ?? userMap?['name'] as String?,
+      surname: json['surname'] as String? ?? userMap?['surname'] as String?,
+      email: json['email'] as String? ?? userMap?['email'] as String?,
+      role: json['role'] as String? ?? userMap?['role'] as String?,
+      experienceLevel: exp,
     );
   }
 }
-

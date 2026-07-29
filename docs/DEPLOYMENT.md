@@ -213,7 +213,7 @@ Recibe notificaciones de nuevas reservas, recordatorios de clases y más.
 • Sin comisiones ocultas
 
 📞 SOPORTE
-¿Necesitas ayuda? Contáctanos en soporte@manejapp.com
+¿Necesitas ayuda? Contáctanos en soporte@manejapp.app
 
 Descarga ManejApp ahora y comienza tu camino hacia la licencia de conducir. 🚗💨
 ```

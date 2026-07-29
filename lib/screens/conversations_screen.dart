@@ -56,7 +56,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   int _getOtherParticipantId(Conversation conv) {
     if (_currentUserId == null) return conv.participant1Id;
-    return conv.participant1Id == _currentUserId ? conv.participant2Id : conv.participant1Id;
+    return conv.participant1Id == _currentUserId
+        ? conv.participant2Id
+        : conv.participant1Id;
   }
 
   @override
@@ -64,7 +66,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Mensajes', style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        title: Text('Mensajes',
+            style: AppTextStyles.heading.copyWith(fontSize: 20)),
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
@@ -72,16 +75,20 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
             child: Semantics(
               label: 'Buscar conversaciones',
               textField: true,
               child: TextField(
-                style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textPrimary),
+                style: AppTextStyles.bodyLarge
+                    .copyWith(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Buscar por nombre…',
-                  hintStyle: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary),
+                  hintStyle: AppTextStyles.bodyNormal
+                      .copyWith(color: AppColors.textSecondary),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: AppColors.textSecondary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
@@ -91,7 +98,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
                   ),
                   filled: true,
                   fillColor: AppColors.surfaceLighter,
@@ -109,11 +117,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget _buildBody() {
     return Consumer<ChatController>(
       builder: (context, controller, _) {
-        if (controller.loadingConversations && controller.conversations.isEmpty) {
+        if (controller.loadingConversations &&
+            controller.conversations.isEmpty) {
           return const ListSkeletonLoader(itemCount: 8);
         }
 
-        if (controller.conversationsError != null && controller.conversations.isEmpty) {
+        if (controller.conversationsError != null &&
+            controller.conversations.isEmpty) {
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
@@ -137,7 +147,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         if (filtered.isEmpty) {
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.lg),
             children: [
               if (_searchQuery.isNotEmpty)
                 AppEmptyState(
@@ -154,7 +165,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   subtitle:
                       'Cuando reserves con un instructor y tengas el pago en orden, podés escribirle desde acá.',
                   actionLabel: 'Explorar instructores',
-                  onAction: () => Navigator.pushNamed(context, HomeScreen.routeName),
+                  onAction: () =>
+                      Navigator.pushNamed(context, HomeScreen.routeName),
                 ),
             ],
           );
@@ -176,7 +188,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 label: 'Conversación con $title',
                 button: true,
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   leading: CircleAvatar(
                     backgroundColor: AppColors.primary.withValues(alpha: 0.2),
                     child: Text(
@@ -189,7 +202,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ),
                   title: Text(
                     title,
-                    style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                    style: AppTextStyles.bodyLarge
+                        .copyWith(fontWeight: FontWeight.w700),
                   ),
                   subtitle: Text(
                     conv.lastMessage?.content ?? 'Todavía no hay mensajes',
@@ -202,8 +216,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ),
                   trailing: conv.lastMessage != null
                       ? Text(
-                          DateFormat('dd/MM HH:mm').format(conv.lastMessage!.sentAt.toLocal()),
-                          style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                          DateFormat('dd/MM HH:mm')
+                              .format(conv.lastMessage!.sentAt.toLocal()),
+                          style: AppTextStyles.caption
+                              .copyWith(color: AppColors.textSecondary),
                         )
                       : null,
                   onTap: () {
@@ -211,7 +227,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                       context,
                       MaterialPageRoute<void>(
                         builder: (context) => ChatScreen(
-                          recipientName: title == 'Conversación' ? 'Contacto' : title,
+                          recipientName:
+                              title == 'Conversación' ? 'Contacto' : title,
                           recipientId: otherId.toString(),
                           conversationId: conv.id,
                         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:manejapp/config/design_system.dart';
 import '../controllers/chat_controller.dart';
 
 class MessageBadge extends StatelessWidget {
@@ -12,7 +13,7 @@ class MessageBadge extends StatelessWidget {
     return Consumer<ChatController>(
       builder: (context, controller, _) {
         final count = controller.unreadCount;
-        
+
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -21,24 +22,29 @@ class MessageBadge extends StatelessWidget {
               Positioned(
                 right: -6,
                 top: -6,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 18,
-                    minHeight: 18,
-                  ),
-                  child: Text(
-                    count > 99 ? '99+' : count.toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                child: Semantics(
+                  label: count == 1
+                      ? '1 mensaje sin leer'
+                      : '$count mensajes sin leer',
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
                     ),
-                    textAlign: TextAlign.center,
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      count > 99 ? '99+' : count.toString(),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
               ),

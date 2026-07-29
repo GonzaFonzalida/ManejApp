@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -81,11 +83,13 @@ class _InstructorPendingApprovalScreenState
         elevation: 0,
         actions: [
           IconButton(
+            tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout, color: AppColors.textPrimary),
             onPressed: () async {
               await _storage.deleteAll();
               if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+                Navigator.of(context)
+                    .pushReplacementNamed(LoginScreen.routeName);
               }
             },
           )
@@ -98,39 +102,39 @@ class _InstructorPendingApprovalScreenState
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-              const Icon(
-                Icons.hourglass_empty,
-                size: 80,
-                color: AppColors.primary,
+            const Icon(
+              Icons.hourglass_empty,
+              size: 80,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Estamos revisando tus documentos',
+              style: AppTextStyles.displayLarge.copyWith(fontSize: 28),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Un administrador está validando los documentos que enviaste. Este proceso puede tardar hasta 48 horas hábiles. Cuando tu perfil sea aprobado, esta pantalla se actualizará sola.',
+              style: AppTextStyles.bodyNormal.copyWith(
+                color: AppColors.textSecondary,
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Estamos revisando tus documentos',
-                style: AppTextStyles.displayLarge.copyWith(fontSize: 28),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Un administrador está validando los documentos que enviaste. Este proceso puede tardar hasta 48 horas hábiles. Cuando tu perfil sea aprobado, esta pantalla se actualizará sola.',
-                style: AppTextStyles.bodyNormal.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              AppButton(
-                text: 'Cerrar sesión y salir',
-                type: AppButtonType.outline,
-                onPressed: () async {
-                  await _storage.deleteAll();
-                  if (context.mounted) {
-                    Navigator.of(context)
-                        .pushReplacementNamed(LoginScreen.routeName);
-                  }
-                },
-              ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 48),
+            AppButton(
+              text: 'Cerrar sesión y salir',
+              type: AppButtonType.outline,
+              onPressed: () async {
+                await _storage.deleteAll();
+                if (context.mounted) {
+                  Navigator.of(context)
+                      .pushReplacementNamed(LoginScreen.routeName);
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

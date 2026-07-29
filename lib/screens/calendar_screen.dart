@@ -1,8 +1,12 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:manejapp/services/api_service.dart';
 import 'package:intl/intl.dart';
 
+@Deprecated(
+    'V1: pantalla legacy fuera del flujo. Usar HomeScreen / student dashboard.')
 class CalendarScreen extends StatefulWidget {
   static const routeName = '/calendar';
   const CalendarScreen({super.key});
@@ -28,19 +32,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
     try {
       final classes = await ApiService.getDrivingClasses();
       final events = <DateTime, List<Map<String, dynamic>>>{};
-      
+
       for (var classItem in classes) {
         if (classItem['scheduledAt'] != null) {
           final date = DateTime.parse(classItem['scheduledAt']);
           final normalizedDate = DateTime(date.year, date.month, date.day);
-          
+
           if (events[normalizedDate] == null) {
             events[normalizedDate] = [];
           }
           events[normalizedDate]!.add(classItem);
         }
       }
-      
+
       setState(() {
         _events = events;
         _isLoading = false;
@@ -75,7 +79,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   eventLoader: _getEventsForDay,
                   calendarStyle: CalendarStyle(
                     todayDecoration: BoxDecoration(
-                      color: const Color(0xFF003087).withOpacity(0.5),
+                      color: const Color(0xFF003087).withValues(alpha: 0.5),
                       shape: BoxShape.circle,
                     ),
                     selectedDecoration: const BoxDecoration(
@@ -108,7 +112,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Widget _buildEventList() {
     final events = _selectedDay != null ? _getEventsForDay(_selectedDay!) : [];
-    
+
     if (events.isEmpty) {
       return const Center(
         child: Text('No hay clases programadas para este día'),
@@ -124,7 +128,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ? DateFormat('HH:mm').format(DateTime.parse(event['scheduledAt']))
             : 'Sin hora';
         final status = event['status'] ?? 'SCHEDULED';
-        
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(

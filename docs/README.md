@@ -238,8 +238,8 @@ Si encuentras un bug, por favor abre un issue con:
 
 ## 📞 Contacto
 
-- Email: soporte@manejapp.com
-- Website: https://manejapp.com
+- Email: soporte@manejapp.app
+- Website: https://manejapp.app
 - Twitter: [@manejapp](https://twitter.com/manejapp)
 
 ## 🙏 Agradecimientos

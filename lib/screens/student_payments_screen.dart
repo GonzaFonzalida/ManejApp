@@ -8,6 +8,7 @@ import 'package:manejapp/widgets/design/app_error_state.dart';
 import 'package:manejapp/screens/home_screen.dart';
 import 'package:manejapp/screens/student_reservation_detail_screen.dart';
 import 'package:manejapp/utils/app_feedback.dart';
+import 'package:manejapp/utils/app_formatters.dart';
 import 'package:manejapp/utils/user_facing_error.dart';
 import 'package:manejapp/widgets/skeleton_loader.dart';
 import '../services/api_service.dart';
@@ -56,7 +57,8 @@ class StudentPaymentsScreen extends StatefulWidget {
   State<StudentPaymentsScreen> createState() => _StudentPaymentsScreenState();
 }
 
-class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with SingleTickerProviderStateMixin {
+class _StudentPaymentsScreenState extends State<StudentPaymentsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<Payment> _allPayments = [];
   List<Payment> _paidPayments = [];
@@ -102,19 +104,24 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
       }
       // GET /classes ya filtra por rol (solo clases del usuario autenticado).
       final classes = await ApiService.getDrivingClasses();
-      final studentClasses = classes.map((c) => DrivingClass.fromJson(c as Map<String, dynamic>)).toList();
+      final studentClasses = classes
+          .map((c) => DrivingClass.fromJson(c as Map<String, dynamic>))
+          .toList();
 
       final paymentsList = await ApiService.getPayments();
 
       _allPayments = paymentsList
-          .where((p) => studentClasses.any((c) => c.id == (p as Map)['drivingClassId']))
+          .where((p) =>
+              studentClasses.any((c) => c.id == (p as Map)['drivingClassId']))
           .map((p) => Payment.fromJson(p as Map<String, dynamic>))
           .toList();
 
       // Filtrar por estado
       _paidPayments = _allPayments.where((p) => p.status == 'paid').toList();
-      _pendingPayments = _allPayments.where((p) => p.status == 'pending').toList();
-      _failedPayments = _allPayments.where((p) => p.status == 'failed').toList();
+      _pendingPayments =
+          _allPayments.where((p) => p.status == 'pending').toList();
+      _failedPayments =
+          _allPayments.where((p) => p.status == 'failed').toList();
 
       // Calcular totales
       _totalPaid = _paidPayments.fold(0, (sum, p) => sum + p.amount);
@@ -150,7 +157,8 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => StudentReservationDetailScreen(reservationId: payment.drivingClassId),
+        builder: (_) => StudentReservationDetailScreen(
+            reservationId: payment.drivingClassId),
       ),
     );
     if (mounted) await _loadPayments(silent: true);
@@ -168,7 +176,8 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Mis pagos', style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        title: Text('Mis pagos',
+            style: AppTextStyles.heading.copyWith(fontSize: 20)),
         backgroundColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
@@ -204,7 +213,7 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
                     // Resumen de pagos
                     Semantics(
                       label:
-                          'Total pagado ${_totalPaid.toStringAsFixed(0)} pesos, pendiente ${_totalPending.toStringAsFixed(0)} pesos',
+                          'Total pagado ${AppFormatters.ars(_totalPaid)}, pendiente ${AppFormatters.ars(_totalPending)}',
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: AppCard(
@@ -214,16 +223,19 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
                               Expanded(
                                 child: _buildSummaryItem(
                                   'Pagado',
-                                  '\$${_totalPaid.toStringAsFixed(0)}',
+                                  AppFormatters.ars(_totalPaid),
                                   AppColors.success,
                                   Icons.check_circle,
                                 ),
                               ),
-                              Container(width: 1, height: 40, color: AppColors.surfaceLighter),
+                              Container(
+                                  width: 1,
+                                  height: 40,
+                                  color: AppColors.surfaceLighter),
                               Expanded(
                                 child: _buildSummaryItem(
                                   'Pendiente',
-                                  '\$${_totalPending.toStringAsFixed(0)}',
+                                  AppFormatters.ars(_totalPending),
                                   AppColors.warning,
                                   Icons.schedule,
                                 ),
@@ -241,7 +253,8 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
                       unselectedLabelColor: AppColors.textSecondary,
                       indicatorColor: AppColors.primary,
                       isScrollable: true,
-                      labelStyle: AppTextStyles.bodyNormal.copyWith(fontWeight: FontWeight.bold),
+                      labelStyle: AppTextStyles.bodyNormal
+                          .copyWith(fontWeight: FontWeight.bold),
                       tabs: [
                         Tab(text: 'Todos (${_allPayments.length})'),
                         Tab(text: 'Pagados (${_paidPayments.length})'),
@@ -312,7 +325,10 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
           padding: const EdgeInsets.all(20),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              SkeletonLoader(width: 160, height: 22, borderRadius: BorderRadius.circular(6)),
+              SkeletonLoader(
+                  width: 160,
+                  height: 22,
+                  borderRadius: BorderRadius.circular(6)),
               const SizedBox(height: 20),
               const CardSkeletonLoader(),
               const SizedBox(height: 20),
@@ -321,7 +337,10 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
                   4,
                   (i) => Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: SkeletonLoader(width: 72, height: 28, borderRadius: BorderRadius.circular(8)),
+                    child: SkeletonLoader(
+                        width: 72,
+                        height: 28,
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ),
@@ -339,13 +358,17 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
     );
   }
 
-  Widget _buildSummaryItem(String title, String amount, Color color, IconData icon) {
+  Widget _buildSummaryItem(
+      String title, String amount, Color color, IconData icon) {
     return Column(
       children: [
         Icon(icon, color: color, size: 24),
         const SizedBox(height: 4),
-        Text(amount, style: AppTextStyles.heading.copyWith(fontSize: 18, color: color)),
-        Text(title, style: AppTextStyles.bodyNormal.copyWith(fontSize: 12, color: AppColors.textSecondary)),
+        Text(amount,
+            style: AppTextStyles.heading.copyWith(fontSize: 18, color: color)),
+        Text(title,
+            style: AppTextStyles.bodyNormal
+                .copyWith(fontSize: 12, color: AppColors.textSecondary)),
       ],
     );
   }
@@ -398,22 +421,26 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '\$${payment.amount.toStringAsFixed(0)}',
+                        AppFormatters.ars(payment.amount),
                         style: AppTextStyles.heading.copyWith(fontSize: 18),
                       ),
                       Text(
-                        DateFormat('dd/MM/yyyy HH:mm', 'es').format(payment.createdAt),
-                        style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary, fontSize: 13),
+                        DateFormat('dd/MM/yyyy HH:mm', 'es')
+                            .format(payment.createdAt),
+                        style: AppTextStyles.bodyNormal.copyWith(
+                            color: AppColors.textSecondary, fontSize: 13),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                    border:
+                        Border.all(color: statusColor.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     _paymentStatusLabel(payment.status),
@@ -431,7 +458,8 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
               children: [
                 Icon(Icons.payment, size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(_paymentMethodLabel(payment.method), style: AppTextStyles.bodyNormal.copyWith(fontSize: 13)),
+                Text(_paymentMethodLabel(payment.method),
+                    style: AppTextStyles.bodyNormal.copyWith(fontSize: 13)),
                 const SizedBox(width: 16),
                 if (payment.transactionId != null) ...[
                   Icon(Icons.receipt, size: 16, color: AppColors.textSecondary),
@@ -446,7 +474,6 @@ class _StudentPaymentsScreenState extends State<StudentPaymentsScreen> with Sing
                 ],
               ],
             ),
-
             if (canRetry) ...[
               const SizedBox(height: 12),
               Semantics(
@@ -488,23 +515,29 @@ class PaymentDetailsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: AppColors.surfaceLight,
-      title: Text('Detalle del pago', style: AppTextStyles.heading.copyWith(fontSize: 18)),
+      title: Text('Detalle del pago',
+          style: AppTextStyles.heading.copyWith(fontSize: 18)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildDetailRow('Monto', '\$${payment.amount.toStringAsFixed(0)}'),
+          _buildDetailRow('Monto', AppFormatters.ars(payment.amount)),
           _buildDetailRow('Estado', _paymentStatusLabel(payment.status)),
           _buildDetailRow('Método', _paymentMethodLabel(payment.method)),
-          if (payment.transactionId != null) _buildDetailRow('ID de transacción', payment.transactionId!),
-          _buildDetailRow('Fecha', DateFormat('dd/MM/yyyy HH:mm', 'es').format(payment.createdAt)),
-          if (payment.description != null) _buildDetailRow('Descripción', payment.description!),
+          if (payment.transactionId != null)
+            _buildDetailRow('ID de transacción', payment.transactionId!),
+          _buildDetailRow('Fecha',
+              DateFormat('dd/MM/yyyy HH:mm', 'es').format(payment.createdAt)),
+          if (payment.description != null)
+            _buildDetailRow('Descripción', payment.description!),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cerrar', style: AppTextStyles.bodyNormal.copyWith(color: AppColors.textSecondary)),
+          child: Text('Cerrar',
+              style: AppTextStyles.bodyNormal
+                  .copyWith(color: AppColors.textSecondary)),
         ),
       ],
     );
@@ -518,7 +551,9 @@ class PaymentDetailsDialog extends StatelessWidget {
         children: [
           SizedBox(
             width: 110,
-            child: Text('$label:', style: AppTextStyles.bodyNormal.copyWith(fontWeight: FontWeight.bold)),
+            child: Text('$label:',
+                style: AppTextStyles.bodyNormal
+                    .copyWith(fontWeight: FontWeight.bold)),
           ),
           Expanded(
             child: Text(value, style: AppTextStyles.bodyNormal),

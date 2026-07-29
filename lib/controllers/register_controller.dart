@@ -8,10 +8,10 @@ class RegisterController {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController dniController = TextEditingController();
   final TextEditingController dateController = TextEditingController();
-  
+
   bool isLoading = false;
   DateTime? selectedDate;
-  
+
   void dispose() {
     nameController.dispose();
     surnameController.dispose();

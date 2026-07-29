@@ -1,5 +1,15 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/services/api_service.dart';
+import 'package:manejapp/utils/app_feedback.dart';
+import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/widgets/confirmation_dialog.dart';
+import 'package:manejapp/widgets/design/app_badge.dart';
+import 'package:manejapp/widgets/design/app_button.dart';
+import 'package:manejapp/widgets/design/app_card.dart';
+import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/widgets/design/app_input.dart';
+import 'package:manejapp/widgets/responsive_scroll_body.dart';
 
 class InstructorCarScreen extends StatefulWidget {
   static const routeName = '/instructor_car';
@@ -15,10 +25,13 @@ class _InstructorCarScreenState extends State<InstructorCarScreen> {
   final _modelController = TextEditingController();
   final _yearController = TextEditingController();
   final _plateController = TextEditingController();
-  
+
   Map<String, dynamic>? _currentCar;
-  bool _isLoading = true;
+  bool _loading = true;
+  bool _saving = false;
+  bool _deleting = false;
   bool _isEditing = false;
+  String? _error;
 
   @override
   void initState() {
@@ -35,310 +48,383 @@ class _InstructorCarScreenState extends State<InstructorCarScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCar() async {
+  Future<void> _loadCar({bool showLoader = true}) async {
+    if (showLoader) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+
     try {
       final cars = await ApiService.getCars();
-      if (cars.isNotEmpty && mounted) {
-        final car = cars.first;
-        setState(() {
-          _currentCar = car;
-          _brandController.text = car['brand'] ?? '';
-          _modelController.text = car['model'] ?? '';
-          _yearController.text = car['year']?.toString() ?? '';
-          _plateController.text = car['plate'] ?? '';
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      debugPrint('Error cargando auto: $e');
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      final car = cars.isEmpty ? null : Map<String, dynamic>.from(cars.first);
+      setState(() {
+        _currentCar = car;
+        _loading = false;
+        _error = null;
+        if (car != null) {
+          _fillControllers(car);
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = humanizeApiError(error);
+      });
     }
   }
 
-  Future<void> _saveCar() async {
-    if (!_formKey.currentState!.validate()) return;
+  void _fillControllers(Map<String, dynamic> car) {
+    _brandController.text = car['brand']?.toString() ?? '';
+    _modelController.text = car['model']?.toString() ?? '';
+    _yearController.text = car['year']?.toString() ?? '';
+    _plateController.text = car['plate']?.toString() ?? '';
+  }
 
-    setState(() => _isLoading = true);
+  void _startEditing() {
+    final car = _currentCar;
+    if (car != null) _fillControllers(car);
+    setState(() => _isEditing = true);
+  }
+
+  void _cancelEditing() {
+    final car = _currentCar;
+    if (car != null) _fillControllers(car);
+    FocusScope.of(context).unfocus();
+    setState(() => _isEditing = false);
+  }
+
+  Future<void> _saveCar() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate() || _saving) return;
+
+    setState(() => _saving = true);
     try {
-      final carData = {
+      final carData = <String, dynamic>{
         'brand': _brandController.text.trim(),
         'model': _modelController.text.trim(),
         'year': int.parse(_yearController.text.trim()),
         'plate': _plateController.text.trim().toUpperCase(),
       };
 
-      if (_currentCar == null) {
+      final car = _currentCar;
+      if (car == null) {
         await ApiService.createCar(carData);
       } else {
-        await ApiService.updateCar(_currentCar!['id'].toString(), carData);
+        await ApiService.updateCar(car['id'].toString(), carData);
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✓ Auto guardado exitosamente')),
-        );
-        setState(() => _isEditing = false);
-        _loadCar();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      if (!mounted) return;
+      AppFeedback.showSuccess(
+        context,
+        car == null ? 'Vehículo agregado' : 'Cambios guardados',
+      );
+      setState(() => _isEditing = false);
+      await _loadCar(showLoader: false);
+    } catch (error) {
+      if (!mounted) return;
+      AppFeedback.showError(context, humanizeApiError(error));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   Future<void> _deleteCar() async {
-    if (_currentCar == null) return;
+    final car = _currentCar;
+    if (car == null || _deleting) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar Auto'),
-        content: const Text('¿Estás seguro de eliminar este auto?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Eliminar vehículo',
+      message:
+          'Vas a dejar de poder recibir reservas hasta que cargues otro vehículo activo. ¿Querés eliminarlo?',
+      confirmText: 'Eliminar',
+      destructive: true,
     );
+    if (confirmed != true || !mounted) return;
 
-    if (confirm == true) {
-      try {
-        await ApiService.deleteCar(_currentCar!['id'].toString());
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✓ Auto eliminado')),
-          );
-          setState(() {
-            _currentCar = null;
-            _brandController.clear();
-            _modelController.clear();
-            _yearController.clear();
-            _plateController.clear();
-            _isEditing = true;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
-        }
-      }
+    setState(() => _deleting = true);
+    try {
+      await ApiService.deleteCar(car['id'].toString());
+      if (!mounted) return;
+      AppFeedback.showSuccess(context, 'Vehículo eliminado');
+      setState(() {
+        _currentCar = null;
+        _isEditing = true;
+        _clearControllers();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      AppFeedback.showError(context, humanizeApiError(error));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
+  }
+
+  void _clearControllers() {
+    _brandController.clear();
+    _modelController.clear();
+    _yearController.clear();
+    _plateController.clear();
+  }
+
+  String? _required(String? value, String label) {
+    if (value == null || value.trim().isEmpty) return 'Ingresá $label';
+    return null;
+  }
+
+  String? _validateYear(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Ingresá el año';
+    final year = int.tryParse(value.trim());
+    final maxYear = DateTime.now().year + 1;
+    if (year == null || year < 1900 || year > maxYear) {
+      return 'Ingresá un año válido';
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Mi Auto'),
-        backgroundColor: const Color(0xFF003087),
-        foregroundColor: Colors.white,
+        title: const Text('Mi vehículo'),
         actions: [
           if (_currentCar != null && !_isEditing)
             IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => setState(() => _isEditing = true),
-            ),
-          if (_currentCar != null && !_isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _deleteCar,
+              tooltip: 'Editar vehículo',
+              onPressed: _startEditing,
+              icon: const Icon(Icons.edit_outlined),
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_currentCar == null || _isEditing) ...[
-                      const Text(
-                        'Información del Auto',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _brandController,
-                        enabled: _currentCar == null || _isEditing,
-                        decoration: const InputDecoration(
-                          labelText: 'Marca',
-                          hintText: 'Ej: Toyota',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.directions_car),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Ingrese la marca';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _modelController,
-                        enabled: _currentCar == null || _isEditing,
-                        decoration: const InputDecoration(
-                          labelText: 'Modelo',
-                          hintText: 'Ej: Corolla',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.car_rental),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Ingrese el modelo';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _yearController,
-                        enabled: _currentCar == null || _isEditing,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Año',
-                          hintText: 'Ej: 2020',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_today),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Ingrese el año';
-                          }
-                          final year = int.tryParse(value);
-                          if (year == null || year < 1900 || year > DateTime.now().year + 1) {
-                            return 'Año inválido';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _plateController,
-                        enabled: _currentCar == null || _isEditing,
-                        decoration: const InputDecoration(
-                          labelText: 'Patente',
-                          hintText: 'Ej: ABC123',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.pin),
-                        ),
-                        textCapitalization: TextCapitalization.characters,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Ingrese la patente';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          if (_isEditing && _currentCar != null)
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  setState(() => _isEditing = false);
-                                  _loadCar();
-                                },
-                                child: const Text('Cancelar'),
-                              ),
-                            ),
-                          if (_isEditing && _currentCar != null)
-                            const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _saveCar,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF003087),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: Text(_currentCar == null ? 'Agregar Auto' : 'Guardar Cambios'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ] else ...[
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.directions_car, size: 48, color: Colors.blue.shade600),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${_currentCar!['brand']} ${_currentCar!['model']}',
-                                          style: const TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Año ${_currentCar!['year']}',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 32),
-                              _buildInfoRow(Icons.pin, 'Patente', _currentCar!['plate']),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+    if (_error != null && _currentCar == null) {
+      return Center(
+        child: AppErrorState(
+          title: 'No pudimos cargar tu vehículo',
+          message: _error,
+          onRetry: _loadCar,
+        ),
+      );
+    }
+
+    return ResponsiveScrollBody(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      child: _currentCar == null || _isEditing
+          ? _buildVehicleForm()
+          : _buildVehicleSummary(),
+    );
+  }
+
+  Widget _buildVehicleForm() {
+    final isNew = _currentCar == null;
+    return Form(
+      key: _formKey,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            isNew
+                ? 'Cargá el vehículo de tus clases'
+                : 'Editá los datos del vehículo',
+            style: AppTextStyles.heading,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Estos datos ayudan al alumno a identificar el vehículo y son necesarios para publicar tu perfil.',
+            style: AppTextStyles.bodyNormal.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppCard(
+            child: Column(
+              children: [
+                AppInput(
+                  label: 'Marca',
+                  hint: 'Ej.: Toyota',
+                  controller: _brandController,
+                  prefixIcon: Icons.directions_car_outlined,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (value) => _required(value, 'la marca'),
                 ),
-              ),
+                const SizedBox(height: AppSpacing.md),
+                AppInput(
+                  label: 'Modelo',
+                  hint: 'Ej.: Corolla',
+                  controller: _modelController,
+                  prefixIcon: Icons.car_rental_outlined,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (value) => _required(value, 'el modelo'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppInput(
+                  label: 'Año',
+                  hint: 'Ej.: 2022',
+                  controller: _yearController,
+                  keyboardType: TextInputType.number,
+                  prefixIcon: Icons.calendar_today_outlined,
+                  validator: _validateYear,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppInput(
+                  label: 'Patente',
+                  hint: 'Ej.: AB123CD',
+                  controller: _plateController,
+                  prefixIcon: Icons.pin_outlined,
+                  textCapitalization: TextCapitalization.characters,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _saveCar(),
+                  validator: (value) => _required(value, 'la patente'),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            text: isNew ? 'Guardar vehículo' : 'Guardar cambios',
+            icon: Icons.check_rounded,
+            onPressed: _saving ? null : _saveCar,
+            isLoading: _saving,
+          ),
+          if (!isNew) ...[
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              text: 'Cancelar edición',
+              type: AppButtonType.outline,
+              onPressed: _saving ? null : _cancelEditing,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVehicleSummary() {
+    final car = _currentCar!;
+    final active = car['isActive'] != false;
+    final brand = car['brand']?.toString() ?? 'Vehículo';
+    final model = car['model']?.toString() ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Vehículo de las clases', style: AppTextStyles.heading),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Esta es la información que usamos para validar tu operación y orientar a tus alumnos.',
+          style: AppTextStyles.bodyNormal.copyWith(height: 1.45),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    child: const Icon(
+                      Icons.directions_car_filled_rounded,
+                      color: AppColors.primary,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$brand $model'.trim(),
+                          style: AppTextStyles.heading.copyWith(fontSize: 21),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        active
+                            ? AppBadge.success('Activo',
+                                icon: Icons.check_circle_outline_rounded)
+                            : AppBadge.warning('Inactivo',
+                                icon: Icons.pause_circle_outline_rounded),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Divider(color: AppColors.divider),
+              const SizedBox(height: AppSpacing.md),
+              _buildInfoRow(
+                Icons.calendar_today_outlined,
+                'Año',
+                car['year']?.toString() ?? 'Sin informar',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _buildInfoRow(
+                Icons.pin_outlined,
+                'Patente',
+                car['plate']?.toString() ?? 'Sin informar',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppButton(
+          text: 'Editar vehículo',
+          icon: Icons.edit_outlined,
+          onPressed: _startEditing,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        AppButton(
+          text: 'Eliminar vehículo',
+          icon: Icons.delete_outline_rounded,
+          type: AppButtonType.ghost,
+          onPressed: _deleting ? null : _deleteCar,
+          isLoading: _deleting,
+        ),
+      ],
     );
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.grey[600]),
-          const SizedBox(width: 12),
-          Text(
-            '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppColors.textSecondary, size: 22),
+        const SizedBox(width: AppSpacing.compact),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: AppTextStyles.bodySmall),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
-          Text(value),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

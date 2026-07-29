@@ -14,7 +14,9 @@ class ReservarClaseController {
     displayFechas = [];
     apiFechas = [];
     for (int i = 0; i < 7; i++) {
-      final d = DateTime(now.year, now.month, now.day).add(const Duration(days: 1)).add(Duration(days: i));
+      final d = DateTime(now.year, now.month, now.day)
+          .add(const Duration(days: 1))
+          .add(Duration(days: i));
       // Texto para mostrar (no depende del backend)
       displayFechas.add(DateFormat('EEE d').format(d));
       // Formato esperado por el backend

@@ -1,11 +1,11 @@
 class Validators {
   static String? email(String? value) {
     if (value == null || value.isEmpty) {
-      return 'El email es requerido';
+      return 'El correo electrónico es obligatorio';
     }
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(value)) {
-      return 'Ingresa un email válido';
+      return 'Ingresá un correo electrónico válido';
     }
     return null;
   }
@@ -39,7 +39,7 @@ class Validators {
     }
     final phoneRegex = RegExp(r'^\+?[0-9]{10,15}$');
     if (!phoneRegex.hasMatch(value.replaceAll(RegExp(r'[\s\-\(\)]'), ''))) {
-      return 'Ingresa un teléfono válido';
+      return 'Ingresá un teléfono válido';
     }
     return null;
   }

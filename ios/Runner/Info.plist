@@ -2,10 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Manejapp</string>
+	<string>ManejApp</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,6 +26,17 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -41,9 +54,31 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
+	<!-- Google Maps SDK: valor desde ios/Flutter/Secrets.xcconfig → GOOGLE_MAPS_API_KEY -->
+	<key>GMSApiKey</key>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ManejApp usa tu ubicación para mostrarte instructores cercanos y elegir tu zona en el mapa.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ManejApp necesita acceder a tus fotos para subir imagen de perfil o documentos del instructor.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>ManejApp puede usar la cámara para tomar foto de perfil o documentos.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>ManejApp usa Face ID para desbloquear tu sesión de forma rápida y segura.</string>
+	<!-- Google Sign-In: iOS client ID desde ios/Flutter/Secrets.xcconfig -->
+	<key>GIDClientID</key>
+	<string>$(GOOGLE_SIGN_IN_IOS_CLIENT_ID)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(GOOGLE_SIGN_IN_IOS_URL_SCHEME)</string>
+				<string>manejapp</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

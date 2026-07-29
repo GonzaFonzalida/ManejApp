@@ -5,7 +5,8 @@ class EditarPerfilController {
   final TextEditingController descripcionController = TextEditingController();
   final TextEditingController zonaController = TextEditingController();
   final TextEditingController precioController = TextEditingController();
-  final TextEditingController disponibilidadController = TextEditingController();
+  final TextEditingController disponibilidadController =
+      TextEditingController();
 
   void dispose() {
     nombreController.dispose();

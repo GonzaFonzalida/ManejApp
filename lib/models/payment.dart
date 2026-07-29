@@ -26,11 +26,12 @@ class Payment {
   });
 
   factory Payment.fromJson(Map<String, dynamic> json) {
+    final methodRaw = json['method'] ?? json['paymentMethod'];
     return Payment(
       id: json['id'] as int,
       drivingClassId: json['drivingClassId'] as int,
       amount: (json['amount'] as num).toDouble(),
-      method: json['method'] as String,
+      method: methodRaw as String,
       status: json['status'] as String,
       transactionId: json['transactionId'] as String?,
       description: json['description'] as String?,
@@ -40,4 +41,3 @@ class Payment {
     );
   }
 }
-

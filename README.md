@@ -152,10 +152,7 @@ La app soporta modo claro y oscuro. Para cambiar el tema:
 1. Ve a Configuración
 2. Activa "Modo Oscuro"
 
-Los colores principales se definen en `lib/utils/constants.dart`:
-```dart
-static const primaryColor = Color(0xFF003087);
-```
+Los tokens de diseño (colores, tipografía, spacing, radios, sombras) están en `lib/config/design_system.dart` (`AppColors`, `AppSpacing`, `AppTheme`, etc.).
 
 ## 🧪 Testing
 

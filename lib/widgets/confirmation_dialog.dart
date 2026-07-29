@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/widgets/design/app_button.dart';
 
 class ConfirmationDialog extends StatelessWidget {
   final String title;
@@ -6,6 +8,7 @@ class ConfirmationDialog extends StatelessWidget {
   final String confirmText;
   final String cancelText;
   final VoidCallback onConfirm;
+  final bool destructive;
 
   const ConfirmationDialog({
     super.key,
@@ -14,28 +17,37 @@ class ConfirmationDialog extends StatelessWidget {
     this.confirmText = 'Confirmar',
     this.cancelText = 'Cancelar',
     required this.onConfirm,
+    this.destructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(title),
-      content: Text(message),
+      backgroundColor: AppColors.surfaceLight,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+      ),
+      title: Text(title, style: AppTextStyles.heading.copyWith(fontSize: 20)),
+      content:
+          Text(message, style: AppTextStyles.bodyNormal.copyWith(height: 1.45)),
       actions: [
-        TextButton(
+        AppButton(
+          fullWidth: false,
+          size: AppButtonSize.sm,
+          type: AppButtonType.ghost,
+          text: cancelText,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(cancelText),
         ),
-        ElevatedButton(
+        AppButton(
+          fullWidth: false,
+          size: AppButtonSize.sm,
+          text: confirmText,
+          type: destructive ? AppButtonType.danger : AppButtonType.primary,
           onPressed: () {
             Navigator.of(context).pop();
             onConfirm();
           },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF003087),
-            foregroundColor: Colors.white,
-          ),
-          child: Text(confirmText),
         ),
       ],
     );
@@ -47,24 +59,35 @@ class ConfirmationDialog extends StatelessWidget {
     required String message,
     String confirmText = 'Confirmar',
     String cancelText = 'Cancelar',
+    Key? confirmButtonKey,
+    bool destructive = false,
   }) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
+        backgroundColor: AppColors.surfaceLight,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
+        title: Text(title, style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        content: Text(message,
+            style: AppTextStyles.bodyNormal.copyWith(height: 1.45)),
         actions: [
-          TextButton(
+          AppButton(
+            fullWidth: false,
+            size: AppButtonSize.sm,
+            type: AppButtonType.ghost,
+            text: cancelText,
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(cancelText),
           ),
-          ElevatedButton(
+          AppButton(
+            key: confirmButtonKey,
+            fullWidth: false,
+            size: AppButtonSize.sm,
+            text: confirmText,
+            type: destructive ? AppButtonType.danger : AppButtonType.primary,
             onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF003087),
-              foregroundColor: Colors.white,
-            ),
-            child: Text(confirmText),
           ),
         ],
       ),

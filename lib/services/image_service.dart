@@ -14,7 +14,7 @@ class ImageService {
         maxHeight: 1024,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         return File(image.path);
       }
@@ -33,7 +33,7 @@ class ImageService {
         maxHeight: 1024,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         return File(image.path);
       }
@@ -66,10 +66,10 @@ class ImageService {
       // Aquí implementarías la lógica para subir la imagen a tu servidor
       // Por ahora retornamos una URL de ejemplo
       developer.log('Uploading image: ${file.path}', name: 'ImageService');
-      
+
       // Simular upload
       await Future.delayed(const Duration(seconds: 1));
-      
+
       // En producción, aquí harías el upload real y retornarías la URL
       return 'https://example.com/uploads/${DateTime.now().millisecondsSinceEpoch}.jpg';
     } catch (e) {

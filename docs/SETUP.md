@@ -64,6 +64,27 @@ MERCADOPAGO_ACCESS_TOKEN=tu_access_token
 MERCADOPAGO_PUBLIC_KEY=tu_public_key
 ```
 
+### 5. Google Maps SDK (Android e iOS)
+
+La app usa `google_maps_flutter`. **No pongas la API key en código Dart**; configurá por plataforma:
+
+**Android**
+
+1. En [Google Cloud Console](https://console.cloud.google.com/) creá una API key con **Maps SDK for Android** habilitado (restringila por firma del app / package `com.manejapp_.app`).
+2. Agregá la línea en `ManejApp-frontend/android/local.properties` (archivo listado en `.gitignore` del proyecto; no commitear la clave):
+   ```properties
+   GOOGLE_MAPS_API_KEY=tu_clave_aqui
+   ```
+   Alternativa: variable de entorno `GOOGLE_MAPS_API_KEY` al compilar.
+3. El `AndroidManifest` usa el placeholder `${GOOGLE_MAPS_API_KEY}` inyectado por `android/app/build.gradle.kts`.
+
+**iOS**
+
+1. Creá otra API key (o la misma política permitiendo iOS) con **Maps SDK for iOS** habilitado; restringila por **bundle ID** (`com.gonzalofonzalida.manejapp` según el proyecto).
+2. Copiá `ios/Flutter/Secrets.xcconfig.example` a `ios/Flutter/Secrets.xcconfig` y asigná `GOOGLE_MAPS_API_KEY` (este archivo está en `.gitignore`).
+3. `Info.plist` usa `GMSApiKey` = `$(GOOGLE_MAPS_API_KEY)` sustituido por Xcode desde los `.xcconfig`.
+4. `AppDelegate.swift` llama a `GMSServices.provideAPIKey` leyendo esa clave del bundle tras el merge del Info.plist.
+
 ## 🏃 Ejecutar la Aplicación
 
 ### Modo Debug
@@ -181,7 +202,7 @@ lib/
 ## 📞 Soporte
 
 Para problemas o preguntas:
-- Email: soporte@manejapp.com
+- Email: soporte@manejapp.app
 - GitHub Issues: [tu-repo]/issues
 
 ## 📄 Licencia

@@ -14,6 +14,8 @@ import 'package:manejapp/widgets/location_autocomplete_dropdown.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:manejapp/utils/whatsapp.dart';
+import 'package:manejapp/utils/app_feedback.dart';
 
 const storage = appSecureStorage;
 
@@ -47,7 +49,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     debugPrint('=== LOADING PROFILE ===');
     String? userId = await storage.read(key: 'user_id');
     debugPrint('userId from storage: $userId');
-    
+
     if (userId == null || userId.isEmpty) {
       final token = await storage.read(key: 'auth_token');
       if (token != null && token.contains('.')) {
@@ -68,7 +70,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         } catch (_) {}
       }
     }
-    
+
     if (userId != null && userId.isNotEmpty) {
       if (mounted) setState(() => _loadError = null);
       try {
@@ -77,10 +79,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         debugPrint('Profile received: $profile');
         final isInstructor = profile['role'] == 'INSTRUCTOR';
         debugPrint('Is instructor: $isInstructor');
-        
+
         if (mounted) {
           final hourlyRateValue = profile['hourlyRate'];
-          final hourlyRateStr = hourlyRateValue != null ? hourlyRateValue.toString() : '';
+          final hourlyRateStr =
+              hourlyRateValue != null ? hourlyRateValue.toString() : '';
           setState(() {
             controller.nombreController.text = profile['name'] ?? '';
             controller.zonaController.text = profile['location'] ?? '';
@@ -88,36 +91,33 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             controller.precioController.text = hourlyRateStr;
             // Construir URL dinámicamente para evitar caché
             if (profile['profileImage'] != null) {
-               _currentImageUrl = '${ApiService.baseUrl}/users/$userId/profile-image?t=${DateTime.now().millisecondsSinceEpoch}';
+              _currentImageUrl =
+                  '${ApiService.baseUrl}/users/$userId/profile-image?t=${DateTime.now().millisecondsSinceEpoch}';
             } else {
-               _currentImageUrl = null;
+              _currentImageUrl = null;
             }
             _isInstructor = isInstructor;
           });
         }
-        
+
         if (isInstructor) {
           try {
             debugPrint('Fetching instructor data...');
-            final instructors = await ApiService.getInstructors();
-            debugPrint('Instructors count: ${instructors.length}');
-            final instructor = instructors.firstWhere(
-              (i) => i['userId'].toString() == userId,
-              orElse: () => null,
-            );
+            final instructor = await ApiService.getInstructorMeOrNull();
             debugPrint('Instructor found: ${instructor != null}');
             if (instructor != null) {
               _instructorId = instructor['id'].toString();
               debugPrint('Instructor bio: ${instructor['bio']}');
-                if (mounted) {
-                  setState(() {
-                    controller.descripcionController.text = instructor['bio'] ?? instructor['description'] ?? '';
-                    final rate = instructor['hourlyRate'];
-                    if (rate != null) {
-                      controller.precioController.text = rate.toString();
-                    }
-                  });
-                }
+              if (mounted) {
+                setState(() {
+                  controller.descripcionController.text =
+                      instructor['bio'] ?? instructor['description'] ?? '';
+                  final rate = instructor['hourlyRate'];
+                  if (rate != null) {
+                    controller.precioController.text = rate.toString();
+                  }
+                });
+              }
             }
           } catch (e) {
             debugPrint('Error cargando instructor: $e');
@@ -151,7 +151,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _pickImage() async {
     if (_isPickingImage) return;
     _isPickingImage = true;
-    
+
     try {
       final picker = ImagePicker();
       final XFile? pickedFile = await picker.pickImage(
@@ -160,28 +160,28 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         maxHeight: 800,
         imageQuality: 85,
       );
-      
+
       if (pickedFile != null) {
         // En Web no podemos guardar en path local persistente del mismo modo que móviles
         // Pero usamos pickedFile directamente.
         if (kIsWeb) {
-             if (mounted) {
-               setState(() {
-                 _selectedImage = pickedFile;
-               });
-             }
-             // Subir inmediatamente en segundo plano
-             _uploadImage(pickedFile);
+          if (mounted) {
+            setState(() {
+              _selectedImage = pickedFile;
+            });
+          }
+          // Subir inmediatamente en segundo plano
+          _uploadImage(pickedFile);
         } else {
-             // Móvil: Persistencia local para inmediatez en futuras sesiones
-             // TODO: Implementar path provider si se requiere persistencia entre reinicios offline
-             // Por ahora, comportamiento igual: set state inmediato y subida
-             if (mounted) {
-               setState(() {
-                 _selectedImage = pickedFile;
-               });
-             }
-             _uploadImage(pickedFile);
+          // Móvil: Persistencia local para inmediatez en futuras sesiones
+          // TODO: Implementar path provider si se requiere persistencia entre reinicios offline
+          // Por ahora, comportamiento igual: set state inmediato y subida
+          if (mounted) {
+            setState(() {
+              _selectedImage = pickedFile;
+            });
+          }
+          _uploadImage(pickedFile);
         }
       }
     } catch (e) {
@@ -192,40 +192,42 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   }
 
   Future<void> _uploadImage(XFile file) async {
-      String? userId = await storage.read(key: 'user_id');
-      if (userId == null) return;
+    String? userId = await storage.read(key: 'user_id');
+    if (userId == null) return;
 
-      try {
-        debugPrint('Subiendo imagen en segundo plano...');
-        await ApiService.uploadProfileImage(userId, file);
-        debugPrint('Imagen subida exitosamente');
-        
-        if (mounted) {
-          // Actualizar URL remota para que la próxima vez que cargue de red, sea la nueva
-          setState(() {
-             _currentImageUrl = '${ApiService.baseUrl}/users/$userId/profile-image?t=${DateTime.now().millisecondsSinceEpoch}';
-             // Opcional: Podríamos limpiar _selectedImage si quisiéramos volver a red, 
-             // pero mejor dejar la local que es lo que el usuario acaba de elegir.
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Foto de perfil actualizada'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
-          );
-        }
-      } catch (e) {
-        debugPrint('Error subiendo imagen: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text(humanizeApiError(e)), backgroundColor: Colors.orange),
-          );
-        }
+    try {
+      debugPrint('Subiendo imagen en segundo plano...');
+      await ApiService.uploadProfileImage(userId, file);
+      debugPrint('Imagen subida exitosamente');
+
+      if (mounted) {
+        // Actualizar URL remota para que la próxima vez que cargue de red, sea la nueva
+        setState(() {
+          _currentImageUrl =
+              '${ApiService.baseUrl}/users/$userId/profile-image?t=${DateTime.now().millisecondsSinceEpoch}';
+          // Opcional: Podríamos limpiar _selectedImage si quisiéramos volver a red,
+          // pero mejor dejar la local que es lo que el usuario acaba de elegir.
+        });
+        AppFeedback.showSuccess(context, 'Foto de perfil actualizada');
       }
+    } catch (e) {
+      debugPrint('Error subiendo imagen: $e');
+      if (mounted) {
+        AppFeedback.showError(context, humanizeApiError(e));
+      }
+    }
   }
 
   Future<void> _saveProfile() async {
+    final whatsappError = validateWhatsAppNumber(_phoneController.text);
+    if (whatsappError != null) {
+      AppFeedback.showError(context, whatsappError);
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       String? userId = await storage.read(key: 'user_id');
-      
+
       if (userId == null || userId.isEmpty) {
         final token = await storage.read(key: 'auth_token');
         if (token != null && token.contains('.')) {
@@ -233,7 +235,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             final parts = token.split('.');
             if (parts.length == 3) {
               final payload = parts[1];
-              final normalized = payload.padRight((payload.length + 3) & ~3, '=');
+              final normalized =
+                  payload.padRight((payload.length + 3) & ~3, '=');
               final decoded = utf8.decode(base64.decode(normalized));
               final payloadData = jsonDecode(decoded) as Map<String, dynamic>;
               userId = payloadData['id']?.toString() ??
@@ -251,38 +254,34 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       final Map<String, dynamic> userData = {
         'name': controller.nombreController.text.trim(),
         'location': controller.zonaController.text.trim(),
-        'phoneNumber': _phoneController.text.trim(),
+        'phoneNumber': normalizeWhatsAppNumber(_phoneController.text),
       };
-      
+
       // Nota: La imagen ya se subió en _pickImage -> _uploadImage
       // Aquí solo guardamos datos de texto.
 
       await ApiService.updateUser(userId, userData);
-      
+
       if (_isInstructor && _instructorId != null) {
         try {
-            await ApiService.updateInstructor(_instructorId!, {
-              'bio': controller.descripcionController.text.trim(),
-              'hourlyRate': double.tryParse(controller.precioController.text.trim()) ?? 0.0,
-            });
+          await ApiService.updateInstructor(_instructorId!, {
+            'bio': controller.descripcionController.text.trim(),
+            'hourlyRate':
+                double.tryParse(controller.precioController.text.trim()) ?? 0.0,
+          });
         } catch (e) {
           debugPrint('Error actualizando instructor: $e');
         }
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Perfil actualizado exitosamente'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      
+      AppFeedback.showSuccess(context, 'Perfil actualizado');
+
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
-      
-      final target = await RoleRouter.resolveRouteForCurrentUser(context: 'editar_perfil(afterSave)');
+
+      final target = await RoleRouter.resolveRouteForCurrentUser(
+          context: 'editar_perfil(afterSave)');
       if (!mounted) return;
       if (target == InstructorDashboardScreen.routeName) {
         Navigator.of(context).pushNamedAndRemoveUntil(
@@ -302,12 +301,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     } catch (e) {
       debugPrint('Error guardando perfil: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(humanizeApiError(e)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppFeedback.showError(context, humanizeApiError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -348,256 +342,293 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               ),
             )
           : Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                20 + MediaQuery.viewInsetsOf(context).bottom,
-              ),
-              child: Column(
-                children: [
-                Semantics(
-                  label: 'Cambiar foto de perfil',
-                  button: true,
-                  child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 130,
-                        height: 130,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [Colors.blue.shade400, Colors.blue.shade600],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      20,
+                      20,
+                      20 + MediaQuery.viewInsetsOf(context).bottom,
+                    ),
+                    child: Column(
+                      children: [
+                        Semantics(
+                          label: 'Cambiar foto de perfil',
+                          button: true,
+                          child: GestureDetector(
+                            onTap: _pickImage,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 130,
+                                  height: 130,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.primary,
+                                        AppColors.warning,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.28),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipOval(
+                                    child: _selectedImage != null
+                                        ? (kIsWeb
+                                            ? Image.network(
+                                                _selectedImage!.path,
+                                                fit: BoxFit.cover,
+                                                width: 130,
+                                                height: 130)
+                                            : Image.file(
+                                                File(_selectedImage!.path),
+                                                fit: BoxFit.cover,
+                                                width: 130,
+                                                height: 130))
+                                        : (_currentImageUrl != null &&
+                                                _currentImageUrl!.isNotEmpty
+                                            ? Image.network(
+                                                _currentImageUrl!,
+                                                fit: BoxFit.cover,
+                                                width: 130,
+                                                height: 130,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    _buildDefaultAvatar(),
+                                              )
+                                            : _buildDefaultAvatar()),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: AppColors.primary,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.2),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    padding: const EdgeInsets.all(10),
+                                    child: Icon(
+                                      Icons.camera_alt,
+                                      color: AppColors.textInverse,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                        child: ClipOval(
-                          child: _selectedImage != null
-                              ? (kIsWeb 
-                                  ? Image.network(_selectedImage!.path, fit: BoxFit.cover, width: 130, height: 130)
-                                  : Image.file(File(_selectedImage!.path), fit: BoxFit.cover, width: 130, height: 130))
-                              : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty
-                                  ? Image.network(
-                                      _currentImageUrl!,
-                                      fit: BoxFit.cover,
-                                      width: 130,
-                                      height: 130,
-                                      errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
-                                    )
-                                  : _buildDefaultAvatar()),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                            color: AppColors.primary.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.camera_alt,
+                                  size: 16, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Tocá para cambiar la foto',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
-                          padding: const EdgeInsets.all(10),
-                          child: Icon(
-                            Icons.camera_alt,
-                            color: Colors.blue.shade600,
-                            size: 20,
-                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                ),
-                // ... rest of UI code (Text "Toca para cambiar foto", inputs, etc. same as before)
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.camera_alt, size: 16, color: Colors.blue.shade600),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Toca para cambiar foto",
-                        style: TextStyle(
-                          color: Colors.blue.shade600,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                _buildModernInputCard(
-                  icon: Icons.person_outline,
-                  label: "Nombre Completo",
-                    child: TextField(
-                      controller: controller.nombreController,
-                      style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        hintText: "Ingresá tu nombre",
-                        hintStyle: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                ),
-                // ... (rest of fields unchanged)
-                const SizedBox(height: 16),
-                
-                _buildModernInputCard(
-                  icon: Icons.phone_outlined,
-                  label: "Teléfono",
-                  child: TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      hintText: "Ej: 11 1234-5678",
-                      hintStyle: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                _buildModernInputCard(
-                  icon: Icons.location_on_outlined,
-                  label: "Ubicación",
-                  child: Column(
-                    children: [
-                        TextField(
-                          controller: controller.zonaController,
-                          style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-                          onChanged: _locationAutocomplete.onQueryChanged,
-                          onTap: _locationAutocomplete.onFocus,
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            hintText: "Ej: Tortuguitas, Buenos Aires",
-                            hintStyle: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ),
-                      AnimatedBuilder(
-                        animation: _locationAutocomplete,
-                        builder: (context, _) {
-                          if (!_locationAutocomplete.showSuggestions) return const SizedBox.shrink();
-                          return LocationAutocompleteDropdown(
-                            isLoading: _locationAutocomplete.isLoading,
-                            error: _locationAutocomplete.error,
-                            suggestions: _locationAutocomplete.suggestions,
-                            hasQuery: _locationAutocomplete.hasQuery,
-                            onSelect: (suggestion) {
-                              controller.zonaController.text = suggestion['display'] ?? '';
-                              _locationAutocomplete.selectSuggestion();
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
+                        const SizedBox(height: 32),
 
-                if (_isInstructor) ...[
-                  _buildModernInputCard(
-                    icon: Icons.attach_money,
-                    label: "Tarifa por Hora",
-                    child: TextField(
-                        controller: controller.precioController,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: "Ej: 5000",
-                          hintStyle: TextStyle(color: AppColors.textSecondary),
-                          prefix: Text("\$ ", style: TextStyle(color: AppColors.textPrimary)),
+                        _buildModernInputCard(
+                          icon: Icons.person_outline,
+                          label: 'Nombre completo',
+                          child: TextField(
+                            controller: controller.nombreController,
+                            style: TextStyle(
+                                fontSize: 16, color: AppColors.textPrimary),
+                            decoration: InputDecoration(
+                              border: InputBorder.none,
+                              hintText: "Ingresá tu nombre",
+                              hintStyle:
+                                  TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ),
                         ),
-                      ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildModernInputCard(
-                    icon: Icons.edit_outlined,
-                    label: "Descripción",
-                    child: TextField(
-                        controller: controller.descripcionController,
-                        maxLines: 4,
-                        style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: "Contá un poco sobre vos y tu experiencia...",
-                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                        // ... (rest of fields unchanged)
+                        const SizedBox(height: 16),
+
+                        _buildModernInputCard(
+                          icon: Icons.chat_outlined,
+                          label: "WhatsApp",
+                          child: TextField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            style: TextStyle(
+                                fontSize: 16, color: AppColors.textPrimary),
+                            decoration: InputDecoration(
+                              border: InputBorder.none,
+                              hintText: "Ej: +54 9 11 1234-5678",
+                              hintStyle:
+                                  TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+
+                        _buildModernInputCard(
+                          icon: Icons.location_on_outlined,
+                          label: "Ubicación",
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: controller.zonaController,
+                                style: TextStyle(
+                                    fontSize: 16, color: AppColors.textPrimary),
+                                onChanged: _locationAutocomplete.onQueryChanged,
+                                onTap: _locationAutocomplete.onFocus,
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  hintText: "Ej: Tortuguitas, Buenos Aires",
+                                  hintStyle:
+                                      TextStyle(color: AppColors.textSecondary),
+                                ),
+                              ),
+                              AnimatedBuilder(
+                                animation: _locationAutocomplete,
+                                builder: (context, _) {
+                                  if (!_locationAutocomplete.showSuggestions) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return LocationAutocompleteDropdown(
+                                    isLoading: _locationAutocomplete.isLoading,
+                                    error: _locationAutocomplete.error,
+                                    suggestions:
+                                        _locationAutocomplete.suggestions,
+                                    hasQuery: _locationAutocomplete.hasQuery,
+                                    onSelect: (suggestion) {
+                                      controller.zonaController.text =
+                                          suggestion['display'] ?? '';
+                                      _locationAutocomplete.selectSuggestion();
+                                    },
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        if (_isInstructor) ...[
+                          _buildModernInputCard(
+                            icon: Icons.attach_money,
+                            label: "Tarifa por Hora",
+                            child: TextField(
+                              controller: controller.precioController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(
+                                  fontSize: 16, color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: "Ej: 5000",
+                                hintStyle:
+                                    TextStyle(color: AppColors.textSecondary),
+                                prefix: Text("\$ ",
+                                    style: TextStyle(
+                                        color: AppColors.textPrimary)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildModernInputCard(
+                            icon: Icons.edit_outlined,
+                            label: "Descripción",
+                            child: TextField(
+                              controller: controller.descripcionController,
+                              maxLines: 4,
+                              style: TextStyle(
+                                  fontSize: 16, color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText:
+                                    "Contá un poco sobre vos y tu experiencia...",
+                                hintStyle:
+                                    TextStyle(color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
-                ],
-                const SizedBox(height: 16),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: ElevatedButton(
+                      onPressed:
+                          (_isLoading || !_isInitialized) ? null : _saveProfile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.textPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 8,
+                        shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text(
+                              'Guardar cambios',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: ElevatedButton(
-              onPressed: (_isLoading || !_isInitialized) ? null : _saveProfile,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 8,
-                shadowColor: AppColors.primary.withValues(alpha: 0.4),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Text(
-                      "Guardar Cambios",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-            ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -646,6 +677,3 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     );
   }
 }
-
-
-

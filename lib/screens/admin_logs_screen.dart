@@ -1,7 +1,10 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
 import 'package:intl/intl.dart';
 
+/// Pantalla legacy de admin; fuera del flujo V1 móvil.
+@Deprecated('V1: usar panel web. No cargar logs desde la app móvil.')
 class AdminLogsScreen extends StatefulWidget {
   const AdminLogsScreen({super.key});
 
@@ -19,50 +22,19 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLogs();
-    _loadStats();
+    _isLoading = false;
   }
 
   Future<void> _loadLogs() async {
-    setState(() => _isLoading = true);
-    try {
-      final result = await ApiService.getLogs(level: _selectedLevel, limit: 100);
-      if (mounted) {
-        setState(() {
-          _logs = (result['logs'] ?? result['data'] ?? []) as List<dynamic>;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading logs: $e');
-      if (mounted) {
-        setState(() {
-          _logs = [];
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se pudieron cargar los logs. El backend puede no tener este endpoint implementado.'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    }
+    if (!mounted) return;
+    setState(() {
+      _logs = [];
+      _isLoading = false;
+    });
   }
 
   Future<void> _loadStats() async {
-    try {
-      final stats = await ApiService.getLogStats();
-      if (mounted) {
-        setState(() => _stats = stats is List ? stats : []);
-      }
-    } catch (e) {
-      debugPrint('Error loading stats: $e');
-      if (mounted) {
-        setState(() => _stats = []);
-      }
-    }
+    if (!mounted) setState(() => _stats = []);
   }
 
   Color _getLevelColor(String level) {
@@ -115,7 +87,8 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                   children: [
                     const Text(
                       'Estadísticas (últimos 7 días)',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
@@ -125,9 +98,11 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                         final level = stat['level'] as String;
                         final count = stat['count'] as int;
                         return Chip(
-                          avatar: Icon(_getLevelIcon(level), size: 16, color: _getLevelColor(level)),
+                          avatar: Icon(_getLevelIcon(level),
+                              size: 16, color: _getLevelColor(level)),
                           label: Text('$level: $count'),
-                          backgroundColor: _getLevelColor(level).withValues(alpha: 0.1),
+                          backgroundColor:
+                              _getLevelColor(level).withValues(alpha: 0.1),
                         );
                       }).toList(),
                     ),
@@ -144,11 +119,14 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Filtrar por nivel',
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('Todos')),
-                        ..._levels.map((level) => DropdownMenuItem(value: level, child: Text(level))),
+                        const DropdownMenuItem(
+                            value: null, child: Text('Todos')),
+                        ..._levels.map((level) =>
+                            DropdownMenuItem(value: level, child: Text(level))),
                       ],
                       onChanged: (value) {
                         setState(() => _selectedLevel = value);
@@ -177,14 +155,16 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                             final log = _logs[index];
                             final level = log['level'] as String;
                             final message = log['message'] as String;
-                            final timestamp = DateTime.parse(log['timestamp'] as String);
+                            final timestamp =
+                                DateTime.parse(log['timestamp'] as String);
                             final context = log['context'];
                             final error = log['error'];
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ExpansionTile(
-                                leading: Icon(_getLevelIcon(level), color: _getLevelColor(level)),
+                                leading: Icon(_getLevelIcon(level),
+                                    color: _getLevelColor(level)),
                                 title: Text(
                                   message,
                                   style: TextStyle(
@@ -196,25 +176,37 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 subtitle: Text(
-                                  DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp),
+                                  DateFormat('dd/MM/yyyy HH:mm:ss')
+                                      .format(timestamp),
                                   style: const TextStyle(fontSize: 12),
                                 ),
                                 children: [
                                   Padding(
                                     padding: const EdgeInsets.all(16),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         if (context != null) ...[
-                                          const Text('Contexto:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                          const Text('Contexto:',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold)),
                                           const SizedBox(height: 4),
-                                          Text(context.toString(), style: const TextStyle(fontSize: 12)),
+                                          Text(context.toString(),
+                                              style: const TextStyle(
+                                                  fontSize: 12)),
                                           const SizedBox(height: 12),
                                         ],
                                         if (error != null) ...[
-                                          const Text('Error:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                                          const Text('Error:',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.red)),
                                           const SizedBox(height: 4),
-                                          Text(error.toString(), style: const TextStyle(fontSize: 12, color: Colors.red)),
+                                          Text(error.toString(),
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.red)),
                                         ],
                                       ],
                                     ),

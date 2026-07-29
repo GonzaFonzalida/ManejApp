@@ -17,6 +17,7 @@ import 'instructor_classes_screen.dart';
 import 'instructor_reservation_detail_screen.dart';
 import 'package:manejapp/keys/e2e_keys.dart';
 import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/widgets/design/app_bottom_nav.dart';
 import 'package:manejapp/widgets/skeleton_loader.dart';
 import 'profile_screen.dart';
 
@@ -27,7 +28,8 @@ class InstructorDashboardScreen extends StatefulWidget {
   const InstructorDashboardScreen({super.key});
 
   @override
-  State<InstructorDashboardScreen> createState() => _InstructorDashboardScreenState();
+  State<InstructorDashboardScreen> createState() =>
+      _InstructorDashboardScreenState();
 }
 
 class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
@@ -41,13 +43,14 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
     if (!_initialized) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic> && args.containsKey('initialIndex')) {
-         setState(() {
-           _selectedIndex = args['initialIndex'] as int;
-         });
+        setState(() {
+          _selectedIndex = args['initialIndex'] as int;
+        });
       }
       _initialized = true;
     }
   }
+
   List<PremiumReservation> _todayPremium = [];
   List<PremiumReservation> _upcomingPremium = [];
   List<ScheduleSlot> _availableSlots = [];
@@ -84,7 +87,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
       if (userId == null) {
         if (mounted) {
           setState(() {
-            _dashboardLoadError = 'No hay sesión de instructor. Volvé a iniciar sesión.';
+            _dashboardLoadError =
+                'No hay sesión de instructor. Volvé a iniciar sesión.';
             _todayPremium = [];
             _upcomingPremium = [];
             _availableSlots = [];
@@ -95,16 +99,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
         return;
       }
 
-      final instructors = await ApiService.getInstructors();
-      Map<String, dynamic>? instructor;
-      for (final raw in instructors) {
-        if (raw is! Map) continue;
-        final i = Map<String, dynamic>.from(raw);
-        if (i['userId'].toString() == userId) {
-          instructor = i;
-          break;
-        }
-      }
+      final instructor = await ApiService.getInstructorMeOrNull();
 
       if (instructor == null) {
         if (mounted) {
@@ -148,13 +143,12 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
       final today = DateTime.now();
       final todayOnly = DateTime(today.year, today.month, today.day);
       _todayPremium = allUpcoming.where((r) {
-            final s = r.startsAt;
-            if (s == null) return false;
-            final local = s.toLocal();
-            final d = DateTime(local.year, local.month, local.day);
-            return d == todayOnly;
-          })
-          .toList();
+        final s = r.startsAt;
+        if (s == null) return false;
+        final local = s.toLocal();
+        final d = DateTime(local.year, local.month, local.day);
+        return d == todayOnly;
+      }).toList();
       _todayPremium.sort(
         (a, b) => (a.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0))
             .compareTo(b.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
@@ -218,33 +212,45 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
                 color: _isLoading ? AppColors.textSecondary : AppColors.primary,
               ),
             ),
-           Padding(
-             padding: const EdgeInsets.only(right: 16),
-             child: CircleAvatar(
-               backgroundColor: AppColors.surfaceLight,
-               child: Text(
-                 _instructorName.isNotEmpty ? _instructorName[0].toUpperCase() : 'I',
-                 style: const TextStyle(color: AppColors.primary),
-               ),
-             ),
-           )
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: CircleAvatar(
+              backgroundColor: AppColors.surfaceLight,
+              child: Text(
+                _instructorName.isNotEmpty
+                    ? _instructorName[0].toUpperCase()
+                    : 'I',
+                style: const TextStyle(color: AppColors.primary),
+              ),
+            ),
+          )
         ],
       ),
-      body: _isLoading
-          ? _buildDashboardSkeleton()
-          : _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.surfaceLight,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
+      body: _isLoading ? _buildDashboardSkeleton() : _buildBody(),
+      bottomNavigationBar: AppBottomNav(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.schedule_outlined), activeIcon: Icon(Icons.schedule), label: 'Horarios'),
-          BottomNavigationBarItem(icon: Icon(Icons.school_outlined), activeIcon: Icon(Icons.school), label: 'Clases'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Perfil'),
+        items: const <AppBottomNavItem>[
+          AppBottomNavItem(
+            icon: Icons.dashboard_outlined,
+            selectedIcon: Icons.dashboard_rounded,
+            label: 'Inicio',
+          ),
+          AppBottomNavItem(
+            icon: Icons.schedule_outlined,
+            selectedIcon: Icons.schedule_rounded,
+            label: 'Horarios',
+          ),
+          AppBottomNavItem(
+            icon: Icons.school_outlined,
+            selectedIcon: Icons.school_rounded,
+            label: 'Clases',
+          ),
+          AppBottomNavItem(
+            icon: Icons.person_outline_rounded,
+            selectedIcon: Icons.person_rounded,
+            label: 'Perfil',
+          ),
         ],
       ),
     );
@@ -361,7 +367,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
               )
             else
               ..._todayPremium.take(3).map(_buildTodayPremiumCard),
-            
+
             const SizedBox(height: 24),
 
             Text(
@@ -393,8 +399,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
                 Expanded(
                   child: _InstructorQuickTile(
                     icon: Icons.directions_car_rounded,
-                    label: 'Auto',
-                    onTap: () => Navigator.pushNamed(context, '/instructor_car'),
+                    label: 'Vehículo',
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/instructor_car'),
                   ),
                 ),
               ],
@@ -421,7 +428,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
               'Subí la versión ajustada así no se frena tu actividad mientras lo revisamos.',
           primaryLabel: 'Ver documentos',
           onPrimary: () {
-            Navigator.pushNamed(context, InstructorOnboardingHubScreen.routeName);
+            Navigator.pushNamed(
+                context, InstructorOnboardingHubScreen.routeName);
           },
         );
       }
@@ -435,7 +443,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
               'Completá los archivos obligatorios o esperá la validación para empezar tranquilo.',
           primaryLabel: 'Ir al centro de alta',
           onPrimary: () {
-            Navigator.pushNamed(context, InstructorOnboardingHubScreen.routeName);
+            Navigator.pushNamed(
+                context, InstructorOnboardingHubScreen.routeName);
           },
         );
       }
@@ -449,7 +458,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
               'Tarifa, zona, bio y foto ayudan a que te elijan con confianza.',
           primaryLabel: 'Completar perfil',
           onPrimary: () {
-            Navigator.pushNamed(context, CompleteInstructorProfileScreen.routeName);
+            Navigator.pushNamed(
+                context, CompleteInstructorProfileScreen.routeName);
           },
         );
       }
@@ -511,8 +521,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
       title = pendingPayment.length == 1
           ? 'Tenés una reserva esperando pago'
           : 'Tenés ${pendingPayment.length} reservas esperando pago';
-      description =
-          'El alumno debe completar el pago para confirmar la clase.';
+      description = 'El alumno debe completar el pago para confirmar la clase.';
     } else {
       PremiumReservation? nextConfirmed;
       for (final r in _upcomingPremium) {
@@ -528,20 +537,17 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
 
       priority = NextActionPriority.calm;
       icon = Icons.calendar_today_outlined;
-      var dateLine =
-          DateFormat('EEEE d MMMM · HH:mm', 'es').format(startsAt);
+      var dateLine = DateFormat('EEEE d MMMM · HH:mm', 'es').format(startsAt);
       dateLine = toBeginningOfSentenceCase(dateLine) ?? dateLine;
       title = 'Tu próxima reserva es el $dateLine';
       description = 'Revisá alumno, hora y ubicación en Mis clases.';
     }
 
-    if (title == null) return null;
-
     return NextActionCard(
       priority: priority,
       icon: icon,
       title: title,
-      description: description ?? '',
+      description: description,
       primaryLabel: 'Ver mis clases',
       onPrimary: () => setState(() => _selectedIndex = 2),
     );
@@ -563,7 +569,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
             Text(
               'Tu agenda empieza publicando horarios',
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+              style:
+                  AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
@@ -594,7 +601,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
           Text(
             'Hoy no tenés clases agendadas',
             textAlign: TextAlign.center,
-            style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+            style:
+                AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(
@@ -611,7 +619,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return AppCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -646,77 +655,85 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
         : '${DateFormat('HH:mm').format(r.startsAt!.toLocal())} · ${r.durationMinutes} min';
     final pay = PremiumBookingUi.paymentShortLabel(r.paymentStatus);
 
-    return GestureDetector(
-      key: E2eKeys.instructorTodayCard(r.id),
-      onTap: () async {
-        await Navigator.push<void>(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => InstructorReservationDetailScreen(
-              reservationId: r.id,
+    return Semantics(
+      button: true,
+      label: 'Abrir clase de hoy con ${r.studentName}',
+      child: GestureDetector(
+        key: E2eKeys.instructorTodayCard(r.id),
+        onTap: () async {
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => InstructorReservationDetailScreen(
+                reservationId: r.id,
+              ),
             ),
-          ),
-        );
-        if (mounted) await _loadDashboardData();
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: AppCard(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: statusColor.withValues(alpha: 0.2),
-                child: Icon(
-                  Icons.directions_car_filled_outlined,
-                  color: statusColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      r.studentName,
-                      style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeLine,
-                      style: AppTextStyles.bodyNormal,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      pay,
-                      style: AppTextStyles.bodyNormal.copyWith(
-                        color: PremiumBookingUi.paymentAccent(r.paymentStatus),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  PremiumBookingUi.statusChipLabel(r.status),
-                  style: TextStyle(
+          );
+          if (mounted) await _loadDashboardData();
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: AppCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundColor: statusColor.withValues(alpha: 0.2),
+                  child: Icon(
+                    Icons.directions_car_filled_outlined,
                     color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                    size: 20,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        r.studentName,
+                        style: AppTextStyles.bodyLarge
+                            .copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        timeLine,
+                        style: AppTextStyles.bodyNormal,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        pay,
+                        style: AppTextStyles.bodyNormal.copyWith(
+                          color:
+                              PremiumBookingUi.paymentAccent(r.paymentStatus),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    PremiumBookingUi.statusChipLabel(r.status),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -725,33 +742,54 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen>
 
   Widget _buildDashboardSkeleton() {
     return SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-                const SkeletonLoader(width: 200, height: 32, borderRadius: BorderRadius.all(Radius.circular(8))),
-                const SizedBox(height: 8),
-                const SkeletonLoader(width: 250, height: 20, borderRadius: BorderRadius.all(Radius.circular(4))),
-                const SizedBox(height: 24),
-                
-                // Stats
-                Row(
-                    children: [
-                        Expanded(child: SkeletonLoader(width: double.infinity, height: 120, borderRadius: BorderRadius.all(Radius.circular(24)))),
-                        const SizedBox(width: 16),
-                        Expanded(child: SkeletonLoader(width: double.infinity, height: 120, borderRadius: BorderRadius.all(Radius.circular(24)))),
-                    ]
-                ),
-                const SizedBox(height: 24),
-                
-                // Upcoming
-                const SkeletonLoader(width: 150, height: 24, borderRadius: BorderRadius.all(Radius.circular(8))),
-                const SizedBox(height: 16),
-                const SkeletonLoader(width: double.infinity, height: 80, borderRadius: BorderRadius.all(Radius.circular(16))),
-                 const SizedBox(height: 16),
-                const SkeletonLoader(width: double.infinity, height: 80, borderRadius: BorderRadius.all(Radius.circular(16))),
-            ],
-        ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonLoader(
+              width: 200,
+              height: 32,
+              borderRadius: BorderRadius.all(Radius.circular(8))),
+          const SizedBox(height: 8),
+          const SkeletonLoader(
+              width: 250,
+              height: 20,
+              borderRadius: BorderRadius.all(Radius.circular(4))),
+          const SizedBox(height: 24),
+
+          // Stats
+          Row(children: [
+            Expanded(
+                child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 120,
+                    borderRadius: BorderRadius.all(Radius.circular(24)))),
+            const SizedBox(width: 16),
+            Expanded(
+                child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 120,
+                    borderRadius: BorderRadius.all(Radius.circular(24)))),
+          ]),
+          const SizedBox(height: 24),
+
+          // Upcoming
+          const SkeletonLoader(
+              width: 150,
+              height: 24,
+              borderRadius: BorderRadius.all(Radius.circular(8))),
+          const SizedBox(height: 16),
+          const SkeletonLoader(
+              width: double.infinity,
+              height: 80,
+              borderRadius: BorderRadius.all(Radius.circular(16))),
+          const SizedBox(height: 16),
+          const SkeletonLoader(
+              width: double.infinity,
+              height: 80,
+              borderRadius: BorderRadius.all(Radius.circular(16))),
+        ],
+      ),
     );
   }
 }

@@ -1,280 +1,451 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../models/instructor.dart';
-import '../models/schedule_slot.dart';
-import 'payment_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:manejapp/models/instructor.dart';
+import 'package:manejapp/services/api_service.dart';
+import 'package:manejapp/config/design_system.dart';
+import 'package:manejapp/widgets/design/app_card.dart';
+import 'package:manejapp/widgets/design/app_button.dart';
 import 'package:intl/intl.dart';
-
-
-const storage = FlutterSecureStorage();
+import 'package:manejapp/screens/reservation_review_screen.dart';
+import 'package:manejapp/utils/user_facing_error.dart';
+import 'package:manejapp/widgets/design/app_empty_state.dart';
+import 'package:manejapp/widgets/design/app_error_state.dart';
+import 'package:manejapp/widgets/design/premium_async_states.dart';
+import 'package:manejapp/widgets/design/app_avatar.dart';
+import 'package:manejapp/utils/app_formatters.dart';
 
 class ReservarClaseScreen extends StatefulWidget {
-  static const routeName = '/reservarClase';
-  const ReservarClaseScreen({super.key});
+  static const routeName = '/reservar_clase';
+
+  final Instructor? instructor;
+
+  const ReservarClaseScreen({super.key, this.instructor});
 
   @override
   State<ReservarClaseScreen> createState() => _ReservarClaseScreenState();
 }
 
 class _ReservarClaseScreenState extends State<ReservarClaseScreen> {
-  List<ScheduleSlot> _availableSlots = [];
-  ScheduleSlot? _selectedSlot;
-  bool _isLoading = true;
-  String? _instructorId;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  List<dynamic> _availableSlots = [];
+  String? _selectedSlotId;
+  Map<String, dynamic>? _selectedSlot;
+  bool _isLoadingSlots = false;
+  String? _slotsLoadError;
+
+  List<dynamic> _allInstructorSlots = [];
+
+  bool _isInit = true;
 
   @override
   void initState() {
     super.initState();
+    _selectedDay = _focusedDay;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_isLoading) {
-      _loadAvailableSlots();
+    if (_isInit) {
+      _loadAllSlots();
+      _isInit = false;
     }
   }
 
-  Future<void> _loadAvailableSlots() async {
-    final instructor = ModalRoute.of(context)?.settings.arguments as Instructor?;
-    if (instructor != null) {
-      _instructorId = instructor.id.toString();
-      try {
-        final slots = await ApiService.getInstructorSchedule(_instructorId!);
-        debugPrint('Slots obtenidos para instructor $_instructorId: ${slots.length}');
-        
-        for (var slot in slots) {
-          debugPrint('Slot: ${slot['id']}, isBooked: ${slot['isBooked']}');
-        }
-        
-        _availableSlots = slots
-            .where((s) => s['isBooked'] != true) // Backend usa isBooked, no isAvailable
-            .map((s) => ScheduleSlot.fromJson(s))
-            .toList();
-            
-        debugPrint('Horarios disponibles para reservar: ${_availableSlots.length}');
-        
-        // Filtrar solo slots futuros
-        final now = DateTime.now();
-        _availableSlots = _availableSlots
-            .where((slot) => slot.date.isAfter(now.subtract(const Duration(hours: 1))))
-            .toList();
-        
-        // Ordenar por fecha
-        _availableSlots.sort((a, b) => a.date.compareTo(b.date));
-      } catch (e) {
-        debugPrint('Error cargando horarios: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error cargando horarios: $e')),
-          );
-        }
-      }
-    }
-    
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
-  }
+  Future<void> _loadAllSlots() async {
+    final instructor = _getInstructor();
+    if (instructor == null) return;
 
-  Future<void> _reserveSlot(Instructor instructor) async {
-    if (_selectedSlot == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Seleccione un horario')),
-      );
-      return;
-    }
+    setState(() {
+      _isLoadingSlots = true;
+      _slotsLoadError = null;
+    });
 
-    setState(() => _isLoading = true);
     try {
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedSlot!.date);
-      final timeStr = _selectedSlot!.startTime;
-      
-      final reservationData = {
-        'date': dateStr,
-        'time': timeStr,
-      };
-      
-      final reservationResult = await ApiService.reserveClass(_instructorId!, reservationData);
-      final classId = reservationResult['id'];
-      
-      final response = await ApiService.mpCreatePreference(
-        drivingClassId: classId,
-        amount: 1,
-        description: 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''} el ${DateFormat('dd/MM/yyyy').format(_selectedSlot!.date)} a las ${_selectedSlot!.startTime}',
-        payerEmail: await storage.read(key: 'user_email'),
-      );
-      
-      if (!mounted) return;
-      
-      Navigator.pushNamed(
-        context,
-        PaymentScreen.routeName,
-        arguments: {
-          'preferenceId': response['id'],
-          'drivingClassId': classId,
-          'amount': 1,
-          'description': 'Clase con ${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}',
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al reservar: $e')),
-      );
-    } finally {
+      final slots =
+          await ApiService.getInstructorSchedule(instructor.id.toString());
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _allInstructorSlots = slots;
+          _isLoadingSlots = false;
+          _slotsLoadError = null;
+          _updateAvailableSlotsForDay(_selectedDay!);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading slots: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingSlots = false;
+          _slotsLoadError = humanizeApiError(e);
+        });
       }
     }
+  }
+
+  List<dynamic> _getEventsForDay(DateTime day) {
+    return _allInstructorSlots.where((slot) {
+      final slotDate = DateTime.parse(slot['startTime']);
+      final isAvailable = slot['isBooked'] != true;
+      return isSameDay(slotDate, day) && isAvailable;
+    }).toList();
+  }
+
+  void _updateAvailableSlotsForDay(DateTime day) {
+    final daySlots = _getEventsForDay(day);
+    daySlots.sort((a, b) => a['startTime'].compareTo(b['startTime']));
+    setState(() {
+      _availableSlots = daySlots;
+      _selectedSlotId = null;
+      _selectedSlot = null;
+    });
+  }
+
+  Instructor? _getInstructor() {
+    if (widget.instructor != null) return widget.instructor;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Instructor) return args;
+    return null;
+  }
+
+  void _continueToReview() {
+    if (_selectedSlotId == null || _selectedSlot == null) return;
+    final instructor = _getInstructor();
+    if (instructor == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReservationReviewScreen(
+          instructor: instructor,
+          slot: _selectedSlot!,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final instructor = ModalRoute.of(context)?.settings.arguments as Instructor?;
+    final instructor = _getInstructor();
+    if (instructor == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          title: Text('Reservar',
+              style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        ),
+        body: Center(
+          child: AppEmptyState(
+            icon: Icons.person_off_outlined,
+            title: 'No encontramos al instructor',
+            subtitle:
+                'Volvé atrás y elegí un instructor de la lista o del mapa.',
+          ),
+        ),
+      );
+    }
+
+    final startsAt = _selectedSlot == null
+        ? null
+        : DateTime.parse(_selectedSlot!['startTime'].toString());
+    final endsAt = _selectedSlot == null
+        ? null
+        : DateTime.parse(_selectedSlot!['endTime'].toString());
+    final duration = startsAt == null || endsAt == null
+        ? null
+        : endsAt.difference(startsAt).inMinutes;
+    final estimatedPrice = duration == null
+        ? null
+        : ((instructor.effectiveHourlyRate / 60) * duration).round();
+    final instructorName =
+        '${instructor.user?.name ?? ''} ${instructor.user?.surname ?? ''}'
+            .trim();
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("Reservar Clase"),
-        centerTitle: true,
+        title: Text('Reservar clase',
+            style: AppTextStyles.heading.copyWith(fontSize: 20)),
+        backgroundColor: AppColors.background,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Información del instructor
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundImage: instructor?.image != null && instructor!.image!.startsWith('http')
-                        ? NetworkImage(instructor.image!) as ImageProvider
-                        : const AssetImage("assets/car3.png"),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '${instructor?.user?.name ?? ''} ${instructor?.user?.surname ?? ''}',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '${instructor?.experienceYears ?? 0} años de experiencia',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Column(
-                        children: [
-                          const Text("Precio"),
-                          Text(
-                            "\$${instructor?.user?.hourlyRate?.toStringAsFixed(0) ?? '45.000'}/h",
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          const Text("Calificación"),
-                          Row(
+                  AppCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        AppAvatar(
+                          diameter: 56,
+                          name: instructorName.isEmpty
+                              ? 'Instructor'
+                              : instructorName,
+                          imageUrl: instructor.user?.profileImageUrl ??
+                              instructor.user?.profileImage,
+                          showBorder: true,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.star, color: Colors.amber, size: 16),
                               Text(
-                                '${instructor?.rating ?? '5.0'}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                instructorName.isEmpty
+                                    ? 'Instructor'
+                                    : instructorName,
+                                style: AppTextStyles.heading
+                                    .copyWith(fontSize: 18),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Desde ${AppFormatters.ars(instructor.effectiveHourlyRate)}/hora',
+                                style: AppTextStyles.bodyNormal
+                                    .copyWith(color: AppColors.secondary),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Horarios disponibles
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Horarios Disponibles",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  
-                  Expanded(
-                    child: _availableSlots.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Este instructor no tiene horarios disponibles en este momento.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey,
-                              ),
+                  const SizedBox(height: 18),
+                  AppCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('1) Elegí un día',
+                            style:
+                                AppTextStyles.heading.copyWith(fontSize: 16)),
+                        const SizedBox(height: 10),
+                        TableCalendar(
+                          firstDay: DateTime.now(),
+                          lastDay: DateTime.now().add(const Duration(days: 90)),
+                          focusedDay: _focusedDay,
+                          selectedDayPredicate: (day) =>
+                              isSameDay(_selectedDay, day),
+                          eventLoader: _getEventsForDay,
+                          onDaySelected: (selectedDay, focusedDay) {
+                            setState(() {
+                              _selectedDay = selectedDay;
+                              _focusedDay = focusedDay;
+                            });
+                            _updateAvailableSlotsForDay(selectedDay);
+                          },
+                          calendarStyle: CalendarStyle(
+                            defaultTextStyle:
+                                const TextStyle(color: AppColors.textPrimary),
+                            weekendTextStyle:
+                                const TextStyle(color: AppColors.textSecondary),
+                            selectedDecoration: const BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
                             ),
-                          )
-                        : ListView.builder(
-                            itemCount: _availableSlots.length,
-                            itemBuilder: (context, index) {
-                              final slot = _availableSlots[index];
-                              final isSelected = _selectedSlot?.id == slot.id;
-                              
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  selected: isSelected,
-                                  selectedTileColor: const Color(0xFF003087).withValues(alpha: 0.1),
-                                  leading: CircleAvatar(
-                                    backgroundColor: isSelected 
-                                        ? const Color(0xFF003087)
-                                        : Colors.grey.shade300,
-                                    child: Icon(
-                                      Icons.schedule,
-                                      color: isSelected ? Colors.white : Colors.grey.shade600,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    DateFormat('EEEE, d MMMM yyyy').format(slot.date),
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  subtitle: Text('${slot.startTime} - ${slot.endTime}'),
-                                  trailing: isSelected 
-                                      ? const Icon(Icons.check_circle, color: Color(0xFF003087))
-                                      : null,
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedSlot = isSelected ? null : slot;
-                                    });
-                                  },
+                            todayDecoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              shape: BoxShape.circle,
+                            ),
+                            markersAlignment: Alignment.bottomCenter,
+                          ),
+                          calendarBuilders: CalendarBuilders(
+                            markerBuilder: (context, day, events) {
+                              if (events.isEmpty) return null;
+                              return Container(
+                                margin: const EdgeInsets.only(top: 35),
+                                width: 16,
+                                height: 3,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(1.5),
                                 ),
                               );
                             },
                           ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: instructor != null && _selectedSlot != null
-                          ? () => _reserveSlot(instructor)
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF003087),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text(
-                        "Reservar y Pagar",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                          headerStyle: HeaderStyle(
+                            titleTextStyle:
+                                AppTextStyles.heading.copyWith(fontSize: 16),
+                            formatButtonVisible: false,
+                            leftChevronIcon: const Icon(Icons.chevron_left,
+                                color: AppColors.textPrimary),
+                            rightChevronIcon: const Icon(Icons.chevron_right,
+                                color: AppColors.textPrimary),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  AppCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('2) Seleccioná horario',
+                            style:
+                                AppTextStyles.heading.copyWith(fontSize: 16)),
+                        const SizedBox(height: 10),
+                        if (_isLoadingSlots)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: SlotPickerSkeleton(),
+                          )
+                        else if (_slotsLoadError != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: AppErrorState(
+                              title: 'No pudimos cargar los horarios',
+                              message: _slotsLoadError,
+                              onRetry: _loadAllSlots,
+                              retryLabel: 'Reintentar',
+                            ),
+                          )
+                        else if (_availableSlots.isEmpty)
+                          AppEmptyState(
+                            icon: Icons.event_busy_rounded,
+                            title: 'Sin turnos este día',
+                            subtitle:
+                                'Elegí otra fecha en el calendario o pedile al instructor que publique más disponibilidad.',
+                          )
+                        else
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 2.5,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
+                            itemCount: _availableSlots.length,
+                            itemBuilder: (context, index) {
+                              final slot = _availableSlots[index];
+                              final isSelected =
+                                  _selectedSlotId == slot['id'].toString();
+                              final start = DateTime.parse(slot['startTime']);
+                              final timeLabel =
+                                  DateFormat('HH:mm').format(start);
+                              return Semantics(
+                                button: true,
+                                selected: isSelected,
+                                label: 'Horario $timeLabel',
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      setState(() {
+                                        _selectedSlotId = slot['id'].toString();
+                                        _selectedSlot =
+                                            Map<String, dynamic>.from(
+                                                slot as Map);
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: AppMotion.duration(
+                                          context, AppDurations.fast),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : AppColors.surfaceLight,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? AppColors.primary
+                                              : AppColors.surfaceLighter,
+                                        ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        timeLabel,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? AppColors.textInverse
+                                              : AppColors.textPrimary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_selectedSlot != null) ...[
+                    const SizedBox(height: 14),
+                    AppCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('3) Revisión previa',
+                              style:
+                                  AppTextStyles.heading.copyWith(fontSize: 16)),
+                          const SizedBox(height: 10),
+                          _line('Horario',
+                              '${DateFormat('HH:mm').format(startsAt!)} - ${DateFormat('HH:mm').format(endsAt!)}'),
+                          _line('Duración', '${duration ?? 0} min'),
+                          _line(
+                              'Precio estimado',
+                              estimatedPrice == null
+                                  ? '—'
+                                  : AppFormatters.ars(estimatedPrice)),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Vas a revisar y confirmar todo antes de reservar.',
+                            style: AppTextStyles.bodyNormal,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
+          ),
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: AppButton(
+              text: 'Continuar al review premium',
+              onPressed: _selectedSlotId == null ? null : _continueToReview,
+              type: _selectedSlotId == null
+                  ? AppButtonType.secondary
+                  : AppButtonType.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: AppTextStyles.bodyNormal),
+          Text(value,
+              style: AppTextStyles.bodyLarge
+                  .copyWith(fontWeight: FontWeight.w700)),
+        ],
+      ),
     );
   }
 }

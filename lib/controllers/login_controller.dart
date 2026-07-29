@@ -14,13 +14,15 @@ import '../utils/user_facing_error.dart';
 
 const storage = appSecureStorage;
 
-Future<void> navigateAfterLogin(BuildContext context, String targetRoute) async {
+Future<void> navigateAfterLogin(
+    BuildContext context, String targetRoute) async {
   if (!context.mounted) return;
   if (targetRoute == ChooseRoleScreen.routeName) {
     final uid = await storage.read(key: 'user_id');
     if (uid != null && uid.isNotEmpty) {
       if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, ChooseRoleScreen.routeName, arguments: uid);
+      Navigator.pushReplacementNamed(context, ChooseRoleScreen.routeName,
+          arguments: uid);
       return;
     }
   }
@@ -103,7 +105,9 @@ class LoginController {
   }
 
   Future<void> submit(BuildContext context, VoidCallback onUpdate) async {
-    if (formKey.currentState == null || !formKey.currentState!.validate()) return;
+    if (formKey.currentState == null || !formKey.currentState!.validate()) {
+      return;
+    }
 
     formKey.currentState!.save();
     isLoading = true;
@@ -151,7 +155,8 @@ class LoginController {
     }
   }
 
-  Future<void> loginWithGoogle(BuildContext context, VoidCallback onUpdate) async {
+  Future<void> loginWithGoogle(
+      BuildContext context, VoidCallback onUpdate) async {
     isLoading = true;
     onUpdate();
     try {
@@ -182,7 +187,8 @@ class LoginController {
     }
   }
 
-  Future<void> loginWithApple(BuildContext context, VoidCallback onUpdate) async {
+  Future<void> loginWithApple(
+      BuildContext context, VoidCallback onUpdate) async {
     isLoading = true;
     onUpdate();
     try {
